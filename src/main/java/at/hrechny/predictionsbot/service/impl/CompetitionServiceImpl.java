@@ -21,6 +21,7 @@ import at.hrechny.predictionsbot.mapper.CompetitionMapper;
 import at.hrechny.predictionsbot.mapper.SeasonMapper;
 import at.hrechny.predictionsbot.service.CompetitionService;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -101,13 +102,21 @@ public class CompetitionServiceImpl implements CompetitionService {
   }
 
   @Override
-  public List<MatchEntity> getFixtures(UUID seasonId, Integer round) {
-    return matchRepository.findAllBySeason_IdAndRoundOrderByStartTimeAsc(seasonId, round);
+  public Integer getUpcomingRound(UUID competitionId) {
+    var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
+        .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
+    return matchRepository.findUpcoming(season).map(MatchEntity::getRound).orElse(null);
   }
 
   @Override
-  public List<MatchEntity> getUpcomingFixtures() {
-    return matchRepository.findUpcoming();
+  public List<MatchEntity> getFixtures(UUID competitionId, Integer round) {
+    if (round == null || round.equals(0)) {
+      return Collections.emptyList();
+    }
+
+    var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
+        .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
+    return matchRepository.findAllBySeasonAndRoundOrderByStartTimeAsc(season, round);
   }
 
   @Override
@@ -203,6 +212,7 @@ public class CompetitionServiceImpl implements CompetitionService {
     var teamEntity = new TeamEntity();
     teamEntity.setName(team.getName());
     teamEntity.setApiFootballId(team.getId());
+    teamEntity.setLogoUrl(team.getLogo());
     teamEntity = teamRepository.save(teamEntity);
     log.info("New team {} has been created: {}", teamEntity.getName(), teamEntity.getId());
     return teamEntity;

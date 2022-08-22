@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,10 +39,6 @@ public class PredictionServiceImpl implements PredictionService {
 
   @Override
   public void saveUser(UserEntity userEntity) {
-    if (userEntity.getTimezone() == null) {
-      userEntity.setTimezone(ZoneOffset.UTC);
-    }
-
     userRepository.save(userEntity);
     log.info("Added/updated user {} with id {}", userEntity.getUsername(), userEntity.getId());
   }
@@ -72,9 +69,7 @@ public class PredictionServiceImpl implements PredictionService {
         return;
       }
 
-      var predictionEntity = matchEntity.getPredictions().stream()
-          .filter(existingPrediction -> existingPrediction.getUser().getId().equals(userId))
-          .findAny().orElseGet(() -> createPredictionEntity(user, matchEntity));
+      var predictionEntity = matchEntity.getPrediction(userId).orElseGet(() -> createPredictionEntity(user, matchEntity));
 
       predictionEntity.setPredictionHome(prediction.getPredictionHome());
       predictionEntity.setPredictionAway(prediction.getPredictionAway());
@@ -90,6 +85,23 @@ public class PredictionServiceImpl implements PredictionService {
     } else {
       validatePredictions(userId, predictionEntities);
       log.info("All predictions for the user {} has been successfully saved", userId);
+    }
+  }
+
+  @Override
+  public List<MatchEntity> getFixtures(UUID competitionId, Integer round) {
+    log.debug("Get fixtures for the league - {}, round - {}", competitionId, round);
+    if (round == null) {
+      round = competitionService.getUpcomingRound(competitionId);
+      log.debug("Upcoming round is {}", round);
+    }
+
+    var fixtures = competitionService.getFixtures(competitionId, round);
+    if (CollectionUtils.isEmpty(fixtures)) {
+      log.warn("No fixtures were found for the round {} of league {}", round, competitionId);
+      return Collections.emptyList();
+    } else {
+      return fixtures;
     }
   }
 

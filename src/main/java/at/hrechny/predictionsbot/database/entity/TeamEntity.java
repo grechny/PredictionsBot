@@ -18,4 +18,7 @@ public class TeamEntity extends GeneratedIdEntity {
   @Column
   private Long apiFootballId;
 
+  @Column
+  private String logoUrl;
+
 }

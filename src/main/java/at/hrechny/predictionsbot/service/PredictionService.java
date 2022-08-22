@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.service;
 
+import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.model.Result;
@@ -13,6 +14,8 @@ public interface PredictionService {
   UserEntity getUser(Long userId);
 
   void savePredictions(Long userId, List<Prediction> predictions);
+
+  List<MatchEntity> getFixtures(UUID competitionId, Integer round);
 
   List<Result> getResults(UUID competitionId);
 

@@ -1,6 +1,7 @@
 package at.hrechny.predictionsbot.database.repository;
 
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
+import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import java.time.Instant;
 import java.util.Arrays;
@@ -15,18 +16,18 @@ public interface MatchRepository extends CrudRepository<MatchEntity, UUID> {
 
   Optional<MatchEntity> findFirstByApiFootballId(Long apiFootballId);
 
+  Optional<MatchEntity> findFirstBySeasonAndStartTimeAfterOrderByStartTimeAsc(SeasonEntity seasonEntity, Instant instant);
+
+  List<MatchEntity> findAllBySeasonAndRoundOrderByStartTimeAsc(SeasonEntity seasonEntity, Integer round);
+
   List<MatchEntity> findAllByStatusInAndStartTimeBefore(List<MatchStatus> statuses, Instant time);
-
-  List<MatchEntity> findAllByStatusInAndStartTimeAfterOrderByStartTimeAsc(List<MatchStatus> statuses, Instant time);
-
-  List<MatchEntity> findAllBySeason_IdAndRoundOrderByStartTimeAsc(UUID seasonId, Integer round);
 
   default List<MatchEntity> findAllActive() {
     return findAllByStatusInAndStartTimeBefore(Arrays.asList(MatchStatus.PLANNED, MatchStatus.STARTED), Instant.now());
   }
 
-  default List<MatchEntity> findUpcoming() {
-    return findAllByStatusInAndStartTimeAfterOrderByStartTimeAsc(List.of(MatchStatus.PLANNED), Instant.now());
+  default Optional<MatchEntity> findUpcoming(SeasonEntity seasonEntity) {
+    return findFirstBySeasonAndStartTimeAfterOrderByStartTimeAsc(seasonEntity, Instant.now());
   }
 
 }

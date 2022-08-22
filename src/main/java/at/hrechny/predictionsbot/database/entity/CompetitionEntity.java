@@ -3,6 +3,7 @@ package at.hrechny.predictionsbot.database.entity;
 import java.util.List;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import lombok.Getter;
@@ -20,7 +21,7 @@ public class CompetitionEntity extends GeneratedIdEntity {
   @Column(unique=true)
   private Long apiFootballId;
 
-  @OneToMany(mappedBy="competition")
+  @OneToMany(mappedBy="competition", fetch = FetchType.EAGER)
   private List<SeasonEntity> seasons;
 
 }

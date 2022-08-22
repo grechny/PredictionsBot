@@ -4,6 +4,7 @@ import at.hrechny.predictionsbot.database.model.MatchStatus;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -56,5 +57,9 @@ public class MatchEntity extends GeneratedIdEntity {
 
   @OneToMany(mappedBy="match", fetch = FetchType.EAGER, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
   private List<PredictionEntity> predictions = new ArrayList<>();
+
+  public Optional<PredictionEntity> getPrediction(Long userId) {
+    return predictions.stream().filter(p -> p.getUser().getId().equals(userId)).findFirst();
+  }
 
 }

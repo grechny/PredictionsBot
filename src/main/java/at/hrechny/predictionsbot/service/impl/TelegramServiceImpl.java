@@ -1,12 +1,13 @@
 package at.hrechny.predictionsbot.service.impl;
 
-import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
+import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.service.CompetitionService;
 import at.hrechny.predictionsbot.service.PredictionService;
 import at.hrechny.predictionsbot.service.TelegramService;
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -15,23 +16,22 @@ import com.pengrad.telegrambot.UpdatesListener;
 import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.model.User;
-import com.pengrad.telegrambot.model.request.InlineKeyboardButton;
-import com.pengrad.telegrambot.model.request.InlineKeyboardMarkup;
+import com.pengrad.telegrambot.model.WebAppInfo;
 import com.pengrad.telegrambot.model.request.KeyboardButton;
 import com.pengrad.telegrambot.model.request.ReplyKeyboardMarkup;
 import com.pengrad.telegrambot.model.request.ReplyKeyboardRemove;
 import com.pengrad.telegrambot.request.SendMessage;
-import java.time.Duration;
-import java.time.Instant;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import javax.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
@@ -44,6 +44,12 @@ public class TelegramServiceImpl implements TelegramService {
 
   @Value("${telegram.token}")
   private String botToken;
+
+  @Value("${application.url}")
+  private String applicationUrl;
+
+  @Value("${secrets.telegramKey}")
+  private String telegramKey;
 
   private TelegramBot telegramBot;
   private TimeZoneMap timezoneMap;
@@ -72,32 +78,33 @@ public class TelegramServiceImpl implements TelegramService {
   private int setUpListener(List<Update> updates) {
     log.debug("Processing Bot updates: {}", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(updates));
     for (var updateMessage : updates) {
-      var message = updateMessage.message();
-      if (updateMessage.callbackQuery() != null) {
-        log.info("Got callback query with data: {}", updateMessage.callbackQuery().data());
-        continue;
-      } else if (message != null && message.location() != null) {
-        updateLocation(message);
-        continue;
-      } else if (message != null && message.text() != null) {
-        var user = updateMessage.message().from();
-        var userId = user.id();
+      try {
+        var message = updateMessage.message();
+        if (updateMessage.callbackQuery() != null) {
+          log.info("Got callback query with data: {}", updateMessage.callbackQuery().data());
+        } else if (message != null && message.location() != null) {
+          updateLocation(message);
+        } else if (message != null && message.webAppData() != null) {
+          savePredictions(message);
+        } else if (message != null && message.text() != null) {
+          var user = message.from();
 
-        switch (message.text()) {
-          case "/start" -> startBot(user);
-          case "/predictions" -> sendPredictions(userId);
-//        case "/results" -> sendResults(userId);
-//        case "/fixtures" -> sendFixtures(userId);
-//        case "/standings" -> sendStandings(userId);
-//        case "/help" -> sendHelp(userId);
-          default -> {
-            log.info("Got the message: {}", message.text());
+          switch (message.text()) {
+            case "/start" -> startBot(user);
+            case "/predictions" -> sendPredictions(user.id());
+//          case "/results" -> sendResults(userId);
+//          case "/fixtures" -> sendFixtures(userId);
+//          case "/standings" -> sendStandings(userId);
+//          case "/help" -> sendHelp(userId);
+            default -> log.info("Got the message: {}", message.text());
           }
+        } else {
+          log.warn("Got unexpected update: {}", updateMessage.updateId());
         }
-      } else
-        log.warn("Got unexpected update: {}", updateMessage.updateId());
-        continue;
+      } catch (Exception ex) {
+        log.error("Unable to process an update {}", updateMessage.updateId(), ex);
       }
+    }
 
     return UpdatesListener.CONFIRMED_UPDATES_ALL;
   }
@@ -113,8 +120,12 @@ public class TelegramServiceImpl implements TelegramService {
     if (predictionService.getUser(user.id()) != null) {
       message = buildChangeTimezoneMessage(user.id(), locale);
     } else {
-      predictionService.saveUser(new UserEntity(user.id(), user.username(), locale, null));
-      message = buildGreetingMessage(user.id(), user.username(), locale);
+      var username = user.username();
+      if (StringUtils.isBlank(username)) {
+        username = StringUtils.isNotBlank(user.firstName()) ? user.firstName() : user.lastName();
+      }
+      predictionService.saveUser(new UserEntity(user.id(), username, locale, ZoneOffset.UTC));
+      message = buildGreetingMessage(user.id(), username, locale);
     }
     sendMessage(message);
   }
@@ -137,28 +148,38 @@ public class TelegramServiceImpl implements TelegramService {
     sendMessage(sendMessage);
   }
 
-  // if there is any match without predictions made in next 3 days - show the buttons for the round
-  // if the matches already has predictions - show the buttons for the active championships (if any match is planned for the next month)
-  // if there is more than one season in one day without predictions - show the buttons for the championship
-  // if the matches for the day already has predictions - show the button edit and then button for the next round (by the date - check if we didn't have this round before)
-  // in that case show the nearest matches (3+)
-  // if the next round has already predictions - show edit button and show next one
-  // then show the matches for the next round
   private void sendPredictions(Long userId) {
+    var buttons = new ArrayList<KeyboardButton>();
+
     var user = predictionService.getUser(userId);
-    var upcomingFixtures = competitionService.getUpcomingFixtures();
-    var next3daysMatches = upcomingFixtures.stream().filter(match -> match.getStartTime().isBefore(Instant.now().plus(Duration.ofDays(3)))).toList();
-    if (!next3daysMatches.isEmpty()) {
-      for (var match : next3daysMatches) {
-        var predictionMissed = match.getPredictions().stream().noneMatch(prediction -> prediction.getUser().getId().equals(userId));
-        if (predictionMissed) {
-          var roundMatches = competitionService.getFixtures(match.getSeason().getId(), match.getRound());
-          var predictionTableMessage = buildPredictionTableMessage(user, roundMatches);
-          sendMessage(predictionTableMessage);
-          return;
-        }
+    var competitions = competitionService.getCompetitions();
+    competitions.forEach(competition -> {
+      if (competition.isActive()) {
+        var keyboardButton = new KeyboardButton(competition.getName());
+        keyboardButton.webAppInfo(new WebAppInfo(buildPredictionsUrl(userId, competition.getId())));
+        buttons.add(keyboardButton);
       }
+    });
+
+    String message;
+    if (buttons.isEmpty()) {
+      message = messageSource.getMessage("predictions.no_competitions", null, user.getLanguage());
+    } else {
+      message = messageSource.getMessage("predictions", null, user.getLanguage());
     }
+    SendMessage sendMessage = new SendMessage(userId, message);
+    sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttons.toArray(new KeyboardButton[0])).resizeKeyboard(true));
+    sendMessage(sendMessage);
+  }
+
+  @SneakyThrows
+  private void savePredictions(Message message) {
+    var predictions = objectMapper.readValue(message.webAppData().data(), new TypeReference<List<Prediction>>() {});
+    predictionService.savePredictions(message.from().id(), predictions);
+  }
+
+  private String buildPredictionsUrl(Long userId, UUID competitionId) {
+    return applicationUrl + "/" + telegramKey + "/users/" + userId + "/predictions?leagueId=" + competitionId;
   }
 
   private SendMessage buildGreetingMessage(Long userId, String username, Locale locale) {
@@ -175,44 +196,6 @@ public class TelegramServiceImpl implements TelegramService {
 
     var message = new SendMessage(userId, messageSource.getMessage("start.location.change", null, locale));
     return message.replyMarkup(new ReplyKeyboardMarkup(locationButton).resizeKeyboard(true));
-  }
-
-  private SendMessage buildPredictionTableMessage(UserEntity user, List<MatchEntity> roundMatches) {
-    var season = roundMatches.get(0).getSeason();
-    var competition = season.getCompetition().getName();
-    var roundName = season.getApiFootballRounds().stream()
-        .filter(round -> roundMatches.get(0).getRound().equals(round.getOrderNumber()))
-        .findAny().orElseThrow(() -> new RuntimeException("Unable to find the round"))
-        .getRoundName();
-
-    var keyboard = new ArrayList<InlineKeyboardButton[]>();
-    for (var match : roundMatches) {
-      var keyboardRow = new ArrayList<InlineKeyboardButton>();
-      var homePrediction = 0;
-      var awayPrediction = 0;
-      var radioButton = "\u26AA";
-      var userPredictionOptional = match.getPredictions().stream()
-          .filter(prediction -> prediction.getUser().equals(user))
-          .findFirst();
-      if (userPredictionOptional.isPresent()) {
-        var userPrediction = userPredictionOptional.get();
-        homePrediction = userPrediction.getPredictionHome();
-        awayPrediction = userPrediction.getPredictionAway();
-        if (userPrediction.isDoubleUp()) {
-          radioButton = "\uD83D\uDD18";
-        }
-      }
-      keyboardRow.add(new InlineKeyboardButton(match.getHomeTeam().getName() + "\n\r" + homePrediction).callbackData("pressed"));
-      keyboardRow.add(new InlineKeyboardButton(match.getStartTime().atZone(user.getTimezone()).format(DateTimeFormatter.ofPattern("dd.MM.yyyy hh.mm")) + "\n" + radioButton).callbackData("pressed"));
-      keyboardRow.add(new InlineKeyboardButton(match.getAwayTeam().getName() + "\n" + awayPrediction).callbackData("pressed"));
-      keyboard.add(keyboardRow.toArray(new InlineKeyboardButton[0]));
-    }
-
-    keyboard.add(new InlineKeyboardButton[] { new InlineKeyboardButton(messageSource.getMessage("predictions.save", null, user.getLanguage())).callbackData("pressed") } );
-
-    var message = new SendMessage(user.getId(), messageSource.getMessage("predictions.round", List.of(competition, roundName).toArray(), user.getLanguage()));
-    message.replyMarkup(new InlineKeyboardMarkup(keyboard.toArray(new InlineKeyboardButton[0][])));
-    return message;
   }
 
 }

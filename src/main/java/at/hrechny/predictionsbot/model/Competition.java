@@ -17,4 +17,7 @@ public class Competition {
   @NotNull
   private Long apiFootballId;
 
+  @NotNull
+  private boolean active;
+
 }

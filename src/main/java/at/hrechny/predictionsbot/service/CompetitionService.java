@@ -19,9 +19,9 @@ public interface CompetitionService {
 
   List<Season> getSeasons(UUID competitionId);
 
-  List<MatchEntity> getFixtures(UUID seasonId, Integer round);
+  Integer getUpcomingRound(UUID competitionId);
 
-  List<MatchEntity> getUpcomingFixtures();
+  List<MatchEntity> getFixtures(UUID competitionId, Integer round);
 
   @Scheduled
   void refreshFixtures();

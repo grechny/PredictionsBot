@@ -32,3 +32,7 @@ secrets:
 
 telegram:
   token: ${telegram.token}
+
+logging:
+  level:
+    at.hrechny.predictionsbot: ${logging.level}
