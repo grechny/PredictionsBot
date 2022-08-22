@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: PredictionsBot
+  jpa:
+    hibernate.ddl-auto: update
+    database: postgresql
+  datasource:
+    url: ${spring.datasource.url}
+    username: ${spring.datasource.username}
+    password: ${spring.datasource.password}
+    driver-class-name: org.postgresql.Driver
+  cloud:
+    vault:
+      authentication: TOKEN
+      uri: ${VAULT_URI}
+      token: ${VAULT_TOKEN}
+      fail-fast: true
+  config:
+    import: vault:///secret/${spring.application.name}
+
+connectors:
+  api-football:
+    url: ${connectors.api-football.url}
+    apiKey: ${connectors.api-football.apiKey}
+    minInterval: ${connectors.api-football.minInterval}
+    maxAttempts: ${connectors.api-football.maxAttempts}
+    dayStarts: ${connectors.api-football.dayStarts}
+
+secrets:
+  adminKey: ${secrets.adminKey}
+  telegramKey: ${secrets.telegramKey}
+
+telegram:
+  token: ${telegram.token}

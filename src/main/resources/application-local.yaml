@@ -1,0 +1,8 @@
+spring:
+  jpa:
+    hibernate.ddl-auto: update
+    database: postgresql
+
+logging:
+  level:
+    at.hrechny.predictionsbot: DEBUG

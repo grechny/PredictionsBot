@@ -1,0 +1,6 @@
+spring:
+  datasource:
+   url: jdbc:h2:mem:predictions
+   driverClassName: org.h2.Driver
+  jpa:
+   database-platform: org.hibernate.dialect.PostgreSQLDialect
