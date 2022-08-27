@@ -7,15 +7,16 @@ import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.UserRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
+import at.hrechny.predictionsbot.mapper.UserMapper;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.model.Result;
 import at.hrechny.predictionsbot.service.CompetitionService;
 import at.hrechny.predictionsbot.service.PredictionService;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PredictionServiceImpl implements PredictionService {
 
+  private final UserMapper userMapper;
   private final MatchRepository matchRepository;
   private final SeasonRepository seasonRepository;
   private final UserRepository userRepository;
@@ -114,7 +116,7 @@ public class PredictionServiceImpl implements PredictionService {
   }
 
   @Override
-  public List<Result> getRoundResults(UUID competitionId, int round) {
+  public List<Result> getResults(UUID competitionId, int round) {
     competitionService.refreshActiveFixtures();
 
     var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
@@ -127,27 +129,50 @@ public class PredictionServiceImpl implements PredictionService {
     var predictions = matches.stream()
         .filter(match -> match.getStatus() == MatchStatus.FINISHED)
         .flatMap(match -> match.getPredictions().stream())
-        .collect(Collectors.groupingBy(predictionEntity -> predictionEntity.getUser().getId()));
+        .collect(Collectors.groupingBy(PredictionEntity::getUser));
 
     var predictionsLive = matches.stream()
         .filter(match -> match.getStatus() == MatchStatus.STARTED)
         .flatMap(match -> match.getPredictions().stream())
-        .collect(Collectors.groupingBy(predictionEntity -> predictionEntity.getUser().getId()));
+        .collect(Collectors.groupingBy(PredictionEntity::getUser));
 
     var results = new ArrayList<Result>();
-    for (var userId : SetUtils.union(predictions.keySet(), predictionsLive.keySet())) {
+    for (var user : SetUtils.union(predictions.keySet(), predictionsLive.keySet())) {
       var result = new Result();
-      result.setUserId(userId);
-      result.setSum(calculateResults(predictions.get(userId)));
-      result.setLiveSum(calculateResults(predictionsLive.get(userId)));
+      result.setUser(userMapper.entityToModel(user));
+      result.setPredictions(predictions.get(user).size());
+      result.setPredictionsLive(CollectionUtils.isNotEmpty(predictionsLive.get(user)) ? predictionsLive.get(user).size() : 0);
+      result.setGuessed(calculateGuessed(predictions.get(user)));
+      result.setSum(calculateResults(predictions.get(user)));
+      result.setLiveSum(calculateResults(predictionsLive.get(user)));
       results.add(result);
     }
-    return results;
+    return results.stream().sorted(Comparator.comparingInt(Result::getSum).reversed()).toList();
+  }
+
+  private Integer calculateGuessed(List<PredictionEntity> predictionEntities) {
+    if (CollectionUtils.isEmpty(predictionEntities)) {
+      return 0;
+    }
+
+    AtomicInteger sum = new AtomicInteger();
+    predictionEntities.forEach(prediction -> {
+      var match = prediction.getMatch();
+
+      //draw hit
+      if (match.getHomeTeamScore() - match.getAwayTeamScore() == prediction.getPredictionHome() - prediction.getPredictionAway()) {
+        sum.incrementAndGet();
+      //winner hit
+      } else if (match.getHomeTeamScore() > match.getAwayTeamScore() == prediction.getPredictionHome() > prediction.getPredictionAway()) {
+        sum.incrementAndGet();
+      }
+    });
+    return sum.intValue();
   }
 
   private Integer calculateResults(List<PredictionEntity> predictionEntities) {
     if (CollectionUtils.isEmpty(predictionEntities)) {
-      return null;
+      return 0;
     }
 
     AtomicInteger sum = new AtomicInteger();

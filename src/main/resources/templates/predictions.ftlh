@@ -21,28 +21,28 @@
   </#if>
 </#function>
 
-<#function matchDoubled match>
+<#function matchDouble match>
   <#if match.getPrediction(user.id).isPresent() >
-      <#return match.getPrediction(user.id).get().doubleUp?c/>
-  <#else>
-      <#return 'false'>
+    <#if match.getPrediction(user.id).get().doubleUp >
+      <#return 'double'>
+    </#if>
   </#if>
 </#function>
 
 <#function getHomePrediction match>
-    <#if match.getPrediction(user.id).isPresent() >
-        <#return match.getPrediction(user.id).get().predictionHome/>
-    <#else>
-        <#return 0>
-    </#if>
+  <#if match.getPrediction(user.id).isPresent() >
+    <#return match.getPrediction(user.id).get().predictionHome/>
+  <#else>
+    <#return 0>
+  </#if>
 </#function>
 
 <#function getAwayPrediction match>
-    <#if match.getPrediction(user.id).isPresent() >
-        <#return match.getPrediction(user.id).get().predictionAway/>
-    <#else>
-        <#return 0>
-    </#if>
+  <#if match.getPrediction(user.id).isPresent() >
+    <#return match.getPrediction(user.id).get().predictionAway/>
+  <#else>
+    <#return 0>
+  </#if>
 </#function>
 
 <!DOCTYPE html>
@@ -65,6 +65,7 @@
     setThemeClass();
   </script>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/predictions.css">
 </head>
 
 <body>
@@ -76,10 +77,9 @@
 
 <section>
 <#list fixtures as match>
-  <div id="${match.id}" class="match" onclick="setDoubled(this)" data-started=${matchStarted(match)} data-doubled=${matchDoubled(match)}>
+  <div id="${match.id}" class="match ${matchDouble(match)!}" onclick="setDouble(this)" data-started=${matchStarted(match)}>
 
     <span><@withTimeZone user.getTimezone().toString()>${match.startTime.toEpochMilli()?number_to_datetime?string('dd MMMM, HH:mm')}</@></span>
-<#--    <span>${match.startTime.atZone(user.getTimezone()).toEpochSecond()?number_to_datetime?string["dd MMMM, HH:mm"]}</span>-->
 
     <div class="row">
 
@@ -114,22 +114,16 @@
 
   function init() {
     const mainButton = window.Telegram.WebApp.MainButton;
-    mainButton.setText("<@spring.message "buttons.save" />")
+    mainButton.setText("<@spring.message "buttons.save" />");
     mainButton.onClick(function () {save();});
     mainButton.show();
 
-    let matches = document.querySelectorAll(".match");
-    for (let i = 0; i < matches.length; i++) {
-      let match = matches[i];
-      if (match.dataset.doubled === 'true') {
-        match.style.backgroundColor = 'rgb(147 192 89 / 66%)';
-        mainButton.enable();
-        return;
-      }
+    if (document.querySelector(".double")) {
+      mainButton.enable();
+    } else {
+      mainButton.disable();
+      mainButton.color = '#d7d7d7'
     }
-
-    mainButton.disable();
-    mainButton.color = '#d7d7d7'
   }
 
   function save() {
@@ -139,7 +133,7 @@
         "matchId": match.id,
         "predictionHome": match.querySelector('#scoreHome').innerHTML,
         "predictionAway": match.querySelector('#scoreAway').innerHTML,
-        "doubleUp": match.dataset.doubled
+        "doubleUp": match.classList.contains('double')
       }
       data.push(matchData);
     });
@@ -151,15 +145,15 @@
     window.Telegram.WebApp.close();
   }
 
-  function setDoubled(element) {
-    if (event.srcElement.classList.contains("plusminus")) {
+  function setDouble(element) {
+    if (event.srcElement.classList.contains('plusminus')) {
       return;
     }
 
-    let matches = document.querySelectorAll(".match");
+    let matches = document.querySelectorAll('.match');
     for (let i = 0; i < matches.length; i++) {
       let match = matches[i];
-      if (match.dataset.started === 'true' && match.dataset.doubled === 'true') {
+      if (match.dataset.started === 'true' && match.classList.contains('double')) {
         console.log("Unable to change double attribute. Match already started");
         return;
       }
@@ -170,14 +164,11 @@
       return;
     }
 
-    matches.forEach((match) => {
-      match.style.removeProperty('background-color');
-      match.style.removeProperty('opacity');
-      match.dataset.doubled = 'false';
-    });
+    if (document.querySelector('.double')) {
+      document.querySelector('.double').classList.remove('double')
+    }
+    element.classList.add('double');
 
-    element.style.backgroundColor = 'rgb(147 192 89 / 66%)';
-    element.dataset.doubled = 'true';
     window.Telegram.WebApp.MainButton.enable();
     window.Telegram.WebApp.MainButton.color = null;
     console.log("Double attribute has set");

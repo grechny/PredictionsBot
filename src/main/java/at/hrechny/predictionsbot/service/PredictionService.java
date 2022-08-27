@@ -19,6 +19,6 @@ public interface PredictionService {
 
   List<Result> getResults(UUID competitionId);
 
-  List<Result> getRoundResults(UUID competitionId, int round);
+  List<Result> getResults(UUID competitionId, int round);
 
 }

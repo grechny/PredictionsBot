@@ -92,7 +92,7 @@ public class TelegramServiceImpl implements TelegramService {
           switch (message.text()) {
             case "/start" -> startBot(user);
             case "/predictions" -> sendPredictions(user.id());
-//          case "/results" -> sendResults(userId);
+            case "/results" -> sendResults(user.id());
 //          case "/fixtures" -> sendFixtures(userId);
 //          case "/standings" -> sendStandings(userId);
 //          case "/help" -> sendHelp(userId);
@@ -149,6 +149,14 @@ public class TelegramServiceImpl implements TelegramService {
   }
 
   private void sendPredictions(Long userId) {
+    sendCompetitions(userId, "predictions");
+  }
+
+  private void sendResults(Long userId) {
+    sendCompetitions(userId, "results");
+  }
+
+  private void sendCompetitions(Long userId, String key) {
     var buttons = new ArrayList<KeyboardButton>();
 
     var user = predictionService.getUser(userId);
@@ -156,16 +164,16 @@ public class TelegramServiceImpl implements TelegramService {
     competitions.forEach(competition -> {
       if (competition.isActive()) {
         var keyboardButton = new KeyboardButton(competition.getName());
-        keyboardButton.webAppInfo(new WebAppInfo(buildPredictionsUrl(userId, competition.getId())));
+        keyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(userId, competition.getId(), key)));
         buttons.add(keyboardButton);
       }
     });
 
     String message;
     if (buttons.isEmpty()) {
-      message = messageSource.getMessage("predictions.no_competitions", null, user.getLanguage());
+      message = messageSource.getMessage("no_competitions", null, user.getLanguage());
     } else {
-      message = messageSource.getMessage("predictions", null, user.getLanguage());
+      message = messageSource.getMessage(key, null, user.getLanguage());
     }
     SendMessage sendMessage = new SendMessage(userId, message);
     sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttons.toArray(new KeyboardButton[0])).resizeKeyboard(true));
@@ -178,8 +186,8 @@ public class TelegramServiceImpl implements TelegramService {
     predictionService.savePredictions(message.from().id(), predictions);
   }
 
-  private String buildPredictionsUrl(Long userId, UUID competitionId) {
-    return applicationUrl + "/" + telegramKey + "/users/" + userId + "/predictions?leagueId=" + competitionId;
+  private String buildGeneralUrl(Long userId, UUID competitionId, String key) {
+    return applicationUrl + "/" + telegramKey + "/users/" + userId + "/" + key + "?leagueId=" + competitionId;
   }
 
   private SendMessage buildGreetingMessage(Long userId, String username, Locale locale) {

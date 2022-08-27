@@ -5,7 +5,13 @@ import lombok.Data;
 @Data
 public class Result {
 
-  private Long userId;
+  private User user;
+
+  private Integer predictions;
+
+  private Integer predictionsLive;
+
+  private Integer guessed;
 
   private Integer sum;
 

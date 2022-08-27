@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -50,6 +51,13 @@ public class CompetitionServiceImpl implements CompetitionService {
     var entity = competitionRepository.save(competitionMapper.modelToEntity(competition));
     log.info("The competition has been successfully stored: {}", entity.getId());
     return entity.getId();
+  }
+
+  @Override
+  public Competition getCompetition(UUID competitionId) {
+    CompetitionEntity entity = competitionRepository.findById(competitionId)
+        .orElseThrow(() -> new IllegalArgumentException("Competition with the specified ID not found"));
+    return competitionMapper.entityToModel(entity);
   }
 
   @Override
@@ -130,6 +138,10 @@ public class CompetitionServiceImpl implements CompetitionService {
   @Override
   public void refreshActiveFixtures() {
     var activeMatches = matchRepository.findAllActive();
+    if (activeMatches.isEmpty()) {
+      return;
+    }
+
     var fixturesIds = new ArrayList<Long>();
     activeMatches.forEach(match -> fixturesIds.add(match.getApiFootballId()));
     try {

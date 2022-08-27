@@ -11,6 +11,8 @@ public interface CompetitionService {
 
   UUID addCompetition(Competition competition);
 
+  Competition getCompetition(UUID competitionId);
+
   List<Competition> getCompetitions();
 
   UUID addSeason(UUID competitionId, Season season);
