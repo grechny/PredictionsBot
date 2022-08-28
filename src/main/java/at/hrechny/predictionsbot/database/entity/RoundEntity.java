@@ -22,4 +22,7 @@ public class RoundEntity extends GeneratedIdEntity {
   @Column
   private String roundName;
 
+  @Column
+  private String apiFootballRoundName;
+
 }

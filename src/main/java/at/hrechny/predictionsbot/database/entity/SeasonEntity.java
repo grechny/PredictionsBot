@@ -32,9 +32,6 @@ public class SeasonEntity extends GeneratedIdEntity  {
   @OneToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE })
   private List<RoundEntity> apiFootballRounds;
 
-  @Column
-  private int startRound;
-
   @OneToMany(mappedBy="season", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
   private List<MatchEntity> matches = new ArrayList<>();
 

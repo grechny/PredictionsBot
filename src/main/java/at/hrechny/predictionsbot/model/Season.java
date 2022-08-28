@@ -17,8 +17,6 @@ public class Season {
   @Null
   private String competition;
 
-  private int startRound = 1;
-
   private boolean active = true;
 
 }

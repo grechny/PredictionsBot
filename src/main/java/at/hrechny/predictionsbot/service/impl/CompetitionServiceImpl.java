@@ -22,13 +22,14 @@ import at.hrechny.predictionsbot.mapper.SeasonMapper;
 import at.hrechny.predictionsbot.service.CompetitionService;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -173,7 +174,7 @@ public class CompetitionServiceImpl implements CompetitionService {
 
   private void refreshFixtures(List<Fixture> fixtures, SeasonEntity seasonEntity) {
     var rounds = seasonEntity.getApiFootballRounds().stream()
-        .collect(Collectors.toMap(RoundEntity::getRoundName, RoundEntity::getOrderNumber));
+        .collect(Collectors.toMap(RoundEntity::getApiFootballRoundName, RoundEntity::getOrderNumber));
 
     fixtures.forEach(fixture -> {
       var fixtureData = fixture.getFixture();
@@ -184,10 +185,18 @@ public class CompetitionServiceImpl implements CompetitionService {
       if (existingMatchEntity.isPresent()) {
         matchEntity = existingMatchEntity.get();
       } else {
+        var round = rounds.get(fixture.getLeague().getRound());
+        if (round == null) {
+          refreshRounds(seasonEntity, rounds);
+          round = rounds.get(fixture.getLeague().getRound());
+        } else if (round == 0) {
+          return;
+        }
+
         matchEntity = new MatchEntity();
         matchEntity.setApiFootballId(fixtureData.getId());
         matchEntity.setSeason(seasonEntity);
-        matchEntity.setRound(rounds.get(fixture.getLeague().getRound()));
+        matchEntity.setRound(round);
         matchEntity.setHomeTeam(getTeamEntity(fixture.getTeams().getHome()));
         matchEntity.setAwayTeam(getTeamEntity(fixture.getTeams().getAway()));
         seasonEntity.getMatches().add(matchEntity);
@@ -200,6 +209,24 @@ public class CompetitionServiceImpl implements CompetitionService {
     });
     seasonRepository.save(seasonEntity);
     log.info("Fixtures have been successfully updated for the season {}", seasonEntity.getId());
+  }
+
+  private void refreshRounds(SeasonEntity seasonEntity, Map<String, Integer> rounds) {
+    var actualRounds = apiFootballConnector.getRounds(seasonEntity.getCompetition().getApiFootballId(), seasonEntity.getYear());
+    var roundEntities = seasonEntity.getApiFootballRounds();
+    var maxOrderNumberRound = roundEntities.stream().max(Comparator.comparingInt(RoundEntity::getOrderNumber)).orElse(null);
+    var nextOrderNumber = maxOrderNumberRound != null ? maxOrderNumberRound.getOrderNumber() + 1 : 0;
+    AtomicInteger i = new AtomicInteger(nextOrderNumber);
+    actualRounds.stream()
+        .filter(round -> !rounds.containsKey(round))
+        .forEach(round -> {
+          var roundEntity = new RoundEntity();
+          roundEntity.setOrderNumber(i.getAndIncrement());
+          roundEntity.setApiFootballRoundName(round);
+          roundEntities.add(roundEntity);
+        });
+    seasonEntity.setApiFootballRounds(roundEntities);
+    seasonRepository.save(seasonEntity);
   }
 
   private MatchStatus mapStatus(Status status) {
@@ -245,7 +272,7 @@ public class CompetitionServiceImpl implements CompetitionService {
     rounds.forEach(round -> {
       var roundEntity = new RoundEntity();
       roundEntity.setOrderNumber(i.getAndIncrement());
-      roundEntity.setRoundName(round);
+      roundEntity.setApiFootballRoundName(round);
       roundEntities.add(roundEntity);
     });
     return roundEntities;
