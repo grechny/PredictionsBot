@@ -88,15 +88,21 @@ public class TelegramServiceImpl implements TelegramService {
           savePredictions(message);
         } else if (message != null && message.text() != null) {
           var user = message.from();
+          var userId = user.id();
 
           switch (message.text()) {
             case "/start" -> startBot(user);
-            case "/predictions" -> sendPredictions(user.id());
-            case "/results" -> sendResults(user.id());
-//          case "/fixtures" -> sendFixtures(userId);
-//          case "/standings" -> sendStandings(userId);
-//          case "/help" -> sendHelp(userId);
-            default -> log.info("Got the message: {}", message.text());
+            case "/predictions" -> sendPredictions(userId);
+            case "/results" -> sendResults(userId);
+            case "/timezone" -> sendTimezoneMessage(userId);
+            case "/help" -> sendHelp(userId);
+            default -> {
+              if (message.text().startsWith("/username ")) {
+                updateUsername(userId, message.text().substring(10));
+              } else {
+                log.info("Got the message: {}", message.text());
+              }
+            }
           }
         } else {
           log.warn("Got unexpected update: {}", updateMessage.updateId());
@@ -111,22 +117,43 @@ public class TelegramServiceImpl implements TelegramService {
 
   private void sendMessage(SendMessage message) {
     var response = telegramBot.execute(message);
-    log.info("Message {} has been successfully sent", response.message().messageId());
+    if (response.isOk()) {
+      log.info("Message {} has been successfully sent", response.message().messageId());
+    } else {
+      log.error("Message was not send: [{}] {}", response.errorCode(), response.description());
+    }
   }
 
   private void startBot(User user) {
     SendMessage message;
     var locale = new Locale(user.languageCode());
     if (predictionService.getUser(user.id()) != null) {
-      message = buildChangeTimezoneMessage(user.id(), locale);
-    } else {
-      var username = user.username();
-      if (StringUtils.isBlank(username)) {
-        username = StringUtils.isNotBlank(user.firstName()) ? user.firstName() : user.lastName();
-      }
-      predictionService.saveUser(new UserEntity(user.id(), username, locale, ZoneOffset.UTC));
-      message = buildGreetingMessage(user.id(), username, locale);
+      sendHelp(user.id());
+      return;
     }
+
+    var username = user.username();
+    if (StringUtils.isBlank(username)) {
+      username = StringUtils.isNotBlank(user.firstName()) ? user.firstName() : user.lastName();
+    }
+    predictionService.saveUser(new UserEntity(user.id(), username, locale, ZoneOffset.UTC));
+    message = buildGreetingMessage(user.id(), username, locale);
+    sendMessage(message);
+  }
+
+  private void sendHelp(Long userId) {
+    var user = predictionService.getUser(userId);
+    var sendMessage = new SendMessage(userId, messageSource.getMessage("help", null, user.getLanguage()));
+    sendMessage(sendMessage);
+  }
+
+  private void sendTimezoneMessage(Long userId) {
+    var user = predictionService.getUser(userId);
+    var locationButton = new KeyboardButton(messageSource.getMessage("buttons.location", null, user.getLanguage()));
+    locationButton.requestLocation(true);
+
+    var message = new SendMessage(userId, messageSource.getMessage("start.location.change", null, user.getLanguage()));
+    message.replyMarkup(new ReplyKeyboardMarkup(locationButton).resizeKeyboard(true));
     sendMessage(message);
   }
 
@@ -145,6 +172,21 @@ public class TelegramServiceImpl implements TelegramService {
       sendMessage = new SendMessage(userEntity.getId(), messageSource.getMessage("start.location.error", null, userEntity.getLanguage()));
       sendMessage.replyMarkup(new ReplyKeyboardRemove());
     }
+    sendMessage(sendMessage);
+  }
+
+  private void updateUsername(Long userId, String username) {
+    var user = predictionService.getUser(userId);
+    String message;
+    username = StringUtils.normalizeSpace(username);
+    if (username.length() < 3 || username.length() > 20) {
+      message = messageSource.getMessage("username.length", null, user.getLanguage());
+    } else {
+      user.setUsername(username);
+      predictionService.saveUser(user);
+      message = messageSource.getMessage("username.success", List.of(username).toArray(), user.getLanguage());
+    }
+    SendMessage sendMessage = new SendMessage(userId, message);
     sendMessage(sendMessage);
   }
 
@@ -191,18 +233,10 @@ public class TelegramServiceImpl implements TelegramService {
   }
 
   private SendMessage buildGreetingMessage(Long userId, String username, Locale locale) {
-    var locationButton = new KeyboardButton(messageSource.getMessage("start.button", null, locale));
+    var locationButton = new KeyboardButton(messageSource.getMessage("buttons.location", null, locale));
     locationButton.requestLocation(true);
 
     var message = new SendMessage(userId, messageSource.getMessage("start.greeting", List.of(username).toArray(), locale));
-    return message.replyMarkup(new ReplyKeyboardMarkup(locationButton).resizeKeyboard(true));
-  }
-
-  private SendMessage buildChangeTimezoneMessage(Long userId, Locale locale) {
-    var locationButton = new KeyboardButton(messageSource.getMessage("start.button", null, locale));
-    locationButton.requestLocation(true);
-
-    var message = new SendMessage(userId, messageSource.getMessage("start.location.change", null, locale));
     return message.replyMarkup(new ReplyKeyboardMarkup(locationButton).resizeKeyboard(true));
   }
 
