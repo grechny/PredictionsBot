@@ -1,20 +1,26 @@
 <#import "/spring.ftl" as spring />
 
-<#macro withTimeZone tz>
+<#function getStartTime match>
+  <#if (match.startTime??) >
     <#local lastTZ = .time_zone>
-    <#setting time_zone = tz>
-    <#nested>
+    <#setting time_zone = user.getTimezone().toString()>
+    <#assign matchStartTime = match.startTime.toEpochMilli()?number_to_datetime?string('dd MMMM, HH:mm')>
     <#setting time_zone = lastTZ>
-</#macro>
+    <#return matchStartTime />
+  <#else>
+    <#local time_tbd><@spring.message "time_tbd" /></#local>
+    <#return time_tbd />
+  </#if>
+</#function>
 
 <#function disableButton match>
-  <#if (.now > match.startTime.toEpochMilli()?number_to_datetime) >
+  <#if (match.startTime??) && (.now > match.startTime.toEpochMilli()?number_to_datetime) >
     <#return 'disabled'>
   </#if>
 </#function>
 
 <#function matchStarted match>
-  <#if (.now > match.startTime.toEpochMilli()?number_to_datetime) >
+  <#if (match.startTime??) && (.now > match.startTime.toEpochMilli()?number_to_datetime) >
     <#return 'true'>
   <#else>
     <#return 'false'>
@@ -79,7 +85,8 @@
 <#list fixtures as match>
   <div id="${match.id}" class="match ${matchDouble(match)!}" onclick="setDouble(this)" data-started=${matchStarted(match)}>
 
-    <span><@withTimeZone user.getTimezone().toString()>${match.startTime.toEpochMilli()?number_to_datetime?string('dd MMMM, HH:mm')}</@></span>
+    <span>${getStartTime(match)}</span>
+<#--    <span><@withTimeZone user.getTimezone().toString()>${match.startTime.toEpochMilli()?number_to_datetime?string('dd MMMM, HH:mm')}</@></span>-->
 
     <div class="row">
 
