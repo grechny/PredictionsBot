@@ -25,7 +25,7 @@
 <body>
 
   <section>
-    <h1>${fixtures[0].season.competition.name}</h1>
+    <h1>${competitionName}</h1>
     <h3><@spring.message "no_matches" /></h3>
     <img src="/images/football-field.png" alt=""/>
   </section>

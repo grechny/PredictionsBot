@@ -46,7 +46,9 @@ public class TelegramWebAppController {
 
     var fixtures = competitionService.getFixtures(leagueId, round);
     if (fixtures.isEmpty()) {
-      return new ModelAndView("no-upcoming-matches");
+      var modelAndView = new ModelAndView("no-upcoming-matches");
+      modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());
+      return modelAndView;
     }
 
     var modelAndView = new ModelAndView("predictions");
