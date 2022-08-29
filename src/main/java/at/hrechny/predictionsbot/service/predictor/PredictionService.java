@@ -128,7 +128,9 @@ public class PredictionService {
       if (match.getHomeTeamScore() - match.getAwayTeamScore() == prediction.getPredictionHome() - prediction.getPredictionAway()) {
         sum.incrementAndGet();
       //winner hit
-      } else if (match.getHomeTeamScore() > match.getAwayTeamScore() == prediction.getPredictionHome() > prediction.getPredictionAway()) {
+      } else if (match.getHomeTeamScore() > match.getAwayTeamScore() && prediction.getPredictionHome() > prediction.getPredictionAway()) {
+        sum.incrementAndGet();
+      } else if (match.getHomeTeamScore() < match.getAwayTeamScore() && prediction.getPredictionHome() < prediction.getPredictionAway()) {
         sum.incrementAndGet();
       }
     });
@@ -148,11 +150,14 @@ public class PredictionService {
       //exact hit
       if (match.getHomeTeamScore().equals(prediction.getPredictionHome()) && match.getAwayTeamScore().equals(prediction.getPredictionAway())) {
         result = 5;
-        //difference hit
+      //difference hit
       } else if (match.getHomeTeamScore() - match.getAwayTeamScore() == prediction.getPredictionHome() - prediction.getPredictionAway()) {
         result = 3;
-        //winner hit
-      } else if (match.getHomeTeamScore() > match.getAwayTeamScore() == prediction.getPredictionHome() > prediction.getPredictionAway()) {
+      //winner hit (home)
+      } else if (match.getHomeTeamScore() > match.getAwayTeamScore() && prediction.getPredictionHome() > prediction.getPredictionAway()) {
+        result = 2;
+      //winner hit (away)
+      } else if (match.getHomeTeamScore() < match.getAwayTeamScore() && prediction.getPredictionHome() < prediction.getPredictionAway()) {
         result = 2;
       }
 
