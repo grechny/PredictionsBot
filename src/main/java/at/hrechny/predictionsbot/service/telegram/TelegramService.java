@@ -161,6 +161,14 @@ public class TelegramService {
     sendMessage(sendMessage);
   }
 
+  public void sendReminder(Long userId, String messageCode, String matches, Locale locale) {
+    if (locale == null) {
+      locale = new Locale("ru");
+    }
+
+    sendMessage(new SendMessage(userId, messageSource.getMessage(messageCode, List.of(matches).toArray(), locale)));
+  }
+
   private void sendCompetitions(User user, String key) {
     var locale = getLocale(user);
     var buttons = new ArrayList<KeyboardButton>();

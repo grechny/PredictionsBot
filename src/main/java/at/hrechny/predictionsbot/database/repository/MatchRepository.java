@@ -20,6 +20,8 @@ public interface MatchRepository extends CrudRepository<MatchEntity, UUID> {
 
   List<MatchEntity> findAllBySeasonAndRoundOrderByStartTimeAsc(SeasonEntity seasonEntity, Integer round);
 
+  List<MatchEntity> findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(Instant from, Instant until);
+
   List<MatchEntity> findAllByStatusInAndStartTimeBefore(List<MatchStatus> statuses, Instant time);
 
   default List<MatchEntity> findAllActive() {

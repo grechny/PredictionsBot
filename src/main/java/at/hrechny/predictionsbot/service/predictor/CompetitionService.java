@@ -19,6 +19,8 @@ import at.hrechny.predictionsbot.database.repository.CompetitionRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.mapper.CompetitionMapper;
 import at.hrechny.predictionsbot.mapper.SeasonMapper;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -105,6 +107,11 @@ public class CompetitionService {
     var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
         .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
     return matchRepository.findUpcoming(season).map(MatchEntity::getRound).orElse(null);
+  }
+
+  public List<MatchEntity> getUpcomingFixtures() {
+    return matchRepository.findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(
+        Instant.now(), Instant.now().plus(Duration.ofHours(30).plusSeconds(1)));
   }
 
   public List<MatchEntity> getFixtures(UUID competitionId, Integer round) {
