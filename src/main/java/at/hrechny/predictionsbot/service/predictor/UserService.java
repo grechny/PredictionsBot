@@ -2,7 +2,9 @@ package at.hrechny.predictionsbot.service.predictor;
 
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.repository.UserRepository;
+import at.hrechny.predictionsbot.exception.NotFoundException;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +24,11 @@ public class UserService {
   }
 
   public UserEntity getUser(Long userId) {
-    return userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
+    return userRepository.findByIdAndActiveIsTrue(userId).orElseThrow(() -> new NotFoundException("User not found"));
+  }
+
+  public List<UserEntity> getUsers() {
+    return userRepository.findAllByActiveIsTrue();
   }
 
   public void updateUsername(Long userId, String username) {
@@ -49,4 +55,12 @@ public class UserService {
     userEntity.setLanguage(language != null ? new Locale(language) : null);
     saveUser(userEntity);
   }
+
+  public void deactivate(Long userId) {
+    log.info("Deactivating user {}", userId);
+    var userEntity = getUser(userId);
+    userEntity.setActive(false);
+    saveUser(userEntity);
+  }
+
 }

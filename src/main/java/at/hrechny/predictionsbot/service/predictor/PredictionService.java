@@ -5,7 +5,6 @@ import at.hrechny.predictionsbot.database.entity.PredictionEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
-import at.hrechny.predictionsbot.database.repository.UserRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.mapper.UserMapper;
 import at.hrechny.predictionsbot.model.Prediction;
@@ -33,13 +32,13 @@ public class PredictionService {
   private final UserMapper userMapper;
   private final MatchRepository matchRepository;
   private final SeasonRepository seasonRepository;
-  private final UserRepository userRepository;
   private final CompetitionService competitionService;
+  private final UserService userService;
 
   @Transactional
   public void savePredictions(Long userId, List<Prediction> predictions) {
     log.info("Saving predictions for the user {}", userId);
-    var user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User with id " + userId + " not found"));
+    var user = userService.getUser(userId);
 
     if (CollectionUtils.isEmpty(predictions)) {
       log.warn("No predictions found to save");

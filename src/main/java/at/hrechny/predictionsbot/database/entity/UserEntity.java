@@ -34,4 +34,7 @@ public class UserEntity {
   @Convert(converter = ZoneIdConverter.class)
   private ZoneId timezone;
 
+  @Column
+  private boolean active = true;
+
 }

@@ -36,10 +36,6 @@ public class TelegramWebAppController {
       @RequestParam(value = "round", required = false) Integer round) {
 
     var user = userService.getUser(userId);
-    if (user == null) {
-      throw new IllegalArgumentException("User '" + userId + "' not found");
-    }
-
     if (user.getLanguage() != null) {
       localeResolver.setLocale(request, null, user.getLanguage());
     }
@@ -66,10 +62,6 @@ public class TelegramWebAppController {
       @RequestParam(value = "round", required = false) Integer round) {
 
     var user = userService.getUser(userId);
-    if (user == null) {
-      throw new IllegalArgumentException("User '" + userId + "' not found");
-    }
-
     if (user.getLanguage() != null) {
       localeResolver.setLocale(request, null, user.getLanguage());
     }

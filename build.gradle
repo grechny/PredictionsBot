@@ -38,13 +38,13 @@ dependencies {
 
     // Tools
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.13.3'
-    implementation 'com.github.pengrad:java-telegram-bot-api:6.1.0'
+    implementation 'com.github.pengrad:java-telegram-bot-api:6.2.0'
     implementation 'org.apache.commons:commons-collections4:4.4'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
     implementation 'org.mapstruct:mapstruct:1.5.2.Final'
     implementation 'us.dustinj.timezonemap:timezonemap:4.5'
 
-    runtimeOnly 'org.postgresql:postgresql:42.4.1'
+    runtimeOnly 'org.postgresql:postgresql:42.4.2'
     compileOnly 'org.projectlombok:lombok'
 
     annotationProcessor 'org.projectlombok:lombok'

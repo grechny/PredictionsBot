@@ -73,6 +73,7 @@ public class MessageListener implements UpdatesListener {
             case "/timezone" -> telegramService.sendTimezoneMessage(user);
             case "/language" -> telegramService.sendLanguageMessage(user);
             case "/help" -> telegramService.sendHelp(user);
+            case "/stop" -> stopBot(user);
             default -> {
               if (message.text().startsWith("/username ")) {
                 updateUsername(user, message.text().substring(10));
@@ -139,6 +140,11 @@ public class MessageListener implements UpdatesListener {
 
     userService.updateLanguage(user.id(), language);
     telegramService.sendLanguageConfirmation(user);
+  }
+
+  private void stopBot(User user) {
+    telegramService.stopBot(user);
+    userService.deactivate(user.id());
   }
 
 }

@@ -1,6 +1,7 @@
 package at.hrechny.predictionsbot.service.telegram;
 
 import at.hrechny.predictionsbot.database.entity.UserEntity;
+import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import com.pengrad.telegrambot.TelegramBot;
@@ -66,16 +67,19 @@ public class TelegramService {
 
   public void startBot(User user) {
     SendMessage message;
-    if (userService.getUser(user.id()) != null) {
+    try {
+      userService.getUser(user.id());
       sendHelp(user);
       return;
+    } catch (NotFoundException ex) {
+      log.info("No active user found with id {}. New user will be created", user.id());
     }
 
     var username = user.username();
     if (StringUtils.isBlank(username)) {
       username = StringUtils.isNotBlank(user.firstName()) ? user.firstName() : user.lastName();
     }
-    userService.saveUser(new UserEntity(user.id(), username, null, ZoneOffset.UTC));
+    userService.saveUser(new UserEntity(user.id(), username, null, ZoneOffset.UTC, true));
     message = buildGreetingMessage(user, username);
     sendMessage(message);
   }
@@ -118,6 +122,10 @@ public class TelegramService {
     var sendMessage = new SendMessage(user.id(), messageSource.getMessage("language", null, locale));
     sendMessage.replyMarkup(new InlineKeyboardMarkup(systemLanguageButton, enLanguageButton, ruLanguageButton));
     sendMessage(sendMessage);
+  }
+
+  public void stopBot(User user) {
+    sendMessage(new SendMessage(user.id(), messageSource.getMessage("stop", null, getLocale(user))));
   }
 
   public void sendLanguageConfirmation(User user) {
