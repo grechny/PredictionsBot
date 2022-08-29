@@ -25,13 +25,6 @@
   <meta name="robots" content="noindex,nofollow" />
   <title></title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script>
-    function setThemeClass() {
-      document.documentElement.className = window.Telegram.WebApp.colorScheme;
-    }
-    window.Telegram.WebApp.onEvent('themeChanged', setThemeClass);
-    setThemeClass();
-  </script>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/results.css">
 </head>

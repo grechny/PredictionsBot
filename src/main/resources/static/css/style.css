@@ -1,15 +1,14 @@
 body {
   font-family: sans-serif;
-  background-color: var(--tg-theme-bg-color, #ffffff);
-  color: var(--tg-theme-text-color, #222222);
+  background-color: #ffffff;
+  color: #222222;
   font-size: 16px;
   margin: 0;
   padding: 0;
-  color-scheme: var(--tg-color-scheme);
 }
 
 a {
-  color: var(--tg-theme-link-color, #2678b6);
+  color: #2678b6;
 }
 
 img {
@@ -27,12 +26,12 @@ section {
 }
 
 li {
-  color: var(--tg-theme-hint-color, #a8a8a8);
+  color: #a8a8a8;
 }
 
 .hint {
   font-size: .8em;
-  color: var(--tg-theme-hint-color, #a8a8a8);
+  color: #a8a8a8;
 }
 
 .ok {
