@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.service.impl;
+package at.hrechny.predictionsbot.service.predictor;
 
 import at.hrechny.predictionsbot.connector.apifootball.ApiFootballConnector;
 import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConnectorException;
@@ -19,7 +19,6 @@ import at.hrechny.predictionsbot.database.repository.CompetitionRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.mapper.CompetitionMapper;
 import at.hrechny.predictionsbot.mapper.SeasonMapper;
-import at.hrechny.predictionsbot.service.CompetitionService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -30,13 +29,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CompetitionServiceImpl implements CompetitionService {
+public class CompetitionService {
 
   private final SeasonMapper seasonMapper;
   private final SeasonRepository seasonRepository;
@@ -46,7 +44,6 @@ public class CompetitionServiceImpl implements CompetitionService {
   private final MatchRepository matchRepository;
   private final ApiFootballConnector apiFootballConnector;
 
-  @Override
   public UUID addCompetition(Competition competition) {
     log.info("Adding the new competition: {}", competition);
     var entity = competitionRepository.save(competitionMapper.modelToEntity(competition));
@@ -54,14 +51,12 @@ public class CompetitionServiceImpl implements CompetitionService {
     return entity.getId();
   }
 
-  @Override
   public Competition getCompetition(UUID competitionId) {
     CompetitionEntity entity = competitionRepository.findById(competitionId)
         .orElseThrow(() -> new IllegalArgumentException("Competition with the specified ID not found"));
     return competitionMapper.entityToModel(entity);
   }
 
-  @Override
   public List<Competition> getCompetitions() {
     var entityList = competitionRepository.findAll();
     var competitionList = new ArrayList<Competition>();
@@ -69,7 +64,6 @@ public class CompetitionServiceImpl implements CompetitionService {
     return competitionList;
   }
 
-  @Override
   public UUID addSeason(UUID competitionId, Season season) {
     log.info("Adding the new season for the competition {}: {}", competitionId, season);
     CompetitionEntity competitionEntity = competitionRepository.findById(competitionId)
@@ -83,11 +77,9 @@ public class CompetitionServiceImpl implements CompetitionService {
     seasonEntity = seasonRepository.save(seasonEntity);
     log.info("The season has been successfully stored");
 
-    refreshFixtures(seasonEntity);
     return seasonEntity.getId();
   }
 
-  @Override
   public void updateSeason(UUID competitionId, Season season) {
     log.info("Updating the season {} for the competition {}", season.getId(), competitionId);
     var seasonEntity = seasonRepository.findById(season.getId()).orElse(null);
@@ -102,7 +94,6 @@ public class CompetitionServiceImpl implements CompetitionService {
     log.info("The season {} has been successfully updated", seasonEntity.getId());
   }
 
-  @Override
   public List<Season> getSeasons(UUID competitionId) {
     var entityList = seasonRepository.findAllByCompetition_Id(competitionId);
     var seasonList = new ArrayList<Season>();
@@ -110,14 +101,12 @@ public class CompetitionServiceImpl implements CompetitionService {
     return seasonList;
   }
 
-  @Override
   public Integer getUpcomingRound(UUID competitionId) {
     var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
         .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
     return matchRepository.findUpcoming(season).map(MatchEntity::getRound).orElse(null);
   }
 
-  @Override
   public List<MatchEntity> getFixtures(UUID competitionId, Integer round) {
     if (round == null || round.equals(0)) {
       return Collections.emptyList();
@@ -128,15 +117,12 @@ public class CompetitionServiceImpl implements CompetitionService {
     return matchRepository.findAllBySeasonAndRoundOrderByStartTimeAsc(season, round);
   }
 
-  @Override
-  @Scheduled(cron = "0 0 8 * * *", zone = "UTC")
   public void refreshFixtures() {
     log.info("Start refreshing fixtures data for the all active competitions");
     var activeSeasons = seasonRepository.findAllByActiveIsTrue();
     activeSeasons.forEach(this::refreshFixtures);
   }
 
-  @Override
   public void refreshActiveFixtures() {
     var activeMatches = matchRepository.findAllActive();
     if (activeMatches.isEmpty()) {

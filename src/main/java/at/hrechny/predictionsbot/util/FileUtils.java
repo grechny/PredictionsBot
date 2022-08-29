@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.utils;
+package at.hrechny.predictionsbot.util;
 
 import java.io.BufferedReader;
 import java.io.InputStream;

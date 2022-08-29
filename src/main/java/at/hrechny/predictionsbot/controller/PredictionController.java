@@ -1,7 +1,7 @@
 package at.hrechny.predictionsbot.controller;
 
 import at.hrechny.predictionsbot.model.Prediction;
-import at.hrechny.predictionsbot.service.PredictionService;
+import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import java.util.List;
 import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;

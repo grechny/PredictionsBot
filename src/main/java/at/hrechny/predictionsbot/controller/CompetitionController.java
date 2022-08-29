@@ -2,7 +2,7 @@ package at.hrechny.predictionsbot.controller;
 
 import at.hrechny.predictionsbot.model.Competition;
 import at.hrechny.predictionsbot.model.Season;
-import at.hrechny.predictionsbot.service.CompetitionService;
+import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

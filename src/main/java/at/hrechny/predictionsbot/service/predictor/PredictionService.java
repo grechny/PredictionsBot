@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.service.impl;
+package at.hrechny.predictionsbot.service.predictor;
 
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.PredictionEntity;
@@ -10,12 +10,9 @@ import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.mapper.UserMapper;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.model.Result;
-import at.hrechny.predictionsbot.service.CompetitionService;
-import at.hrechny.predictionsbot.service.PredictionService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +28,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class PredictionServiceImpl implements PredictionService {
+public class PredictionService {
 
   private final UserMapper userMapper;
   private final MatchRepository matchRepository;
@@ -39,18 +36,6 @@ public class PredictionServiceImpl implements PredictionService {
   private final UserRepository userRepository;
   private final CompetitionService competitionService;
 
-  @Override
-  public void saveUser(UserEntity userEntity) {
-    userRepository.save(userEntity);
-    log.info("Added/updated user {} with id {}", userEntity.getUsername(), userEntity.getId());
-  }
-
-  @Override
-  public UserEntity getUser(Long userId) {
-    return userRepository.findById(userId).orElse(null);
-  }
-
-  @Override
   @Transactional
   public void savePredictions(Long userId, List<Prediction> predictions) {
     log.info("Saving predictions for the user {}", userId);
@@ -90,24 +75,6 @@ public class PredictionServiceImpl implements PredictionService {
     }
   }
 
-  @Override
-  public List<MatchEntity> getFixtures(UUID competitionId, Integer round) {
-    log.debug("Get fixtures for the league - {}, round - {}", competitionId, round);
-    if (round == null) {
-      round = competitionService.getUpcomingRound(competitionId);
-      log.debug("Upcoming round is {}", round);
-    }
-
-    var fixtures = competitionService.getFixtures(competitionId, round);
-    if (CollectionUtils.isEmpty(fixtures)) {
-      log.warn("No fixtures were found for the round {} of league {}", round, competitionId);
-      return Collections.emptyList();
-    } else {
-      return fixtures;
-    }
-  }
-
-  @Override
   public List<Result> getResults(UUID competitionId) {
     competitionService.refreshActiveFixtures();
     var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
@@ -115,7 +82,6 @@ public class PredictionServiceImpl implements PredictionService {
     return getResults(season.getMatches());
   }
 
-  @Override
   public List<Result> getResults(UUID competitionId, int round) {
     competitionService.refreshActiveFixtures();
 
