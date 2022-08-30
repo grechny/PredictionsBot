@@ -218,7 +218,6 @@ public class CompetitionService {
           roundEntity.setApiFootballRoundName(round);
           roundEntities.add(roundEntity);
         });
-    seasonEntity.setApiFootballRounds(roundEntities);
     seasonRepository.save(seasonEntity);
   }
 

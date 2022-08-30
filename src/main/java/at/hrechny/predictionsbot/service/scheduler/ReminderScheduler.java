@@ -38,8 +38,10 @@ public class ReminderScheduler {
     var upcomingFixturesToday = upcomingFixtures.stream()
         .filter(match -> match.getStartTime().isBefore(Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS)))
         .toList();
+    var upcomingSeasonsToday = upcomingFixturesToday.stream().collect(Collectors.groupingBy(MatchEntity::getSeason));
     var upcomingFixturesNextDay = competitionService.getUpcomingFixtures().stream()
         .filter(match -> match.getStartTime().isAfter(Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS)))
+        .filter(match -> upcomingSeasonsToday.get(match.getSeason()).stream().noneMatch(todayMatch -> todayMatch.getRound().equals(match.getRound())))
         .toList();
 
     userService.getUsers().forEach(user -> {
