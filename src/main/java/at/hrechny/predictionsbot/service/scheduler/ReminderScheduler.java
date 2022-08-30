@@ -12,14 +12,17 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.context.MessageSource;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -31,44 +34,48 @@ public class ReminderScheduler {
   private final UserService userService;
   private final TelegramService telegramService;
   private final CompetitionService competitionService;
+  private final MessageSource messageSource;
 
   @Scheduled(cron = "0 0 * * * *", zone = "UTC")
   public void sendReminders() {
-    var upcomingFixtures = competitionService.getUpcomingFixtures();
-    var upcomingFixturesToday = upcomingFixtures.stream()
-        .filter(match -> match.getStartTime().isBefore(Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS)))
-        .toList();
-    var upcomingSeasonsToday = upcomingFixturesToday.stream().collect(Collectors.groupingBy(MatchEntity::getSeason));
-    var upcomingFixturesNextDay = competitionService.getUpcomingFixtures().stream()
-        .filter(match -> match.getStartTime().isAfter(Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS)))
-        .filter(match -> upcomingSeasonsToday.get(match.getSeason()).stream().noneMatch(todayMatch -> todayMatch.getRound().equals(match.getRound())))
+    var todaysFixtures = competitionService.getFixtures(
+        Instant.now().truncatedTo(ChronoUnit.DAYS),
+        Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS));
+    var tomorrowsFixtures = competitionService.getFixtures(
+        Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS),
+        Instant.now().plus(Duration.ofDays(2)).truncatedTo(ChronoUnit.DAYS));
+    var todaysSeasons = todaysFixtures.stream().collect(Collectors.groupingBy(MatchEntity::getSeason));
+    var tomorrowsNewRoundFixtures = tomorrowsFixtures.stream()
+        .filter(match -> todaysSeasons.getOrDefault(match.getSeason(), Collections.emptyList()).stream().noneMatch(todayMatch -> todayMatch.getRound().equals(match.getRound())))
         .toList();
 
     userService.getUsers().forEach(user -> {
       // send reminder if predictions are missing for the upcoming today's matches (<= 2 hours till the first one)
-      var firstMatch = upcomingFixturesToday.stream().min(Comparator.comparing(MatchEntity::getStartTime));
-      if (firstMatch.isPresent() && Instant.now().plus(Duration.ofHours(2)).isAfter(firstMatch.get().getStartTime())) {
-        String upcomingMatchesString = getMissedPredictions(upcomingFixturesToday, user);
-        if (StringUtils.isNoneBlank(upcomingMatchesString)) {
-          telegramService.sendReminder(user.getId(), "reminders.today", upcomingMatchesString, user.getLanguage());
+      var firstMatch = todaysFixtures.stream().min(Comparator.comparing(MatchEntity::getStartTime));
+      if (firstMatch.isPresent() // first match is between 1 and 2 hours from now
+          && firstMatch.get().getStartTime().isBefore(Instant.now().plus(Duration.ofHours(2).plusSeconds(1)))
+          && firstMatch.get().getStartTime().isAfter(Instant.now().plus(Duration.ofHours(1)))) {
+        String upcomingMatchesString = getMissedPredictions(todaysFixtures, user);
+        if (StringUtils.isNotBlank(upcomingMatchesString)) {
+          sendReminder(user, "reminders.today", upcomingMatchesString);
         }
       }
 
       // check if now from 19:59 till 20.59
       // then send daily reminder if no predictions made for the next day
       // or if some predictions were made more than week ago
-      if (CollectionUtils.isNotEmpty(upcomingFixturesNextDay)) {
+      if (CollectionUtils.isNotEmpty(tomorrowsNewRoundFixtures)) {
         var dailyNotificationTime = LocalTime.parse("20:00");
         var userTime = LocalTime.now(user.getTimezone());
         if (userTime.isAfter(dailyNotificationTime.minusMinutes(1)) && userTime.isBefore(dailyNotificationTime.plusMinutes(59))) {
-          String missedPredictionsString = getMissedPredictions(upcomingFixturesNextDay, user);
+          String missedPredictionsString = getMissedPredictions(tomorrowsNewRoundFixtures, user);
           if (StringUtils.isNoneBlank(missedPredictionsString)) {
-            telegramService.sendReminder(user.getId(), "reminders.tomorrow", missedPredictionsString, user.getLanguage());
+            sendReminder(user, "reminders.tomorrow", missedPredictionsString);
           }
 
-          String oldPredictionsString = getOldPredictions(upcomingFixturesNextDay, user);
+          String oldPredictionsString = getOldPredictions(tomorrowsNewRoundFixtures, user);
           if (StringUtils.isNoneBlank(oldPredictionsString)) {
-            telegramService.sendReminder(user.getId(), "reminders.recheck", oldPredictionsString, user.getLanguage());
+            sendReminder(user, "reminders.recheck", oldPredictionsString);
           }
         }
       }
@@ -119,27 +126,38 @@ public class ReminderScheduler {
         StringBuilder seasonString = new StringBuilder();
         var season = seasonMatches.getKey();
         var matches = seasonMatches.getValue();
-        seasonString.append(season.getCompetition().getName()).append('\n');
+        seasonString.append("<u>").append(season.getCompetition().getName()).append("</u>").append('\n');
         for (var match : matches) {
-          var roundName = getRoundName(match);
+          var roundName = getRoundName(user, match);
           var startTime = match.getStartTime().atZone(user.getTimezone()).format(DateTimeFormatter.ofPattern("dd MMMM, HH:mm"));
           seasonString
               .append(startTime).append(": ")
-              .append(match.getHomeTeam()).append(" - ").append(match.getAwayTeam())
-              .append("( ").append(roundName).append(" )");
+              .append(match.getHomeTeam().getName()).append(" - ").append(match.getAwayTeam().getName())
+              .append(" (").append(roundName).append(")").append("\n");
         }
         seasonStrings.add(seasonString.toString());
       }
-      return StringUtils.join(seasonStrings, "\n\n");
+      return StringUtils.join(seasonStrings, "\n");
     }
     return null;
   }
 
-  private String getRoundName(MatchEntity match) {
+  private void sendReminder(UserEntity user, String messageCode, String matches) {
+    var message = messageSource.getMessage(messageCode, List.of(matches).toArray(), getLocale(user));
+    telegramService.sendMessage(user.getId(), message);
+  }
+
+  private String getRoundName(UserEntity user, MatchEntity match) {
+    var locale = getLocale(user);
     var roundEntity = match.getSeason().getApiFootballRounds().stream()
         .filter(round -> match.getRound().equals(round.getOrderNumber()))
         .findFirst().orElseThrow(() -> new NotFoundException("Round " + match.getRound() + "not found for the match " + match.getId()));
-    return StringUtils.isNotBlank(roundEntity.getRoundName()) ? roundEntity.getRoundName() : "Round " + roundEntity.getOrderNumber();
+    var round = messageSource.getMessage("round", null, locale).toLowerCase(locale);
+    return StringUtils.isNotBlank(roundEntity.getRoundName()) ? roundEntity.getRoundName() : round + " " + roundEntity.getOrderNumber();
+  }
+
+  private Locale getLocale(UserEntity user) {
+    return user.getLanguage() != null ? user.getLanguage() : new Locale("ru");
   }
 
 }

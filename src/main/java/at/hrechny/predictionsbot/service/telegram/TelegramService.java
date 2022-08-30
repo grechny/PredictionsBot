@@ -11,6 +11,7 @@ import com.pengrad.telegrambot.model.WebAppInfo;
 import com.pengrad.telegrambot.model.request.InlineKeyboardButton;
 import com.pengrad.telegrambot.model.request.InlineKeyboardMarkup;
 import com.pengrad.telegrambot.model.request.KeyboardButton;
+import com.pengrad.telegrambot.model.request.ParseMode;
 import com.pengrad.telegrambot.model.request.ReplyKeyboardMarkup;
 import com.pengrad.telegrambot.model.request.ReplyKeyboardRemove;
 import com.pengrad.telegrambot.request.SendMessage;
@@ -56,13 +57,8 @@ public class TelegramService {
     telegramBot.setUpdatesListener(updatesListener);
   }
 
-  public void sendMessage(SendMessage message) {
-    var response = telegramBot.execute(message);
-    if (response.isOk()) {
-      log.info("Message {} has been successfully sent", response.message().messageId());
-    } else {
-      log.error("Message was not send: [{}] {}", response.errorCode(), response.description());
-    }
+  public void sendMessage(Long userId, String message) {
+    sendMessage(new SendMessage(userId, message).parseMode(ParseMode.HTML));
   }
 
   public void startBot(User user) {
@@ -161,14 +157,6 @@ public class TelegramService {
     sendMessage(sendMessage);
   }
 
-  public void sendReminder(Long userId, String messageCode, String matches, Locale locale) {
-    if (locale == null) {
-      locale = new Locale("ru");
-    }
-
-    sendMessage(new SendMessage(userId, messageSource.getMessage(messageCode, List.of(matches).toArray(), locale)));
-  }
-
   private void sendCompetitions(User user, String key) {
     var locale = getLocale(user);
     var buttons = new ArrayList<KeyboardButton>();
@@ -217,6 +205,15 @@ public class TelegramService {
   private Locale getLocale(User user) {
     var userEntity = userService.getUser(user.id());
     return userEntity.getLanguage() != null ? userEntity.getLanguage() : new Locale(user.languageCode());
+  }
+
+  private void sendMessage(SendMessage message) {
+    var response = telegramBot.execute(message);
+    if (response.isOk()) {
+      log.info("Message {} has been successfully sent", response.message().messageId());
+    } else {
+      log.error("Message was not send: [{}] {}", response.errorCode(), response.description());
+    }
   }
 
 }

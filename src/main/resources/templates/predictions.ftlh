@@ -38,6 +38,8 @@
 <#function getHomePrediction match>
   <#if match.getPrediction(user.id).isPresent() >
     <#return match.getPrediction(user.id).get().predictionHome/>
+  <#elseif matchStarted(match) == 'true' >
+    <#return '−'>
   <#else>
     <#return 0>
   </#if>
@@ -46,6 +48,8 @@
 <#function getAwayPrediction match>
   <#if match.getPrediction(user.id).isPresent() >
     <#return match.getPrediction(user.id).get().predictionAway/>
+  <#elseif matchStarted(match) == 'true' >
+    <#return '−'>
   <#else>
     <#return 0>
   </#if>
@@ -79,7 +83,6 @@
   <div id="${match.id}" class="match ${matchDouble(match)!}" onclick="setDouble(this)" data-started=${matchStarted(match)}>
 
     <span>${getStartTime(match)}</span>
-<#--    <span><@withTimeZone user.getTimezone().toString()>${match.startTime.toEpochMilli()?number_to_datetime?string('dd MMMM, HH:mm')}</@></span>-->
 
     <div class="row">
 

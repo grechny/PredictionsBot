@@ -10,6 +10,7 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.LazyCollection;
@@ -17,6 +18,7 @@ import org.hibernate.annotations.LazyCollectionOption;
 
 @Getter
 @Setter
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "seasons", uniqueConstraints = { @UniqueConstraint(columnNames = { "competition_id", "year" }) })
 public class SeasonEntity extends GeneratedIdEntity  {
