@@ -188,8 +188,15 @@ public class TelegramService {
     } else {
       message = messageSource.getMessage(key, null, locale);
     }
+
+    var buttonsArray = new KeyboardButton[buttons.size()][1];
+    for (int i = 0; i < buttons.size(); i++) {
+      KeyboardButton button = buttons.get(i);
+      buttonsArray[i] = new KeyboardButton[] { button };
+    }
+
     SendMessage sendMessage = new SendMessage(user.id(), message);
-    sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttons.toArray(new KeyboardButton[0])).resizeKeyboard(true));
+    sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttonsArray).resizeKeyboard(true));
     sendMessage(sendMessage);
   }
 
