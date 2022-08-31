@@ -1,9 +1,11 @@
 package at.hrechny.predictionsbot.controller;
 
+import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.model.Result;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
+import at.hrechny.predictionsbot.util.HashUtils;
 import java.util.List;
 import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
@@ -12,13 +14,11 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.ModelAndView;
 
 @Controller
-@RequestMapping("/${secrets.telegramKey}/")
 @RequiredArgsConstructor
 public class TelegramWebAppController {
 
@@ -26,14 +26,20 @@ public class TelegramWebAppController {
   private final CompetitionService competitionService;
   private final PredictionService predictionService;
   private final UserService userService;
+  private final HashUtils hashUtils;
 
   private final HttpServletRequest request;
 
-  @GetMapping(value = "/users/{userId}/predictions", produces = MediaType.TEXT_HTML_VALUE)
+  @GetMapping(value = "/{hash}/users/{userId}/predictions", produces = MediaType.TEXT_HTML_VALUE)
   public ModelAndView getPredictions(
+      @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
       @RequestParam("leagueId") UUID leagueId,
       @RequestParam(value = "round", required = false) Integer round) {
+
+    if (!hashUtils.getHash(userId.toString()).equals(hash)) {
+      throw new NotFoundException("User not found");
+    }
 
     var user = userService.getUser(userId);
     if (user.getLanguage() != null) {
@@ -57,11 +63,16 @@ public class TelegramWebAppController {
     return modelAndView;
   }
 
-  @GetMapping(value = "/users/{userId}/results", produces = MediaType.TEXT_HTML_VALUE)
+  @GetMapping(value = "/{hash}/users/{userId}/results", produces = MediaType.TEXT_HTML_VALUE)
   public ModelAndView getResults(
+      @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
       @RequestParam("leagueId") UUID leagueId,
       @RequestParam(value = "round", required = false) Integer round) {
+
+    if (!hashUtils.getHash(userId.toString()).equals(hash)) {
+      throw new NotFoundException("User not found");
+    }
 
     var user = userService.getUser(userId);
     if (user.getLanguage() != null) {

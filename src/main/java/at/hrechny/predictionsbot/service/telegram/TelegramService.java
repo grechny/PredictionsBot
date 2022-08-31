@@ -4,6 +4,7 @@ import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
+import at.hrechny.predictionsbot.util.HashUtils;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
 import com.pengrad.telegrambot.model.User;
@@ -39,14 +40,12 @@ public class TelegramService {
   @Value("${application.url}")
   private String applicationUrl;
 
-  @Value("${secrets.telegramKey}")
-  private String telegramKey;
-
   private TelegramBot telegramBot;
 
   private final MessageSource messageSource;
   private final CompetitionService competitionService;
   private final UserService userService;
+  private final HashUtils hashUtils;
 
   @PostConstruct
   public void init() {
@@ -189,7 +188,7 @@ public class TelegramService {
   }
 
   private String buildGeneralUrl(Long userId, UUID competitionId, String key) {
-    return applicationUrl + "/" + telegramKey + "/users/" + userId + "/" + key + "?leagueId=" + competitionId;
+    return applicationUrl + "/" + hashUtils.getHash(userId.toString()) + "/users/" + userId + "/" + key + "?leagueId=" + competitionId;
   }
 
   private SendMessage buildGreetingMessage(User user, String username) {

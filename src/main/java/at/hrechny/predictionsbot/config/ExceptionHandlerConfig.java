@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.config;
 
+import at.hrechny.predictionsbot.exception.NotFoundException;
 import javax.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.ConversionNotSupportedException;
@@ -36,6 +37,7 @@ public class ExceptionHandlerConfig {
       HttpMessageNotWritableException.class,
       MethodArgumentNotValidException.class,
       IllegalArgumentException.class,
+      NotFoundException.class,
       org.hibernate.exception.ConstraintViolationException.class
   })
   public ResponseEntity<Object> handleBadRequestException(Exception ex) {
