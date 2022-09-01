@@ -104,10 +104,13 @@ public class CompetitionService {
     return seasonList;
   }
 
-  public Integer getUpcomingRound(UUID competitionId) {
-    var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
+  public SeasonEntity getCurrentSeason(UUID competitionId) {
+    return seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
         .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
-    return matchRepository.findUpcoming(season).map(MatchEntity::getRound).orElse(null);
+  }
+
+  public Integer getUpcomingRound(UUID competitionId) {
+    return matchRepository.findUpcoming(getCurrentSeason(competitionId)).map(MatchEntity::getRound).orElse(null);
   }
 
   public List<MatchEntity> getFixtures(Instant from, Instant to) {
@@ -120,9 +123,7 @@ public class CompetitionService {
       return Collections.emptyList();
     }
 
-    var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
-        .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
-    return matchRepository.findAllBySeasonAndRoundOrderByStartTimeAsc(season, round);
+    return matchRepository.findAllBySeasonAndRoundOrderByStartTimeAsc(getCurrentSeason(competitionId), round);
   }
 
   public void refreshFixtures() {

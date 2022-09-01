@@ -13,6 +13,25 @@
   </#if>
 </#function>
 
+<#function getRoundName round>
+    <#if round.roundName?? >
+        <#return round.roundName>
+    <#else>
+        <#local roundLocalized><@spring.message "round" /></#local>
+        <#assign roundName = roundLocalized + " " + round.orderNumber>
+        <#return roundName>
+    </#if>
+</#function>
+
+<#function isActiveRound round>
+  <#if activeRound?? >
+    <#if round.orderNumber == activeRound >
+      <#return true>
+    </#if>
+  </#if>
+  <#return false>
+</#function>
+
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/html">
 <head>
@@ -33,6 +52,11 @@
 
 <section>
   <h1>${competitionName}</h1>
+  <div class="scroll">
+  <#list rounds as round>
+    <button <#if isActiveRound(round) >class="active"</#if> onclick="location.href='${baseUrl + isActiveRound(round)?then(0, round.orderNumber)}'">${getRoundName(round)}</button>
+  </#list>
+  </div>
 </section>
 
 <section>
@@ -70,6 +94,33 @@
       .onClick(function () {webviewClose();})
       .show()
       .enable();
+
+  let maxWidth = 0;
+  const buttons = document.querySelectorAll(".scroll button");
+  buttons.forEach(roundButton => {
+    let width = parseFloat(roundButton.offsetWidth) + 1;
+    if (width > maxWidth) {
+      maxWidth = width;
+    }
+  })
+
+  buttons.forEach(roundButton => {
+    roundButton.style.width = maxWidth +'px';
+  })
+
+  let scrollDiv = document.querySelector(".scroll");
+  if (buttons.length * maxWidth < scrollDiv.offsetWidth) {
+    scrollDiv.style.width = (buttons.length * maxWidth - buttons.length + 1) + 'px'
+  }
+
+  let roundButton = document.querySelector(".active");
+  if (roundButton === null) {
+    roundButton = scrollDiv.lastElementChild;
+  }
+  roundButton.scrollIntoView({
+    inline: "center",
+    block: "nearest"
+  });
 
   function webviewClose() {
     window.Telegram.WebApp.close();

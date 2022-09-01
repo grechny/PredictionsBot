@@ -5,7 +5,6 @@ import at.hrechny.predictionsbot.database.entity.PredictionEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
-import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.mapper.UserMapper;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.model.Result;
@@ -31,7 +30,6 @@ public class PredictionService {
 
   private final UserMapper userMapper;
   private final MatchRepository matchRepository;
-  private final SeasonRepository seasonRepository;
   private final CompetitionService competitionService;
   private final UserService userService;
 
@@ -76,17 +74,14 @@ public class PredictionService {
 
   public List<Result> getResults(UUID competitionId) {
     competitionService.refreshActiveFixtures();
-    var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
-        .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
-    return getResults(season.getMatches());
+    return getResults(competitionService.getCurrentSeason(competitionId).getMatches());
   }
 
   public List<Result> getResults(UUID competitionId, int round) {
     competitionService.refreshActiveFixtures();
 
-    var season = seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
-        .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
-    var matchesOfRound = season.getMatches().stream().filter(match -> match.getRound() == round).toList();
+    var matchesOfRound = competitionService.getCurrentSeason(competitionId).getMatches().stream()
+        .filter(match -> match.getRound() == round).toList();
     return getResults(matchesOfRound);
   }
 
@@ -106,10 +101,10 @@ public class PredictionService {
       var result = new Result();
       result.setUser(userMapper.entityToModel(user));
       result.setPredictions(predictions.get(user).size());
-      result.setPredictionsLive(CollectionUtils.isNotEmpty(predictionsLive.get(user)) ? predictionsLive.get(user).size() : 0);
+      result.setPredictionsLive(CollectionUtils.isNotEmpty(predictionsLive.get(user)) ? predictionsLive.get(user).size() : null);
       result.setGuessed(calculateGuessed(predictions.get(user)));
       result.setSum(calculateResults(predictions.get(user)));
-      result.setLiveSum(calculateResults(predictionsLive.get(user)));
+      result.setLiveSum(CollectionUtils.isNotEmpty(predictionsLive.get(user)) ? calculateResults(predictionsLive.get(user)) : null);
       results.add(result);
     }
     return results.stream().sorted(Comparator.comparingInt(Result::getSum).reversed()).toList();

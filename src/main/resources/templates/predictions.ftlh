@@ -55,6 +55,22 @@
   </#if>
 </#function>
 
+<#function getRoundName round>
+  <#if round.roundName?? >
+    <#return round.roundName>
+  <#else>
+    <#local roundLocalized><@spring.message "round" /></#local>
+    <#assign roundName = roundLocalized + " " + round.orderNumber>
+    <#return roundName>
+  </#if>
+</#function>
+
+<#function activeRound round>
+  <#if round.orderNumber == fixtures[0].round >
+    <#return 'active'>
+  </#if>
+</#function>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -75,7 +91,11 @@
 
 <section>
   <h1>${fixtures[0].season.competition.name}</h1>
-  <h4>${fixtures[0].round}</h4>
+  <div class="scroll">
+  <#list rounds as round>
+    <button class="${activeRound(round)!}" onclick="location.href='${baseUrl + round.orderNumber}'">${getRoundName(round)}</button>
+  </#list>
+  </div>
 </section>
 
 <section>
@@ -114,11 +134,14 @@
 <script type="application/javascript">
   window.Telegram.WebApp.ready();
   init();
+  formatPagination();
 
   function init() {
     const mainButton = window.Telegram.WebApp.MainButton;
     mainButton.setText("<@spring.message "buttons.save" />");
-    mainButton.onClick(function () {save();});
+    mainButton.onClick(function () {
+      save();
+    });
     mainButton.show();
 
     if (document.querySelector(".double")) {
@@ -127,6 +150,25 @@
       mainButton.disable();
       mainButton.color = '#d7d7d7'
     }
+  }
+
+  function formatPagination() {
+    let maxWidth = 0;
+    document.querySelectorAll(".scroll button").forEach(roundButton => {
+      let width = parseFloat(roundButton.offsetWidth);
+      if (width > maxWidth) {
+        maxWidth = width;
+      }
+    })
+
+    document.querySelectorAll(".scroll button").forEach(roundButton => {
+      roundButton.style.width = maxWidth +'px';
+    })
+
+    document.querySelector(".active").scrollIntoView({
+      inline: "center",
+      block: "nearest"
+    });
   }
 
   function save() {
