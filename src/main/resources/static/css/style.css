@@ -1,7 +1,7 @@
 body {
-  font-family: sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   background-color: #ffffff;
-  color: #222222;
+  color: #494d4e;
   font-size: 16px;
   margin: 0;
   padding: 0;
@@ -43,7 +43,8 @@ li {
 }
 
 .scroll {
-  width: 90vw;
+  width: max-content;
+  max-width: 100%;
   align-items: center;
   overflow: scroll;
   display: flex;
@@ -60,7 +61,7 @@ li {
   background-color: #ffffff;
   margin: auto;
   flex-shrink: 0;
-  color: black;
+  color: #494d4e;
   padding: 10px;
   text-align: center;
   border: 1px solid rgba(0, 0, 0, 0.25);

@@ -97,14 +97,31 @@ public class TelegramWebAppController {
       localeResolver.setLocale(request, null, user.getLanguage());
     }
 
+    competitionService.refreshActiveFixtures();
+    var season = competitionService.getCurrentSeason(leagueId);
+
     List<Result> results;
+    List<MatchEntity> matches;
     if (round != null && !round.equals(0)) {
       results = predictionService.getResults(leagueId, round);
+      matches = season.getMatches().stream()
+          .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
+          .filter(match -> match.getRound().equals(round))
+          .filter(match -> CollectionUtils.isNotEmpty(match.getPredictions()))
+          .sorted(Comparator.comparing(MatchEntity::getStartTime))
+          .toList();
     } else {
       results = predictionService.getResults(leagueId);
+      matches = season.getMatches().stream()
+          .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
+          .filter(match -> CollectionUtils.isNotEmpty(match.getPredictions()))
+          .sorted(Comparator.comparing(MatchEntity::getStartTime).reversed())
+          .limit(10)
+          .toList();
     }
 
-    var season = competitionService.getCurrentSeason(leagueId);
+    var matchResults = matches.stream()
+        .collect(Collectors.toMap(match -> match.getId().toString(), match -> predictionService.getResults(List.of(match))));
     var rounds = season.getMatches().stream()
         .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
         .filter(match -> CollectionUtils.isNotEmpty(match.getPredictions()))
@@ -128,6 +145,8 @@ public class TelegramWebAppController {
     modelAndView.addObject("results", results);
     modelAndView.addObject("rounds", roundEntities);
     modelAndView.addObject("activeRound", round);
+    modelAndView.addObject("matches", matches);
+    modelAndView.addObject("matchResults", matchResults);
     modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());
     modelAndView.addObject("baseUrl", buildBaseUrl("results", userId, leagueId));
     return modelAndView;

@@ -73,19 +73,16 @@ public class PredictionService {
   }
 
   public List<Result> getResults(UUID competitionId) {
-    competitionService.refreshActiveFixtures();
     return getResults(competitionService.getCurrentSeason(competitionId).getMatches());
   }
 
   public List<Result> getResults(UUID competitionId, int round) {
-    competitionService.refreshActiveFixtures();
-
     var matchesOfRound = competitionService.getCurrentSeason(competitionId).getMatches().stream()
         .filter(match -> match.getRound() == round).toList();
     return getResults(matchesOfRound);
   }
 
-  private List<Result> getResults(List<MatchEntity> matches) {
+  public List<Result> getResults(List<MatchEntity> matches) {
     var predictions = matches.stream()
         .filter(match -> match.getStatus() == MatchStatus.FINISHED)
         .flatMap(match -> match.getPredictions().stream())
@@ -100,7 +97,7 @@ public class PredictionService {
     for (var user : SetUtils.union(predictions.keySet(), predictionsLive.keySet())) {
       var result = new Result();
       result.setUser(userMapper.entityToModel(user));
-      result.setPredictions(predictions.get(user).size());
+      result.setPredictions(predictions.get(user) != null ? predictions.get(user).size() : 0);
       result.setPredictionsLive(CollectionUtils.isNotEmpty(predictionsLive.get(user)) ? predictionsLive.get(user).size() : null);
       result.setGuessed(calculateGuessed(predictions.get(user)));
       result.setSum(calculateResults(predictions.get(user)));

@@ -19,9 +19,7 @@ import at.hrechny.predictionsbot.database.repository.CompetitionRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.mapper.CompetitionMapper;
 import at.hrechny.predictionsbot.mapper.SeasonMapper;
-import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -114,8 +112,7 @@ public class CompetitionService {
   }
 
   public List<MatchEntity> getFixtures(Instant from, Instant to) {
-    return matchRepository.findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(
-        Instant.now().truncatedTo(ChronoUnit.DAYS), Instant.now().plus(Duration.ofDays(2)).truncatedTo(ChronoUnit.DAYS));
+    return matchRepository.findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(from, to);
   }
 
   public List<MatchEntity> getFixtures(UUID competitionId, Integer round) {

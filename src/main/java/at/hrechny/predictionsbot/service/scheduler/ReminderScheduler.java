@@ -129,7 +129,7 @@ public class ReminderScheduler {
         seasonString.append("<u>").append(season.getCompetition().getName()).append("</u>").append('\n');
         for (var match : matches) {
           var roundName = getRoundName(user, match);
-          var startTime = match.getStartTime().atZone(user.getTimezone()).format(DateTimeFormatter.ofPattern("dd MMMM, HH:mm"));
+          var startTime = match.getStartTime().atZone(user.getTimezone()).format(DateTimeFormatter.ofPattern("HH:mm"));
           seasonString
               .append(startTime).append(": ")
               .append(match.getHomeTeam().getName()).append(" - ").append(match.getAwayTeam().getName())

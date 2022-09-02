@@ -155,7 +155,7 @@
   function formatPagination() {
     let maxWidth = 0;
     document.querySelectorAll(".scroll button").forEach(roundButton => {
-      let width = parseFloat(roundButton.offsetWidth);
+      let width = parseFloat(roundButton.offsetWidth) + 1;
       if (width > maxWidth) {
         maxWidth = width;
       }

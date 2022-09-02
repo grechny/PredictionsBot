@@ -32,6 +32,11 @@
   <#return false>
 </#function>
 
+<#function isLive match>
+  <#return match.status == 'STARTED'>
+</#function>
+
+
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/html">
 <head>
@@ -61,10 +66,10 @@
 
 <section>
   <div class="wrapper">
-    <table>
+    <table class="summary">
       <thead>
         <tr>
-          <th><@spring.message "results.rank" /></th>
+          <th></th>
           <th><@spring.message "results.name" /></th>
           <th><@spring.message "results.predictions.total" /></th>
           <th><@spring.message "results.predictions.success" /></th>
@@ -76,14 +81,49 @@
         <tr class="${userRow(result)!}">
           <td>${result?counter}</td>
           <td>${result.user.name}</td>
+        <#if result.liveSum?? >
+          <td>${result.predictions + result.predictionsLive}</td>
+          <td>${(result.guessed / (result.predictions + result.predictionsLive) * 100)?string("0")}%</td>
+          <td class="live">${result.sum + result.liveSum}</td>
+        <#else>
           <td>${result.predictions}</td>
           <td>${(result.guessed / result.predictions * 100)?string("0")}%</td>
           <td>${result.sum}</td>
+        </#if>
         </tr>
       </#list>
       </tbody>
     </table>
   </div>
+</section>
+
+<section>
+  <#list matches as match>
+  <#if matchResults[match.id.toString()]??>
+  <table class="match-result">
+    <thead>
+      <tr>
+        <th style="width: 40%">${match.homeTeam.name}</th>
+        <th style="width: 20%" <#if match.status == 'STARTED' >class="live"</#if>>${match.homeTeamScore} : ${match.awayTeamScore}</th>
+        <th style="width: 40%">${match.awayTeam.name}</th>
+      </tr>
+    </thead>
+    <tbody>
+    <#list matchResults[match.id.toString()] as matchResult>
+      <tr <#if match.getPrediction(matchResult.user.id).get().doubleUp >class="double"</#if>>
+        <td>${matchResult.user.name}</td>
+        <td>${match.getPrediction(matchResult.user.id).get().predictionHome} : ${match.getPrediction(matchResult.user.id).get().predictionAway}</td>
+      <#if match.status == 'STARTED' >
+        <td class="live">${matchResult.liveSum}</td>
+      <#else>
+        <td>${matchResult.sum}</td>
+      </#if>
+      </tr>
+    </#list>
+    </tbody>
+  </table>
+  </#if>
+  </#list>
 </section>
 
 <script type="application/javascript">
@@ -108,14 +148,9 @@
     roundButton.style.width = maxWidth +'px';
   })
 
-  let scrollDiv = document.querySelector(".scroll");
-  if (buttons.length * maxWidth < scrollDiv.offsetWidth) {
-    scrollDiv.style.width = (buttons.length * maxWidth - buttons.length + 1) + 'px'
-  }
-
   let roundButton = document.querySelector(".active");
   if (roundButton === null) {
-    roundButton = scrollDiv.lastElementChild;
+    roundButton = document.querySelector(".scroll").lastElementChild;
   }
   roundButton.scrollIntoView({
     inline: "center",
