@@ -137,6 +137,8 @@
   formatPagination();
 
   function init() {
+    window.Telegram.WebApp.enableClosingConfirmation();
+
     const mainButton = window.Telegram.WebApp.MainButton;
     mainButton.setText("<@spring.message "buttons.save" />");
     mainButton.onClick(function () {
