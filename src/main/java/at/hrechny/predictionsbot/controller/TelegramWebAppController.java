@@ -69,6 +69,7 @@ public class TelegramWebAppController {
     }
 
     var rounds = fixtures.get(0).getSeason().getApiFootballRounds().stream()
+        .filter(roundEntity -> roundEntity.getOrderNumber() != 0)
         .filter(ObjectUtils.distinctByKey(RoundEntity::getOrderNumber))
         .sorted(Comparator.comparingInt(RoundEntity::getOrderNumber))
         .toList();

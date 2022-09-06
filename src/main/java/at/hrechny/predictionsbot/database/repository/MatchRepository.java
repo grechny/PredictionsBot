@@ -14,8 +14,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface MatchRepository extends CrudRepository<MatchEntity, UUID> {
 
-  Optional<MatchEntity> findFirstByApiFootballId(Long apiFootballId);
-
   Optional<MatchEntity> findFirstBySeasonAndStartTimeAfterOrderByStartTimeAsc(SeasonEntity seasonEntity, Instant instant);
 
   List<MatchEntity> findAllBySeasonAndRoundOrderByStartTimeAsc(SeasonEntity seasonEntity, Integer round);

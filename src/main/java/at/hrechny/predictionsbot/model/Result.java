@@ -13,8 +13,22 @@ public class Result {
 
   private Integer guessed;
 
+  private Integer guessedLive;
+
   private Integer sum;
 
   private Integer liveSum;
+
+  public Integer getTotalPredictions() {
+    return predictionsLive != null ? predictions + predictionsLive : predictions;
+  }
+
+  public Integer getTotalGuessed() {
+    return guessedLive != null ? guessed + guessedLive : guessed;
+  }
+
+  public Integer getTotalSum() {
+    return liveSum != null ? sum + liveSum : sum;
+  }
 
 }

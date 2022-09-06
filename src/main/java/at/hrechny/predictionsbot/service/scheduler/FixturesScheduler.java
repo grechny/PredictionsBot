@@ -13,9 +13,9 @@ public class FixturesScheduler {
 
   private final CompetitionService competitionService;
 
-  @Scheduled(cron = "0 0 8 * * *", zone = "UTC")
+  @Scheduled(cron = "0 0 10 * * *", zone = "UTC")
   public void refreshFixtures() {
-    log.info("Start refreshing fixtures data for the all active competitions");
+    log.info("Executing scheduled job for refreshing fixtures data");
     competitionService.refreshFixtures();
   }
 

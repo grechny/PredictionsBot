@@ -145,6 +145,7 @@ public class ReminderScheduler {
   private void sendReminder(UserEntity user, String messageCode, String matches) {
     var message = messageSource.getMessage(messageCode, List.of(matches).toArray(), getLocale(user));
     telegramService.sendMessage(user.getId(), message);
+    log.info("Reminder has been successfully sent to the user {}", user.getId());
   }
 
   private String getRoundName(UserEntity user, MatchEntity match) {

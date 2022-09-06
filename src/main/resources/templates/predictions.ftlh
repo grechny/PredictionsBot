@@ -176,13 +176,15 @@
   function save() {
     const data = [];
     document.querySelectorAll(".match").forEach((match) => {
-      let matchData = {
-        "matchId": match.id,
-        "predictionHome": match.querySelector('#scoreHome').innerHTML,
-        "predictionAway": match.querySelector('#scoreAway').innerHTML,
-        "doubleUp": match.classList.contains('double')
+      if (match.dataset.started !== 'true') {
+        let matchData = {
+          "matchId": match.id,
+          "predictionHome": match.querySelector('#scoreHome').innerHTML,
+          "predictionAway": match.querySelector('#scoreAway').innerHTML,
+          "doubleUp": match.classList.contains('double')
+        }
+        data.push(matchData);
       }
-      data.push(matchData);
     });
 
     window.Telegram.WebApp.sendData(data);

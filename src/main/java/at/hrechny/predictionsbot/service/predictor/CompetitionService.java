@@ -28,12 +28,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import javax.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class CompetitionService {
 
@@ -124,7 +126,7 @@ public class CompetitionService {
   }
 
   public void refreshFixtures() {
-    log.info("Start refreshing fixtures data for the all active competitions");
+    log.info("Starting to refresh fixtures data for the all active competitions");
     var activeSeasons = seasonRepository.findAllByActiveIsTrue();
     activeSeasons.forEach(this::refreshFixtures);
   }
@@ -173,7 +175,7 @@ public class CompetitionService {
       var score = fixture.getScore().getFulltime().getHome() != null ? fixture.getScore().getFulltime() : fixture.getGoals();
 
       MatchEntity matchEntity;
-      var existingMatchEntity = matchRepository.findFirstByApiFootballId(fixtureData.getId());
+      var existingMatchEntity = seasonEntity.getMatches().stream().filter(match -> match.getApiFootballId().equals(fixtureData.getId())).findFirst();
       if (existingMatchEntity.isPresent()) {
         matchEntity = existingMatchEntity.get();
       } else {
@@ -194,10 +196,14 @@ public class CompetitionService {
         seasonEntity.getMatches().add(matchEntity);
       }
 
-      matchEntity.setStartTime(fixtureData.getDate() != null ? fixtureData.getDate().toInstant() : null);
       matchEntity.setHomeTeamScore(score.getHome());
       matchEntity.setAwayTeamScore(score.getAway());
       matchEntity.setStatus(mapStatus(fixture.getFixture().getStatus()));
+      if (fixtureData.getDate() != null && matchEntity.getStatus() != MatchStatus.NOT_DEFINED) {
+        matchEntity.setStartTime(fixtureData.getDate().toInstant());
+      } else {
+        matchEntity.setStartTime(null);
+      }
     });
     seasonRepository.save(seasonEntity);
     log.info("Fixtures have been successfully updated for the season {}", seasonEntity.getId());

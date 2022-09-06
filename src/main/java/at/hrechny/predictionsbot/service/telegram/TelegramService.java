@@ -57,6 +57,7 @@ public class TelegramService {
   }
 
   public void sendMessage(Long userId, String message) {
+    log.debug("Sending message to the user {}: {}", userId, message);
     sendMessage(new SendMessage(userId, message).parseMode(ParseMode.HTML));
   }
 
@@ -131,7 +132,7 @@ public class TelegramService {
     var locale = getLocale(user);
 
     String message;
-    if (StringUtils.isBlank(zoneId)) {
+    if (StringUtils.isNotBlank(zoneId)) {
       message = messageSource.getMessage("start.location", List.of(zoneId).toArray(), locale);
     } else {
       message = messageSource.getMessage("start.location.error", null, locale);

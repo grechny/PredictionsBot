@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class PredictionService {
 
@@ -33,7 +34,6 @@ public class PredictionService {
   private final CompetitionService competitionService;
   private final UserService userService;
 
-  @Transactional
   public void savePredictions(Long userId, List<Prediction> predictions) {
     log.info("Saving predictions for the user {}", userId);
     var user = userService.getUser(userId);
@@ -48,7 +48,7 @@ public class PredictionService {
       var matchEntity = matchRepository.findById(prediction.getMatchId())
           .orElseThrow(() -> new IllegalArgumentException("Match with id " + prediction.getMatchId() + " not found"));
 
-      if (Instant.now().isAfter(matchEntity.getStartTime())) {
+      if (matchEntity.getStartTime() != null && Instant.now().isAfter(matchEntity.getStartTime())) {
         log.warn("Not possible to save prediction for the match {} - match already started", matchEntity.getId());
         return;
       }
@@ -68,7 +68,7 @@ public class PredictionService {
       log.warn("No predictions saved");
     } else {
       validatePredictions(userId, predictionEntities);
-      log.info("All predictions for the user {} has been successfully saved", userId);
+      log.info("All predictions for the user {} have been successfully saved", userId);
     }
   }
 
@@ -98,13 +98,16 @@ public class PredictionService {
       var result = new Result();
       result.setUser(userMapper.entityToModel(user));
       result.setPredictions(predictions.get(user) != null ? predictions.get(user).size() : 0);
-      result.setPredictionsLive(CollectionUtils.isNotEmpty(predictionsLive.get(user)) ? predictionsLive.get(user).size() : null);
       result.setGuessed(calculateGuessed(predictions.get(user)));
       result.setSum(calculateResults(predictions.get(user)));
-      result.setLiveSum(CollectionUtils.isNotEmpty(predictionsLive.get(user)) ? calculateResults(predictionsLive.get(user)) : null);
+      if (CollectionUtils.isNotEmpty(predictionsLive.get(user))) {
+        result.setPredictionsLive(predictionsLive.get(user).size());
+        result.setGuessedLive(calculateGuessed(predictionsLive.get(user)));
+        result.setLiveSum(calculateResults(predictionsLive.get(user)));
+      }
       results.add(result);
     }
-    return results.stream().sorted(Comparator.comparingInt(Result::getSum).reversed()).toList();
+    return results.stream().sorted(Comparator.comparingInt(Result::getTotalSum).reversed()).toList();
   }
 
   private Integer calculateGuessed(List<PredictionEntity> predictionEntities) {

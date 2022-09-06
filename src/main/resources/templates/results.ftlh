@@ -81,15 +81,9 @@
         <tr class="${userRow(result)!}">
           <td>${result?counter}</td>
           <td>${result.user.name}</td>
-        <#if result.liveSum?? >
-          <td>${result.predictions + result.predictionsLive}</td>
-          <td>${(result.guessed / (result.predictions + result.predictionsLive) * 100)?string("0")}%</td>
-          <td class="live">${result.sum + result.liveSum}</td>
-        <#else>
-          <td>${result.predictions}</td>
-          <td>${(result.guessed / result.predictions * 100)?string("0")}%</td>
-          <td>${result.sum}</td>
-        </#if>
+          <td>${result.getTotalPredictions()}</td>
+          <td>${(result.getTotalGuessed() / (result.getTotalPredictions()) * 100)?string("0")}%</td>
+          <td <#if result.liveSum?? >class="live"</#if>>${result.getTotalSum()}<#if result.liveSum?? > (+${result.liveSum})</#if></td>
         </tr>
       </#list>
       </tbody>
