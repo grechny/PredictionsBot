@@ -96,11 +96,11 @@ public class TelegramService {
   }
 
   public void sendPredictions(User user) {
-    sendCompetitions(user, "predictions");
+    sendCompetitions(user);
   }
 
   public void sendResults(User user) {
-    sendCompetitions(user, "results");
+    sendCompetitions(user);
   }
 
   public void sendLanguageMessage(User user) {
@@ -157,16 +157,22 @@ public class TelegramService {
     sendMessage(sendMessage);
   }
 
-  private void sendCompetitions(User user, String key) {
+  private void sendCompetitions(User user) {
     var locale = getLocale(user);
-    var buttons = new ArrayList<KeyboardButton>();
+    var buttons = new ArrayList<List<KeyboardButton>>();
 
     var competitions = competitionService.getCompetitions();
     competitions.forEach(competition -> {
       if (competition.isActive()) {
-        var keyboardButton = new KeyboardButton(competition.getName());
-        keyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(user.id(), competition.getId(), key)));
-        buttons.add(keyboardButton);
+        var buttonsRow = new ArrayList<KeyboardButton>();
+        var predictionsKeyboardButton = new KeyboardButton(competition.getName());
+        predictionsKeyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(user.id(), competition.getId(), "predictions")));
+        buttonsRow.add(predictionsKeyboardButton);
+
+        var resultsKeyboardButton = new KeyboardButton("\uD83C\uDFC6");
+        resultsKeyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(user.id(), competition.getId(), "results")));
+        buttonsRow.add(resultsKeyboardButton);
+        buttons.add(buttonsRow);
       }
     });
 
@@ -174,13 +180,13 @@ public class TelegramService {
     if (buttons.isEmpty()) {
       message = messageSource.getMessage("no_competitions", null, locale);
     } else {
-      message = messageSource.getMessage(key, null, locale);
+      message = messageSource.getMessage("predictions", null, locale);
     }
 
-    var buttonsArray = new KeyboardButton[buttons.size()][1];
+    var buttonsArray = new KeyboardButton[buttons.size()][2];
     for (int i = 0; i < buttons.size(); i++) {
-      KeyboardButton button = buttons.get(i);
-      buttonsArray[i] = new KeyboardButton[] { button };
+      var button = buttons.get(i);
+      buttonsArray[i] = button.toArray(new KeyboardButton[0]);
     }
 
     SendMessage sendMessage = new SendMessage(user.id(), message);

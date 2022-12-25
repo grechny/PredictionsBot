@@ -57,6 +57,7 @@ li {
 }
 
 .scroll button {
+  line-height: 1.2em;
   display: inline-block;
   background-color: #ffffff;
   margin: auto;

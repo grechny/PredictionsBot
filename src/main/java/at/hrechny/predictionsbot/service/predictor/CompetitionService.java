@@ -222,6 +222,7 @@ public class CompetitionService {
           roundEntity.setOrderNumber(i.getAndIncrement());
           roundEntity.setApiFootballRoundName(round);
           roundEntities.add(roundEntity);
+          rounds.put(round, roundEntity.getOrderNumber());
         });
     seasonRepository.save(seasonEntity);
   }

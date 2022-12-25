@@ -59,7 +59,7 @@
   <h1>${competitionName}</h1>
   <div class="scroll">
   <#list rounds as round>
-    <button <#if isActiveRound(round) >class="active"</#if> onclick="location.href='${baseUrl + isActiveRound(round)?then(0, round.orderNumber)}'">${getRoundName(round)}</button>
+    <button <#if isActiveRound(round) >class="active"</#if> onclick="location.href='${baseUrl + isActiveRound(round)?then(0, round.orderNumber)}'">${getRoundName(round)?no_esc}</button>
   </#list>
   </div>
 </section>
