@@ -5,30 +5,30 @@ import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConn
 import at.hrechny.predictionsbot.connector.apifootball.model.Fixture;
 import at.hrechny.predictionsbot.connector.apifootball.model.Status;
 import at.hrechny.predictionsbot.connector.apifootball.model.Team;
+import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.RoundEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.database.entity.TeamEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
-import at.hrechny.predictionsbot.database.repository.MatchRepository;
-import at.hrechny.predictionsbot.database.repository.TeamRepository;
-import at.hrechny.predictionsbot.model.Competition;
-import at.hrechny.predictionsbot.model.Season;
-import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
+import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.database.repository.CompetitionRepository;
+import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
+import at.hrechny.predictionsbot.database.repository.TeamRepository;
+import at.hrechny.predictionsbot.exception.FixturesSynchronizationException;
 import at.hrechny.predictionsbot.mapper.CompetitionMapper;
 import at.hrechny.predictionsbot.mapper.SeasonMapper;
+import at.hrechny.predictionsbot.model.Competition;
+import at.hrechny.predictionsbot.model.Season;
+import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import javax.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -74,10 +74,7 @@ public class CompetitionService {
 
     validateActiveSeasons(competitionId, season);
 
-    var seasonEntity = seasonMapper.modelToEntity(competitionEntity, season);
-    var rounds = apiFootballConnector.getRounds(competitionEntity.getApiFootballId(), seasonEntity.getYear());
-    seasonEntity.setApiFootballRounds(mapRounds(rounds));
-    seasonEntity = seasonRepository.save(seasonEntity);
+    var seasonEntity = seasonRepository.save(seasonMapper.modelToEntity(competitionEntity, season));
     log.info("The season has been successfully stored");
 
     return seasonEntity.getId();
@@ -109,7 +106,7 @@ public class CompetitionService {
         .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
   }
 
-  public Integer getUpcomingRound(UUID competitionId) {
+  public RoundEntity getUpcomingRound(UUID competitionId) {
     return matchRepository.findUpcoming(getCurrentSeason(competitionId)).map(MatchEntity::getRound).orElse(null);
   }
 
@@ -117,12 +114,9 @@ public class CompetitionService {
     return matchRepository.findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(from, to);
   }
 
-  public List<MatchEntity> getFixtures(UUID competitionId, Integer round) {
-    if (round == null || round.equals(0)) {
-      return Collections.emptyList();
-    }
-
-    return matchRepository.findAllBySeasonAndRoundOrderByStartTimeAsc(getCurrentSeason(competitionId), round);
+  public RoundEntity getRound(UUID leagueId, Integer orderNumber) {
+    var season = getCurrentSeason(leagueId);
+    return season.getRounds().stream().filter(roundEntity -> orderNumber.equals(roundEntity.getOrderNumber())).findFirst().orElse(null);
   }
 
   public void refreshFixtures() {
@@ -131,8 +125,9 @@ public class CompetitionService {
     activeSeasons.forEach(this::refreshFixtures);
   }
 
-  public void refreshActiveFixtures() {
-    var activeMatches = matchRepository.findAllActive();
+  public void refreshActiveFixtures(UUID leagueId) {
+    var seasonEntity = getCurrentSeason(leagueId);
+    var activeMatches = matchRepository.findAllActive(seasonEntity);
     if (activeMatches.isEmpty()) {
       return;
     }
@@ -141,16 +136,7 @@ public class CompetitionService {
     activeMatches.forEach(match -> fixturesIds.add(match.getApiFootballId()));
     try {
       var fixtures = apiFootballConnector.getFixtures(fixturesIds);
-      var leagueFixturesGroups = fixtures.stream().collect(Collectors.groupingBy(fixture -> fixture.getLeague().getId()));
-      for (var leagueFixturesGroup : leagueFixturesGroups.entrySet()) {
-        var leagueId = leagueFixturesGroup.getKey();
-        var oneLeagueFixtures = leagueFixturesGroup.getValue();
-        var seasonEntity = activeMatches.stream()
-            .map(MatchEntity::getSeason)
-            .filter(season -> leagueId.equals(season.getCompetition().getApiFootballId()))
-            .findFirst().orElseThrow(() -> new RuntimeException("No league found for the match"));
-        refreshFixtures(oneLeagueFixtures, seasonEntity);
-      }
+      refreshFixtures(fixtures, seasonEntity);
     } catch (ApiFootballConnectorException ex) {
       log.error("Failed to refresh fixtures: {}", ex.getMessage());
     }
@@ -167,33 +153,36 @@ public class CompetitionService {
   }
 
   private void refreshFixtures(List<Fixture> fixtures, SeasonEntity seasonEntity) {
-    var rounds = seasonEntity.getApiFootballRounds().stream()
-        .collect(Collectors.toMap(RoundEntity::getApiFootballRoundName, RoundEntity::getOrderNumber));
+    var rounds = seasonEntity.getRounds();
+    var matches = rounds.stream().flatMap(round -> round.getMatches().stream()).toList();
 
     fixtures.forEach(fixture -> {
       var fixtureData = fixture.getFixture();
       var score = fixture.getScore().getFulltime().getHome() != null ? fixture.getScore().getFulltime() : fixture.getGoals();
 
       MatchEntity matchEntity;
-      var existingMatchEntity = seasonEntity.getMatches().stream().filter(match -> match.getApiFootballId().equals(fixtureData.getId())).findFirst();
+      var existingMatchEntity = matches.stream().filter(match -> match.getApiFootballId().equals(fixtureData.getId())).findFirst();
       if (existingMatchEntity.isPresent()) {
         matchEntity = existingMatchEntity.get();
       } else {
-        var round = rounds.get(fixture.getLeague().getRound());
-        if (round == null) {
-          refreshRounds(seasonEntity, rounds);
-          round = rounds.get(fixture.getLeague().getRound());
-        } else if (round == 0) {
+        var roundOptional = getRound(rounds, fixture.getLeague().getRound());
+        if (roundOptional.isEmpty()) {
+          refreshRounds(seasonEntity);
+          roundOptional = getRound(rounds, fixture.getLeague().getRound());
+        }
+
+        var round = roundOptional.orElseThrow(() -> new FixturesSynchronizationException(
+            "Round " + fixture.getLeague().getRound() + " could not be synchronized for the season " + seasonEntity.getId()));
+        if (round.getOrderNumber() == 0) {
           return;
         }
 
         matchEntity = new MatchEntity();
         matchEntity.setApiFootballId(fixtureData.getId());
-        matchEntity.setSeason(seasonEntity);
         matchEntity.setRound(round);
         matchEntity.setHomeTeam(getTeamEntity(fixture.getTeams().getHome()));
         matchEntity.setAwayTeam(getTeamEntity(fixture.getTeams().getAway()));
-        seasonEntity.getMatches().add(matchEntity);
+        round.getMatches().add(matchEntity);
       }
 
       matchEntity.setHomeTeamScore(score.getHome());
@@ -209,23 +198,6 @@ public class CompetitionService {
     log.info("Fixtures have been successfully updated for the season {}", seasonEntity.getId());
   }
 
-  private void refreshRounds(SeasonEntity seasonEntity, Map<String, Integer> rounds) {
-    var actualRounds = apiFootballConnector.getRounds(seasonEntity.getCompetition().getApiFootballId(), seasonEntity.getYear());
-    var roundEntities = seasonEntity.getApiFootballRounds();
-    var maxOrderNumberRound = roundEntities.stream().max(Comparator.comparingInt(RoundEntity::getOrderNumber)).orElse(null);
-    var nextOrderNumber = maxOrderNumberRound != null ? maxOrderNumberRound.getOrderNumber() + 1 : 0;
-    AtomicInteger i = new AtomicInteger(nextOrderNumber);
-    actualRounds.stream()
-        .filter(round -> !rounds.containsKey(round))
-        .forEach(round -> {
-          var roundEntity = new RoundEntity();
-          roundEntity.setOrderNumber(i.getAndIncrement());
-          roundEntity.setApiFootballRoundName(round);
-          roundEntities.add(roundEntity);
-          rounds.put(round, roundEntity.getOrderNumber());
-        });
-    seasonRepository.save(seasonEntity);
-  }
 
   private MatchStatus mapStatus(Status status) {
     if (status == null || status.getStatus() == null) {
@@ -264,16 +236,25 @@ public class CompetitionService {
     }
   }
 
-  private List<RoundEntity> mapRounds(List<String> rounds) {
-    var roundEntities = new ArrayList<RoundEntity>();
-    AtomicInteger i = new AtomicInteger(1);
-    rounds.forEach(round -> {
-      var roundEntity = new RoundEntity();
-      roundEntity.setOrderNumber(i.getAndIncrement());
-      roundEntity.setApiFootballRoundName(round);
-      roundEntities.add(roundEntity);
-    });
-    return roundEntities;
+  private void refreshRounds(SeasonEntity seasonEntity) {
+    var actualRounds = apiFootballConnector.getRounds(seasonEntity.getCompetition().getApiFootballId(), seasonEntity.getYear());
+    var roundEntities = seasonEntity.getRounds();
+    var lastRound = roundEntities.stream().max(Comparator.comparingInt(RoundEntity::getOrderNumber)).orElse(null);
+    AtomicInteger nextOrderNumber = new AtomicInteger(lastRound != null ? lastRound.getOrderNumber() + 1 : 1);
+    for (var round : actualRounds) {
+      if (roundEntities.stream().noneMatch(roundEntity -> roundEntity.getApiFootballId().equals(round))) {
+        var roundType = RoundType.getByAlias(round);
+        var roundEntity = new RoundEntity();
+        roundEntity.setType(roundType);
+        roundEntity.setOrderNumber(roundType == RoundType.QUALIFYING ? 0 : nextOrderNumber.getAndIncrement());
+        roundEntity.setApiFootballId(round);
+        roundEntity.setSeason(seasonEntity);
+        roundEntities.add(roundEntity);
+      }
+    }
   }
 
+  private Optional<RoundEntity> getRound(List<RoundEntity> rounds, String apiFootballId) {
+    return rounds.stream().filter(roundEntity -> roundEntity.getApiFootballId().equals(apiFootballId)).findFirst();
+  }
 }

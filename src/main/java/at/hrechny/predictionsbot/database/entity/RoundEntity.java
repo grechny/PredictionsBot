@@ -1,12 +1,19 @@
 package at.hrechny.predictionsbot.database.entity;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Table;
-import lombok.AllArgsConstructor;
+import at.hrechny.predictionsbot.database.model.RoundType;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
@@ -17,12 +24,20 @@ import lombok.Setter;
 public class RoundEntity extends GeneratedIdEntity {
 
   @Column
+  @Enumerated(EnumType.STRING)
+  private RoundType type;
+
+  @ManyToOne
+  @JoinColumn(name="season_id", nullable=false)
+  private SeasonEntity season;
+
+  @Column
   private int orderNumber;
 
   @Column
-  private String roundName;
+  private String apiFootballId;
 
-  @Column
-  private String apiFootballRoundName;
+  @OneToMany(mappedBy="round", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+  private List<MatchEntity> matches = new ArrayList<>();
 
 }

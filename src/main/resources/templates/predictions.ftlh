@@ -56,17 +56,18 @@
 </#function>
 
 <#function getRoundName round>
-  <#if round.roundName?? >
-    <#return round.roundName>
-  <#else>
+  <#assign roundName = round.type.getName()>
+  <#if roundName?contains("$round") >
     <#local roundLocalized><@spring.message "round" /></#local>
     <#assign roundName = roundLocalized + " " + round.orderNumber>
+    <#return roundName>
+  <#else>
     <#return roundName>
   </#if>
 </#function>
 
 <#function activeRound round>
-  <#if round.orderNumber == fixtures[0].round >
+  <#if round == fixtures[0].round >
     <#return 'active'>
   </#if>
 </#function>
@@ -90,7 +91,7 @@
 <body>
 
 <section>
-  <h1>${fixtures[0].season.competition.name}</h1>
+  <h1>${fixtures[0].round.season.competition.name}</h1>
   <div class="scroll">
   <#list rounds as round>
     <button class="${activeRound(round)!}" onclick="location.href='${baseUrl + round.orderNumber}'">${getRoundName(round)}</button>

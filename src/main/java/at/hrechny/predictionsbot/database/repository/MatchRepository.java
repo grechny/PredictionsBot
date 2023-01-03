@@ -14,20 +14,18 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface MatchRepository extends CrudRepository<MatchEntity, UUID> {
 
-  Optional<MatchEntity> findFirstBySeasonAndStartTimeAfterOrderByStartTimeAsc(SeasonEntity seasonEntity, Instant instant);
-
-  List<MatchEntity> findAllBySeasonAndRoundOrderByStartTimeAsc(SeasonEntity seasonEntity, Integer round);
+  Optional<MatchEntity> findFirstByRoundSeasonAndStartTimeAfterOrderByStartTimeAsc(SeasonEntity seasonEntity, Instant instant);
 
   List<MatchEntity> findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(Instant from, Instant until);
 
-  List<MatchEntity> findAllByStatusInAndStartTimeBefore(List<MatchStatus> statuses, Instant time);
+  List<MatchEntity> findAllByRoundSeasonAndStatusInAndStartTimeBefore(SeasonEntity seasonEntity, List<MatchStatus> statuses, Instant time);
 
-  default List<MatchEntity> findAllActive() {
-    return findAllByStatusInAndStartTimeBefore(Arrays.asList(MatchStatus.PLANNED, MatchStatus.STARTED), Instant.now());
+  default List<MatchEntity> findAllActive(SeasonEntity seasonEntity) {
+    return findAllByRoundSeasonAndStatusInAndStartTimeBefore(seasonEntity, Arrays.asList(MatchStatus.PLANNED, MatchStatus.STARTED), Instant.now());
   }
 
   default Optional<MatchEntity> findUpcoming(SeasonEntity seasonEntity) {
-    return findFirstBySeasonAndStartTimeAfterOrderByStartTimeAsc(seasonEntity, Instant.now());
+    return findFirstByRoundSeasonAndStartTimeAfterOrderByStartTimeAsc(seasonEntity, Instant.now());
   }
 
 }

@@ -9,13 +9,12 @@ import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.util.HashUtils;
-import at.hrechny.predictionsbot.util.ObjectUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import javax.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,7 +45,7 @@ public class TelegramWebAppController {
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
       @RequestParam("leagueId") UUID leagueId,
-      @RequestParam(value = "round", required = false) Integer round) {
+      @RequestParam(value = "round", required = false) Integer roundNumber) {
 
     if (!hashUtils.getHash(userId.toString()).equals(hash)) {
       throw new NotFoundException("User not found");
@@ -57,21 +56,25 @@ public class TelegramWebAppController {
       localeResolver.setLocale(request, null, user.getLanguage());
     }
 
-    if (round == null || round.equals(0)) {
+    RoundEntity round;
+    if (roundNumber == null || roundNumber.equals(0)) {
       round = competitionService.getUpcomingRound(leagueId);
+    } else {
+      round = competitionService.getRound(leagueId, roundNumber);
     }
 
-    var fixtures = competitionService.getFixtures(leagueId, round);
-    if (fixtures.isEmpty()) {
+    if (round == null || CollectionUtils.isEmpty(round.getMatches())) {
       var modelAndView = new ModelAndView("no-upcoming-matches");
       modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());
       return modelAndView;
     }
 
-    var rounds = fixtures.get(0).getSeason().getApiFootballRounds().stream()
+    var rounds = round.getSeason().getRounds().stream()
         .filter(roundEntity -> roundEntity.getOrderNumber() != 0)
-        .filter(ObjectUtils.distinctByKey(RoundEntity::getOrderNumber))
         .sorted(Comparator.comparingInt(RoundEntity::getOrderNumber))
+        .toList();
+    var fixtures = round.getMatches().stream()
+        .sorted(Comparator.comparing(MatchEntity::getStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
         .toList();
 
     var modelAndView = new ModelAndView("predictions");
@@ -87,7 +90,7 @@ public class TelegramWebAppController {
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
       @RequestParam("leagueId") UUID leagueId,
-      @RequestParam(value = "round", required = false) Integer round) {
+      @RequestParam(value = "round", required = false) Integer roundNumber) {
 
     if (!hashUtils.getHash(userId.toString()).equals(hash)) {
       throw new NotFoundException("User not found");
@@ -98,36 +101,43 @@ public class TelegramWebAppController {
       localeResolver.setLocale(request, null, user.getLanguage());
     }
 
-    competitionService.refreshActiveFixtures();
+    competitionService.refreshActiveFixtures(leagueId);
     var season = competitionService.getCurrentSeason(leagueId);
 
     List<Result> results;
     List<MatchEntity> matches;
-    if (round != null && !round.equals(0)) {
-      results = predictionService.getResults(leagueId, round);
-      matches = season.getMatches().stream()
+    if (roundNumber != null && !roundNumber.equals(0)) {
+      var round = season.getRounds().stream()
+          .filter(roundEntity -> roundNumber.equals(roundEntity.getOrderNumber()))
+          .findFirst()
+          .orElseThrow(IllegalArgumentException::new);
+      results = predictionService.getResults(round.getMatches());
+      matches = round.getMatches().stream()
           .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
-          .filter(match -> match.getRound().equals(round))
           .filter(match -> CollectionUtils.isNotEmpty(match.getPredictions()))
-          .sorted(Comparator.comparing(MatchEntity::getStartTime))
+          .sorted(Comparator.comparing(MatchEntity::getStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
           .toList();
     } else {
       results = predictionService.getResults(leagueId);
-      matches = season.getMatches().stream()
+      matches = season.getRounds().stream()
+          .flatMap(roundEntity -> roundEntity.getMatches().stream())
           .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
           .filter(match -> CollectionUtils.isNotEmpty(match.getPredictions()))
-          .sorted(Comparator.comparing(MatchEntity::getStartTime).reversed())
+          .sorted(Comparator.comparing(MatchEntity::getStartTime, Comparator.nullsLast(Comparator.reverseOrder())))
           .limit(10)
           .toList();
     }
 
     var matchResults = matches.stream()
         .collect(Collectors.toMap(match -> match.getId().toString(), match -> predictionService.getResults(List.of(match))));
-    var rounds = season.getMatches().stream()
+    var rounds = season.getRounds().stream()
+        .flatMap(roundEntity -> roundEntity.getMatches().stream())
         .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
         .filter(match -> CollectionUtils.isNotEmpty(match.getPredictions()))
         .map(MatchEntity::getRound)
-        .collect(Collectors.toSet());
+        .sorted(Comparator.comparingInt(RoundEntity::getOrderNumber))
+        .distinct()
+        .toList();
 
     if (CollectionUtils.isEmpty(rounds)) {
       var modelAndView = new ModelAndView("no-results");
@@ -135,17 +145,11 @@ public class TelegramWebAppController {
       return modelAndView;
     }
 
-    var roundEntities = season.getApiFootballRounds().stream()
-        .filter(ObjectUtils.distinctByKey(RoundEntity::getOrderNumber))
-        .filter(roundEntity -> rounds.contains(roundEntity.getOrderNumber()))
-        .sorted(Comparator.comparingInt(RoundEntity::getOrderNumber))
-        .toList();
-
     var modelAndView = new ModelAndView("results");
     modelAndView.addObject("user", user);
     modelAndView.addObject("results", results);
-    modelAndView.addObject("rounds", roundEntities);
-    modelAndView.addObject("activeRound", round);
+    modelAndView.addObject("rounds", rounds);
+    modelAndView.addObject("activeRound", roundNumber);
     modelAndView.addObject("matches", matches);
     modelAndView.addObject("matchResults", matchResults);
     modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());

@@ -1,20 +1,17 @@
 package at.hrechny.predictionsbot.database.entity;
 
-import java.util.ArrayList;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.util.List;
-import javax.persistence.CascadeType;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
-import javax.persistence.OneToMany;
-import javax.persistence.Table;
-import javax.persistence.UniqueConstraint;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.LazyCollection;
-import org.hibernate.annotations.LazyCollectionOption;
 
 @Getter
 @Setter
@@ -30,12 +27,8 @@ public class SeasonEntity extends GeneratedIdEntity  {
   @Column
   private String year;
 
-  @LazyCollection(LazyCollectionOption.FALSE)
-  @OneToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE })
-  private List<RoundEntity> apiFootballRounds;
-
-  @OneToMany(mappedBy="season", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
-  private List<MatchEntity> matches = new ArrayList<>();
+  @OneToMany(mappedBy = "season", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+  private List<RoundEntity> rounds;
 
   @Column
   private boolean active;

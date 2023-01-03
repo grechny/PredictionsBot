@@ -8,6 +8,7 @@ import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.mapper.UserMapper;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.model.Result;
+import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -16,7 +17,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import javax.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -73,13 +73,9 @@ public class PredictionService {
   }
 
   public List<Result> getResults(UUID competitionId) {
-    return getResults(competitionService.getCurrentSeason(competitionId).getMatches());
-  }
-
-  public List<Result> getResults(UUID competitionId, int round) {
-    var matchesOfRound = competitionService.getCurrentSeason(competitionId).getMatches().stream()
-        .filter(match -> match.getRound() == round).toList();
-    return getResults(matchesOfRound);
+    var season = competitionService.getCurrentSeason(competitionId);
+    var matches = season.getRounds().stream().flatMap(roundEntity -> roundEntity.getMatches().stream()).toList();
+    return getResults(matches);
   }
 
   public List<Result> getResults(List<MatchEntity> matches) {
@@ -178,7 +174,7 @@ public class PredictionService {
     var predictionEntities = new ArrayList<PredictionEntity>();
     predictions.forEach(predictionEntities::add);
 
-    var seasons = predictionEntities.stream().map(prediction -> prediction.getMatch().getSeason()).distinct().toList();
+    var seasons = predictionEntities.stream().map(prediction -> prediction.getMatch().getRound().getSeason()).distinct().toList();
     if (seasons.size() > 1) {
       throw new IllegalArgumentException("Updating of predictions of different competitions/seasons at once is not supported");
     }
@@ -194,15 +190,14 @@ public class PredictionService {
     }
 
     var round = rounds.get(0);
-    season.getMatches().stream().filter(match -> match.getRound().equals(round)).forEach(match -> {
+    round.getMatches().forEach(match -> {
       var predictionsOfMatch = match.getPredictions().stream().filter(prediction -> prediction.getUser().getId().equals(userId));
       if (predictionsOfMatch.count() > 1) {
         throw new IllegalArgumentException("User can not make more than one prediction for the match");
       }
     });
 
-    var doubleUpOfTheRound = season.getMatches().stream()
-        .filter(match -> match.getRound().equals(round))
+    var doubleUpOfTheRound = round.getMatches().stream()
         .map(MatchEntity::getPredictions)
         .flatMap(Collection::stream)
         .filter(prediction -> prediction.getUser().getId().equals(userId))

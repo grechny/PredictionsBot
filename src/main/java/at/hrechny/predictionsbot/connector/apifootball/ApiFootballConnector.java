@@ -4,12 +4,12 @@ import at.hrechny.predictionsbot.config.JsonBodyHandler;
 import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConnectorException;
 import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConnectorException.Reason;
 import at.hrechny.predictionsbot.connector.apifootball.model.ApiFootballResponse;
+import at.hrechny.predictionsbot.connector.apifootball.model.Fixture;
 import at.hrechny.predictionsbot.connector.apifootball.model.FixturesResponse;
 import at.hrechny.predictionsbot.connector.apifootball.model.RoundsResponse;
 import at.hrechny.predictionsbot.database.entity.AuditEntity;
 import at.hrechny.predictionsbot.database.model.ApiProvider;
 import at.hrechny.predictionsbot.database.repository.AuditRepository;
-import at.hrechny.predictionsbot.connector.apifootball.model.Fixture;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -129,11 +129,9 @@ public class ApiFootballConnector {
     }
 
     var lastCall = auditRepository.getFirstByApiProviderAndApiKeyOrderByRequestDateDesc(ApiProvider.API_FOOTBALL, apiKey);
-    if (lastCall.isPresent()) {
-      if (Instant.now().minusSeconds(minInterval).isBefore(lastCall.get().getRequestDate())) {
-        log.warn("No minimal interval {}s reached between the calls", minInterval);
-        throw new ApiFootballConnectorException(Reason.TOO_OFTEN_REQUESTS);
-      }
+    if (lastCall.isPresent() && Instant.now().minusSeconds(minInterval).isBefore(lastCall.get().getRequestDate())) {
+      log.warn("No minimal interval {}s reached between the calls", minInterval);
+      throw new ApiFootballConnectorException(Reason.TOO_OFTEN_REQUESTS);
     }
   }
 

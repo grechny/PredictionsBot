@@ -1,10 +1,10 @@
 <#import "/spring.ftl" as spring />
 
 <#macro withTimeZone tz>
-    <#local lastTZ = .time_zone>
-    <#setting time_zone = tz>
-    <#nested>
-    <#setting time_zone = lastTZ>
+  <#local lastTZ = .time_zone>
+  <#setting time_zone = tz>
+  <#nested>
+  <#setting time_zone = lastTZ>
 </#macro>
 
 <#function userRow result>
@@ -14,13 +14,14 @@
 </#function>
 
 <#function getRoundName round>
-    <#if round.roundName?? >
-        <#return round.roundName>
-    <#else>
-        <#local roundLocalized><@spring.message "round" /></#local>
-        <#assign roundName = roundLocalized + " " + round.orderNumber>
-        <#return roundName>
-    </#if>
+  <#assign roundName = round.type.getName()>
+  <#if roundName?contains("$round") >
+    <#local roundLocalized><@spring.message "round" /></#local>
+    <#assign roundName = roundLocalized + " " + round.orderNumber>
+    <#return roundName>
+  <#else>
+    <#return roundName>
+  </#if>
 </#function>
 
 <#function isActiveRound round>

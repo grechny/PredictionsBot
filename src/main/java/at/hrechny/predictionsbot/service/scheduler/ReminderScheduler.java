@@ -2,7 +2,6 @@ package at.hrechny.predictionsbot.service.scheduler;
 
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
-import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
@@ -38,24 +37,25 @@ public class ReminderScheduler {
 
   @Scheduled(cron = "0 0 * * * *", zone = "UTC")
   public void sendReminders() {
-    var todaysFixtures = competitionService.getFixtures(
+    var todayFixtures = competitionService.getFixtures(
         Instant.now().truncatedTo(ChronoUnit.DAYS),
         Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS));
-    var tomorrowsFixtures = competitionService.getFixtures(
+    var tomorrowFixtures = competitionService.getFixtures(
         Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS),
         Instant.now().plus(Duration.ofDays(2)).truncatedTo(ChronoUnit.DAYS));
-    var todaysSeasons = todaysFixtures.stream().collect(Collectors.groupingBy(MatchEntity::getSeason));
-    var tomorrowsNewRoundFixtures = tomorrowsFixtures.stream()
-        .filter(match -> todaysSeasons.getOrDefault(match.getSeason(), Collections.emptyList()).stream().noneMatch(todayMatch -> todayMatch.getRound().equals(match.getRound())))
+    var todayFixturesByRound = todayFixtures.stream().collect(Collectors.groupingBy(MatchEntity::getRound));
+    var tomorrowNewRoundFixtures = tomorrowFixtures.stream()
+        .filter(match -> todayFixturesByRound.getOrDefault(match.getRound(), Collections.emptyList()).stream()
+            .noneMatch(todayMatch -> todayMatch.getRound().equals(match.getRound())))
         .toList();
 
     userService.getUsers().forEach(user -> {
       // send reminder if predictions are missing for the upcoming today's matches (<= 2 hours till the first one)
-      var firstMatch = todaysFixtures.stream().min(Comparator.comparing(MatchEntity::getStartTime));
+      var firstMatch = todayFixtures.stream().min(Comparator.comparing(MatchEntity::getStartTime));
       if (firstMatch.isPresent() // first match is between 1 and 2 hours from now
           && firstMatch.get().getStartTime().isBefore(Instant.now().plus(Duration.ofHours(2).plusSeconds(1)))
           && firstMatch.get().getStartTime().isAfter(Instant.now().plus(Duration.ofHours(1)))) {
-        String upcomingMatchesString = getMissedPredictions(todaysFixtures, user);
+        String upcomingMatchesString = getMissedPredictions(todayFixtures, user);
         if (StringUtils.isNotBlank(upcomingMatchesString)) {
           sendReminder(user, "reminders.today", upcomingMatchesString);
         }
@@ -64,16 +64,16 @@ public class ReminderScheduler {
       // check if now from 19:59 till 20.59
       // then send daily reminder if no predictions made for the next day
       // or if some predictions were made more than week ago
-      if (CollectionUtils.isNotEmpty(tomorrowsNewRoundFixtures)) {
+      if (CollectionUtils.isNotEmpty(tomorrowNewRoundFixtures)) {
         var dailyNotificationTime = LocalTime.parse("20:00");
         var userTime = LocalTime.now(user.getTimezone());
         if (userTime.isAfter(dailyNotificationTime.minusMinutes(1)) && userTime.isBefore(dailyNotificationTime.plusMinutes(59))) {
-          String missedPredictionsString = getMissedPredictions(tomorrowsNewRoundFixtures, user);
+          String missedPredictionsString = getMissedPredictions(tomorrowNewRoundFixtures, user);
           if (StringUtils.isNoneBlank(missedPredictionsString)) {
             sendReminder(user, "reminders.tomorrow", missedPredictionsString);
           }
 
-          String oldPredictionsString = getOldPredictions(tomorrowsNewRoundFixtures, user);
+          String oldPredictionsString = getOldPredictions(tomorrowNewRoundFixtures, user);
           if (StringUtils.isNoneBlank(oldPredictionsString)) {
             sendReminder(user, "reminders.recheck", oldPredictionsString);
           }
@@ -99,14 +99,14 @@ public class ReminderScheduler {
   @Nullable
   private String getOldPredictions(List<MatchEntity> upcomingFixtures, UserEntity user) {
     var oldPredictions = new ArrayList<MatchEntity>();
-    var _7daysBeforeNow = Instant.now().minus(Duration.ofDays(7));
+    var weekBeforeNow = Instant.now().minus(Duration.ofDays(7));
 
     for (var upcoming : upcomingFixtures) {
       var userPrediction = upcoming.getPredictions().stream().filter(p -> p.getUser().equals(user)).findAny();
-      if (userPrediction.isPresent() && userPrediction.get().getUpdatedAt().isBefore(_7daysBeforeNow)) {
-        var fixturesOfRound = competitionService.getFixtures(upcoming.getSeason().getCompetition().getId(), upcoming.getRound());
+      if (userPrediction.isPresent() && userPrediction.get().getUpdatedAt().isBefore(weekBeforeNow)) {
+        var fixturesOfRound = upcoming.getRound().getMatches();
         var fixturesOfRoundThisWeek = fixturesOfRound.stream()
-            .filter(match -> match.getStartTime().isAfter(_7daysBeforeNow) && match.getStartTime().isBefore(Instant.now()))
+            .filter(match -> match.getStartTime().isAfter(weekBeforeNow) && match.getStartTime().isBefore(Instant.now()))
             .findAny();
         if (fixturesOfRoundThisWeek.isEmpty()) {
           oldPredictions.add(upcoming);
@@ -119,15 +119,14 @@ public class ReminderScheduler {
 
   @Nullable
   private String getStringOfUpcomingMatches(UserEntity user, List<MatchEntity> upcomingMatches) {
-    if (upcomingMatches.size() > 0) {
+    if (!upcomingMatches.isEmpty()) {
       var seasonStrings = new ArrayList<String>();
-      var predictionBySeason = upcomingMatches.stream().collect(Collectors.groupingBy(MatchEntity::getSeason));
-      for (var seasonMatches : predictionBySeason.entrySet()) {
+      var predictionByCompetitionName = upcomingMatches.stream()
+          .collect(Collectors.groupingBy(matchEntity -> matchEntity.getRound().getSeason().getCompetition().getName()));
+      for (var matches : predictionByCompetitionName.entrySet()) {
         StringBuilder seasonString = new StringBuilder();
-        var season = seasonMatches.getKey();
-        var matches = seasonMatches.getValue();
-        seasonString.append("<u>").append(season.getCompetition().getName()).append("</u>").append('\n');
-        for (var match : matches) {
+        seasonString.append("<u>").append(matches.getKey()).append("</u>").append('\n');
+        for (var match : matches.getValue()) {
           var roundName = getRoundName(user, match);
           var startTime = match.getStartTime().atZone(user.getTimezone()).format(DateTimeFormatter.ofPattern("HH:mm"));
           seasonString
@@ -150,11 +149,10 @@ public class ReminderScheduler {
 
   private String getRoundName(UserEntity user, MatchEntity match) {
     var locale = getLocale(user);
-    var roundEntity = match.getSeason().getApiFootballRounds().stream()
-        .filter(round -> match.getRound().equals(round.getOrderNumber()))
-        .findFirst().orElseThrow(() -> new NotFoundException("Round " + match.getRound() + "not found for the match " + match.getId()));
-    var round = messageSource.getMessage("round", null, locale).toLowerCase(locale);
-    return StringUtils.isNotBlank(roundEntity.getRoundName()) ? roundEntity.getRoundName() : round + " " + roundEntity.getOrderNumber();
+    var roundEntity = match.getRound();
+    return "$round".equals(roundEntity.getType().getName())
+        ? messageSource.getMessage("round", null, locale).toLowerCase(locale) + roundEntity.getOrderNumber()
+        : roundEntity.getType().getName();
   }
 
   private Locale getLocale(UserEntity user) {

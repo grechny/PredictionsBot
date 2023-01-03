@@ -2,8 +2,8 @@ package at.hrechny.predictionsbot.controller;
 
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
+import jakarta.validation.Valid;
 import java.util.List;
-import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

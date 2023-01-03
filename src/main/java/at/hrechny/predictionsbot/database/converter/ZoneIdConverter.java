@@ -1,8 +1,8 @@
 package at.hrechny.predictionsbot.database.converter;
 
+import jakarta.persistence.AttributeConverter;
+import jakarta.persistence.Converter;
 import java.time.ZoneId;
-import javax.persistence.AttributeConverter;
-import javax.persistence.Converter;
 
 @Converter
 public class ZoneIdConverter implements AttributeConverter<ZoneId, String> {
