@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -39,9 +40,6 @@ public class ApiFootballConnector {
   @Value("${connectors.api-football.apiKey}")
   private String apiKey;
 
-  @Value("${connectors.api-football.minInterval}")
-  private int minInterval;
-
   @Value("${connectors.api-football.maxAttempts}")
   private int maxAttempts;
 
@@ -49,46 +47,36 @@ public class ApiFootballConnector {
   private String dayStarts;
 
   public List<String> getRounds(Long leagueId, String seasonYear) {
-    synchronized(this) {
-      checkMaxAttempts();
+    URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures/rounds")
+        .queryParam("league", leagueId)
+        .queryParam("season", seasonYear)
+        .build().toUri();
 
-      URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures/rounds")
-          .queryParam("league", leagueId)
-          .queryParam("season", seasonYear)
-          .build().toUri();
-
-      return sendRequest(uri, RoundsResponse.class).getResponse();
-    }
+    return sendRequest(uri, RoundsResponse.class).getResponse();
   }
 
   public List<Fixture> getFixtures(Long leagueId, String seasonYear) throws ApiFootballConnectorException {
-    synchronized(this) {
-      checkMaxAttempts();
+    URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures")
+        .queryParam("league", leagueId)
+        .queryParam("season", seasonYear)
+        .build().toUri();
 
-      URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures")
-          .queryParam("league", leagueId)
-          .queryParam("season", seasonYear)
-          .build().toUri();
-
-      return sendRequest(uri, FixturesResponse.class).getResponse();
-    }
+    return sendRequest(uri, FixturesResponse.class).getResponse();
   }
 
+  @Cacheable(value = "api-football")
   public List<Fixture> getFixtures(List<Long> fixtureIds) throws ApiFootballConnectorException {
-    synchronized(this) {
-      checkMinInterval();
-      checkMaxAttempts();
+    var fixtureIdsString = fixtureIds.stream().limit(20).map(Object::toString).toList();
+    URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures")
+        .queryParam("ids", String.join("-", fixtureIdsString))
+        .build().toUri();
 
-      var fixtureIdsString = fixtureIds.stream().limit(20).map(Object::toString).toList();
-      URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures")
-          .queryParam("ids", String.join("-", fixtureIdsString))
-          .build().toUri();
-
-      return sendRequest(uri, FixturesResponse.class).getResponse();
-    }
+    return sendRequest(uri, FixturesResponse.class).getResponse();
   }
 
-  private <T, G extends ApiFootballResponse<T>> G sendRequest(URI uri, Class<G> clazz) throws ApiFootballConnectorException {
+  private synchronized <T, G extends ApiFootballResponse<T>> G sendRequest(URI uri, Class<G> clazz) throws ApiFootballConnectorException {
+    checkMaxAttempts();
+
     HttpRequest request = HttpRequest.newBuilder()
         .GET()
         .uri(uri)
@@ -113,26 +101,14 @@ public class ApiFootballConnector {
         auditEntity.setSuccess(true);
       }
     } catch (Exception e) {
-      auditEntity.setSuccess(false);
       log.error("Request to API-Football failed", e);
+      auditEntity.setSuccess(false);
       throw new ApiFootballConnectorException(Reason.REQUEST_ERROR);
     } finally {
       auditRepository.save(auditEntity);
     }
 
     return response;
-  }
-
-  private void checkMinInterval() {
-    if (minInterval <= 0) {
-      return;
-    }
-
-    var lastCall = auditRepository.getFirstByApiProviderAndApiKeyOrderByRequestDateDesc(ApiProvider.API_FOOTBALL, apiKey);
-    if (lastCall.isPresent() && Instant.now().minusSeconds(minInterval).isBefore(lastCall.get().getRequestDate())) {
-      log.warn("No minimal interval {}s reached between the calls", minInterval);
-      throw new ApiFootballConnectorException(Reason.TOO_OFTEN_REQUESTS);
-    }
   }
 
   private void checkMaxAttempts() {
