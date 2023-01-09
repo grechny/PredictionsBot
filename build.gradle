@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'at.hrechny'
-version '1.0'
+version '1.1-SNAPSHOT'
 
 ext {
     set('springCloudVersion', "2022.0.0")
