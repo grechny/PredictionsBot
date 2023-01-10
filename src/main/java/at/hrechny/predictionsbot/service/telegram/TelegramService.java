@@ -4,6 +4,7 @@ import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
+import at.hrechny.predictionsbot.util.FileUtils;
 import at.hrechny.predictionsbot.util.HashUtils;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
@@ -15,6 +16,7 @@ import com.pengrad.telegrambot.model.request.KeyboardButton;
 import com.pengrad.telegrambot.model.request.ParseMode;
 import com.pengrad.telegrambot.model.request.ReplyKeyboardMarkup;
 import com.pengrad.telegrambot.model.request.ReplyKeyboardRemove;
+import com.pengrad.telegrambot.request.SendDocument;
 import com.pengrad.telegrambot.request.SendMessage;
 import jakarta.annotation.PostConstruct;
 import java.time.ZoneOffset;
@@ -36,6 +38,9 @@ public class TelegramService {
 
   @Value("${telegram.token}")
   private String botToken;
+
+  @Value("${telegram.reportTo}")
+  private String reportUserId;
 
   @Value("${application.url}")
   private String applicationUrl;
@@ -155,6 +160,26 @@ public class TelegramService {
 
     SendMessage sendMessage = new SendMessage(user.id(), message);
     sendMessage(sendMessage);
+  }
+
+  public void sendErrorReport(Exception exception) {
+    if (StringUtils.isBlank(reportUserId)) {
+      log.info("No user specified to send error report");
+      return;
+    }
+
+    var reportUser = userService.getUser(Long.valueOf(reportUserId));
+    var locale = reportUser.getLanguage() != null ? reportUser.getLanguage() : new Locale("en");
+
+    var sendDocument = new SendDocument(reportUserId, FileUtils.buildPdfDocument(exception));
+    sendDocument.fileName(exception.getClass().getSimpleName() + ".pdf");
+    sendDocument.caption(messageSource.getMessage("error", null, locale) + ": " + exception.getMessage());
+    var response = telegramBot.execute(sendDocument);
+    if (response.isOk()) {
+      log.info("Error report document {} has been successfully sent", response.message().messageId());
+    } else {
+      log.error("Error report document was not send: [{}] {}", response.errorCode(), response.description());
+    }
   }
 
   private void sendCompetitions(User user) {

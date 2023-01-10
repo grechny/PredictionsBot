@@ -46,6 +46,7 @@ requires valid **https** connection to the bot endpoints with valid and properly
 | secrets.adminKey                    | UUID key for admin endpoints                                   | 00000000-0000-0000-0000-000000000000            |
 | secrets.telegramKey                 | UUID key for application endpoints                             | 12345678-1234-1234-1234-1234567890ab            |
 | telegram.token                      | Telegram Bot authentication token                              | 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11       |
+| telegram.reportTo                   | Telegram User ID to whom the error reports will be sent        | 12345678                                        |
 | spring.datasource.url               | DB url                                                         | jdbc:postgresql://127.0.0.1:5432/predictionsbot |
 | spring.datasource.username          | DB username                                                    | postgres                                        |
 | spring.datasource.password          | DB password                                                    | postgres                                        |

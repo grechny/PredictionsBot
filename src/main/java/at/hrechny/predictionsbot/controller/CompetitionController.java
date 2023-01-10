@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.controller;
 
+import at.hrechny.predictionsbot.exception.RequestValidationException;
 import at.hrechny.predictionsbot.model.Competition;
 import at.hrechny.predictionsbot.model.Season;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
@@ -26,7 +27,7 @@ public class CompetitionController {
   @PostMapping(value = "/${secrets.adminKey}/competitions", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<Map<String, UUID>> addCompetition(@Valid @RequestBody Competition competition) {
     if (competition.getId() != null) {
-      throw new IllegalArgumentException("Setting of competition id is not allowed");
+      throw new RequestValidationException("Setting of competition id is not allowed");
     }
 
     var id = competitionService.addCompetition(competition);
@@ -41,7 +42,7 @@ public class CompetitionController {
   @PostMapping(value = "/${secrets.adminKey}/competitions/{competitionId}/seasons", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<Map<String, UUID>> addSeason(@PathVariable("competitionId") UUID competitionId, @Valid @RequestBody Season season) {
     if (season.getId() != null) {
-      throw new IllegalArgumentException("Setting of season id is not allowed");
+      throw new RequestValidationException("Setting of season id is not allowed");
     }
 
     var id = competitionService.addSeason(competitionId, season);
@@ -60,7 +61,7 @@ public class CompetitionController {
       @Valid @RequestBody Season season) {
 
     if (season.getId() != null && !season.getId().equals(seasonId)) {
-      throw new IllegalArgumentException("Unable to update SEASON id");
+      throw new RequestValidationException("Season ID cannot be updated");
     }
 
     season.setId(seasonId);

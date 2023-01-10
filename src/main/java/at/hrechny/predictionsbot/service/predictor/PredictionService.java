@@ -5,6 +5,8 @@ import at.hrechny.predictionsbot.database.entity.PredictionEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
+import at.hrechny.predictionsbot.exception.NotFoundException;
+import at.hrechny.predictionsbot.exception.RequestValidationException;
 import at.hrechny.predictionsbot.mapper.UserMapper;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.model.Result;
@@ -46,7 +48,7 @@ public class PredictionService {
     var predictionEntities = new ArrayList<PredictionEntity>();
     predictions.forEach(prediction -> {
       var matchEntity = matchRepository.findById(prediction.getMatchId())
-          .orElseThrow(() -> new IllegalArgumentException("Match with id " + prediction.getMatchId() + " not found"));
+          .orElseThrow(() -> new NotFoundException("Match with id " + prediction.getMatchId() + " not found"));
 
       if (matchEntity.getStartTime() != null && Instant.now().isAfter(matchEntity.getStartTime())) {
         log.warn("Not possible to save prediction for the match {} - match already started", matchEntity.getId());
@@ -176,24 +178,24 @@ public class PredictionService {
 
     var seasons = predictionEntities.stream().map(prediction -> prediction.getMatch().getRound().getSeason()).distinct().toList();
     if (seasons.size() > 1) {
-      throw new IllegalArgumentException("Updating of predictions of different competitions/seasons at once is not supported");
+      throw new RequestValidationException("Updating of predictions of different competitions/seasons at once is not supported");
     }
 
     var season = seasons.get(0);
     if (!season.isActive()) {
-      throw new IllegalArgumentException("Season is not active");
+      throw new RequestValidationException("Season is not active");
     }
 
     var rounds = predictionEntities.stream().map(prediction -> prediction.getMatch().getRound()).distinct().toList();
     if (rounds.size() > 1) {
-      throw new IllegalArgumentException("Updating of predictions of different rounds at once is not supported");
+      throw new RequestValidationException("Updating of predictions of different rounds at once is not supported");
     }
 
     var round = rounds.get(0);
     round.getMatches().forEach(match -> {
       var predictionsOfMatch = match.getPredictions().stream().filter(prediction -> prediction.getUser().getId().equals(userId));
       if (predictionsOfMatch.count() > 1) {
-        throw new IllegalArgumentException("User can not make more than one prediction for the match");
+        throw new RequestValidationException("User can not make more than one prediction for the match");
       }
     });
 
@@ -203,7 +205,7 @@ public class PredictionService {
         .filter(prediction -> prediction.getUser().getId().equals(userId))
         .filter(PredictionEntity::isDoubleUp);
     if (doubleUpOfTheRound.count() != 1) {
-      throw new IllegalArgumentException("User has no/more than one double up for for the round");
+      throw new RequestValidationException("User has no/more than one double up for for the round");
     }
   }
 

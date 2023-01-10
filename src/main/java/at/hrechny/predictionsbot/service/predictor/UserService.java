@@ -3,6 +3,7 @@ package at.hrechny.predictionsbot.service.predictor;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.repository.UserRepository;
 import at.hrechny.predictionsbot.exception.NotFoundException;
+import at.hrechny.predictionsbot.exception.RequestValidationException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
@@ -34,7 +35,7 @@ public class UserService {
   public void updateUsername(Long userId, String username) {
     log.info("Updating username to '{}' for the {}", username, userId);
     if (StringUtils.isBlank(username)) {
-      throw new IllegalArgumentException("Username can not be null");
+      throw new RequestValidationException("Username can not be null");
     }
 
     var userEntity = getUser(userId);

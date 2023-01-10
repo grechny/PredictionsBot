@@ -1,12 +1,17 @@
 package at.hrechny.predictionsbot.util;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.tools.TextToPDF;
 
 @Slf4j
 public class FileUtils {
@@ -25,4 +30,14 @@ public class FileUtils {
     }
   }
 
+  @SneakyThrows
+  public static byte[] buildPdfDocument(Exception exception) {
+    var outputStream = new ByteArrayOutputStream();
+    try (PDDocument document = new PDDocument()) {
+      TextToPDF textToPDF = new TextToPDF();
+      textToPDF.createPDFFromText(document, new StringReader(ExceptionUtils.getStackTrace(exception).replaceAll("\t", "  ")));
+      document.save(outputStream);
+    }
+    return outputStream.toByteArray();
+  }
 }

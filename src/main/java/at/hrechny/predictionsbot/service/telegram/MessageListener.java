@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.service.telegram;
 
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
@@ -40,6 +41,7 @@ public class MessageListener implements UpdatesListener {
   }
 
   @SneakyThrows
+  @EnableErrorReport
   public int process(List<Update> updates) {
     log.debug("Processing Bot updates: {}", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(updates));
     for (var updateMessage : updates) {
@@ -89,6 +91,7 @@ public class MessageListener implements UpdatesListener {
         }
       } catch (Exception ex) {
         log.error("Unable to process an update {}", updateMessage.updateId(), ex);
+        telegramService.sendErrorReport(ex);
       }
     }
 

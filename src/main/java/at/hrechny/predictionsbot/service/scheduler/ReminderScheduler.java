@@ -2,6 +2,7 @@ package at.hrechny.predictionsbot.service.scheduler;
 
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
@@ -27,6 +28,7 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@EnableErrorReport
 @RequiredArgsConstructor
 public class ReminderScheduler {
 

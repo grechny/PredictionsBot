@@ -4,6 +4,7 @@ import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.RoundEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.exception.NotFoundException;
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.model.Result;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
@@ -27,6 +28,7 @@ import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.ModelAndView;
 
 @Controller
+@EnableErrorReport
 @RequiredArgsConstructor
 public class TelegramWebAppController {
 
@@ -110,7 +112,7 @@ public class TelegramWebAppController {
       var round = season.getRounds().stream()
           .filter(roundEntity -> roundNumber.equals(roundEntity.getOrderNumber()))
           .findFirst()
-          .orElseThrow(IllegalArgumentException::new);
+          .orElseThrow(() -> new NotFoundException("Round with order number " + roundNumber + "could not be found for the season " + season.getId()));
       results = predictionService.getResults(round.getMatches());
       matches = round.getMatches().stream()
           .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
@@ -154,6 +156,7 @@ public class TelegramWebAppController {
     modelAndView.addObject("matchResults", matchResults);
     modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());
     modelAndView.addObject("baseUrl", buildBaseUrl("results", userId, leagueId));
+
     return modelAndView;
   }
 

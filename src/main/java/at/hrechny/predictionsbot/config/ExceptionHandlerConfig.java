@@ -1,7 +1,7 @@
 package at.hrechny.predictionsbot.config;
 
 import at.hrechny.predictionsbot.exception.NotFoundException;
-import jakarta.validation.ConstraintViolationException;
+import at.hrechny.predictionsbot.exception.RequestValidationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.ConversionNotSupportedException;
 import org.springframework.beans.TypeMismatchException;
@@ -31,14 +31,14 @@ public class ExceptionHandlerConfig {
       MissingServletRequestParameterException.class,
       ServletRequestBindingException.class,
       ConversionNotSupportedException.class,
-      ConstraintViolationException.class,
       TypeMismatchException.class,
       HttpMessageNotReadableException.class,
       HttpMessageNotWritableException.class,
       MethodArgumentNotValidException.class,
-      IllegalArgumentException.class,
-      NotFoundException.class,
-      org.hibernate.exception.ConstraintViolationException.class
+      jakarta.validation.ConstraintViolationException.class,
+      org.hibernate.exception.ConstraintViolationException.class,
+      RequestValidationException.class,
+      NotFoundException.class
   })
   public ResponseEntity<Object> handleBadRequestException(Exception ex) {
     log.error("Bad request: ", ex);

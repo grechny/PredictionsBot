@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.database.model;
 
+import at.hrechny.predictionsbot.exception.NotFoundException;
 import java.util.List;
 import java.util.regex.Pattern;
 import lombok.Getter;
@@ -31,7 +32,7 @@ public enum RoundType {
       }
     }
 
-    throw new IllegalArgumentException("No round type found by alias name " + aliasName);
+    throw new NotFoundException("No round type found by alias name " + aliasName);
   }
 
 }

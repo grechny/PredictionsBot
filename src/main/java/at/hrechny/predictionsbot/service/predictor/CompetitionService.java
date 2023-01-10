@@ -17,6 +17,8 @@ import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.database.repository.TeamRepository;
 import at.hrechny.predictionsbot.exception.FixturesSynchronizationException;
+import at.hrechny.predictionsbot.exception.NotFoundException;
+import at.hrechny.predictionsbot.exception.RequestValidationException;
 import at.hrechny.predictionsbot.mapper.CompetitionMapper;
 import at.hrechny.predictionsbot.mapper.SeasonMapper;
 import at.hrechny.predictionsbot.model.Competition;
@@ -56,7 +58,7 @@ public class CompetitionService {
 
   public Competition getCompetition(UUID competitionId) {
     CompetitionEntity entity = competitionRepository.findById(competitionId)
-        .orElseThrow(() -> new IllegalArgumentException("Competition with the specified ID not found"));
+        .orElseThrow(() -> new NotFoundException("Competition with the ID " + competitionId + " not found"));
     return competitionMapper.entityToModel(entity);
   }
 
@@ -70,7 +72,7 @@ public class CompetitionService {
   public UUID addSeason(UUID competitionId, Season season) {
     log.info("Adding the new season for the competition {}: {}", competitionId, season);
     CompetitionEntity competitionEntity = competitionRepository.findById(competitionId)
-        .orElseThrow(() -> new IllegalArgumentException("Competition with the specified ID not found"));
+        .orElseThrow(() -> new NotFoundException("Competition with the ID " + competitionId + " not found"));
 
     validateActiveSeasons(competitionId, season);
 
@@ -84,7 +86,7 @@ public class CompetitionService {
     log.info("Updating the season {} for the competition {}", season.getId(), competitionId);
     var seasonEntity = seasonRepository.findById(season.getId()).orElse(null);
     if (seasonEntity == null || !seasonEntity.getCompetition().getId().equals(competitionId)) {
-      throw new IllegalArgumentException("Season with the specified ID not found");
+      throw new NotFoundException("Season with the ID " + season.getId() + " not found");
     }
 
     validateActiveSeasons(competitionId, season);
@@ -103,7 +105,7 @@ public class CompetitionService {
 
   public SeasonEntity getCurrentSeason(UUID competitionId) {
     return seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
-        .orElseThrow(() -> new IllegalArgumentException("No active season found for the competition " + competitionId));
+        .orElseThrow(() -> new NotFoundException("No active season found for the competition " + competitionId));
   }
 
   public RoundEntity getUpcomingRound(UUID competitionId) {
@@ -231,7 +233,7 @@ public class CompetitionService {
     if (season.isActive()) {
       int activeSeasons = seasonRepository.countAllByActiveIsTrueAndCompetition_Id(competitionId);
       if (activeSeasons > 0) {
-        throw new IllegalArgumentException("Not possible to add more than one active season");
+        throw new RequestValidationException("Not possible to add more than one active season");
       }
     }
   }

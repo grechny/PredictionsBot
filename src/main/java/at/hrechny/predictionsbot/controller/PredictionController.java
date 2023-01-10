@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.controller;
 
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import jakarta.validation.Valid;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@EnableErrorReport
 @RequiredArgsConstructor
 public class PredictionController {
 
