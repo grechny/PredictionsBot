@@ -108,6 +108,7 @@ public class ReminderScheduler {
       if (userPrediction.isPresent() && userPrediction.get().getUpdatedAt().isBefore(weekBeforeNow)) {
         var fixturesOfRound = upcoming.getRound().getMatches();
         var fixturesOfRoundThisWeek = fixturesOfRound.stream()
+            .filter(match -> match.getStartTime() != null)
             .filter(match -> match.getStartTime().isAfter(weekBeforeNow) && match.getStartTime().isBefore(Instant.now()))
             .findAny();
         if (fixturesOfRoundThisWeek.isEmpty()) {
