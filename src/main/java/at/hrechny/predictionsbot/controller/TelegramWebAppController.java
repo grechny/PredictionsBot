@@ -10,6 +10,7 @@ import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.util.HashUtils;
+import at.hrechny.predictionsbot.util.ObjectUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -73,6 +74,7 @@ public class TelegramWebAppController {
 
     var rounds = round.getSeason().getRounds().stream()
         .filter(roundEntity -> roundEntity.getOrderNumber() != 0)
+        .filter(ObjectUtils.distinctByKey(RoundEntity::getOrderNumber))
         .sorted(Comparator.comparingInt(RoundEntity::getOrderNumber))
         .toList();
     var fixtures = round.getMatches().stream()
@@ -83,7 +85,7 @@ public class TelegramWebAppController {
     modelAndView.addObject("user", user);
     modelAndView.addObject("fixtures", fixtures);
     modelAndView.addObject("rounds", rounds);
-    modelAndView.addObject("baseUrl", buildBaseUrl("predictions", userId, leagueId));
+    modelAndView.addObject("baseUrl", buildBaseUrl("predictions", userId, leagueId, null));
     return modelAndView;
   }
 
@@ -105,7 +107,7 @@ public class TelegramWebAppController {
     }
 
     var season = seasonId != null ? competitionService.getSeason(seasonId) : competitionService.getCurrentSeason(leagueId);
-    competitionService.refreshActiveFixtures(seasonId);
+    competitionService.refreshActiveFixtures(season.getId());
 
     List<Result> results;
     List<MatchEntity> matches;
@@ -156,12 +158,16 @@ public class TelegramWebAppController {
     modelAndView.addObject("matches", matches);
     modelAndView.addObject("matchResults", matchResults);
     modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());
-    modelAndView.addObject("baseUrl", buildBaseUrl("results", userId, leagueId));
+    modelAndView.addObject("baseUrl", buildBaseUrl("results", userId, leagueId, seasonId));
 
     return modelAndView;
   }
 
-  private String buildBaseUrl(String key, Long userId, UUID competitionId) {
-    return applicationUrl + "/" + hashUtils.getHash(userId.toString()) + "/users/" + userId + "/" + key + "?leagueId=" + competitionId + "&round=";
+  private String buildBaseUrl(String key, Long userId, UUID competitionId, UUID seasonId) {
+    var url = applicationUrl + "/" + hashUtils.getHash(userId.toString()) + "/users/" + userId + "/" + key + "?leagueId=" + competitionId;
+    if (seasonId != null) {
+      url += "&seasonId=" + seasonId;
+    }
+    return url + "&round=";
   }
 }
