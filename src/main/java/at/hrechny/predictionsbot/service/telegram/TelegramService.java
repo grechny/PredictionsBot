@@ -122,19 +122,22 @@ public class TelegramService {
   }
 
   public void sendCompetitions(User user) {
-    SendMessage sendMessage = new SendMessage(user.id(), messageSource.getMessage("results.competitions", null, getLocale(user)));
+    var message = "<pre>" + messageSource.getMessage("results.competitions", null, getLocale(user)) + "</pre>";
+    SendMessage sendMessage = new SendMessage(user.id(), message).parseMode(ParseMode.HTML);
     sendMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitionButtonsMatrix()));
     sendMessage(sendMessage);
   }
 
   public void sendCompetitions(User user, Integer messageId) {
-    var editMessageText = new EditMessageText(user.id(), messageId, messageSource.getMessage("results.competitions", null, getLocale(user)));
+    var message = "<pre>" + messageSource.getMessage("results.competitions", null, getLocale(user)) + "</pre>";
+    var editMessageText = new EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML);
     editMessageText.replyMarkup(new InlineKeyboardMarkup(getCompetitionButtonsMatrix()));
     editMessage(editMessageText);
   }
 
   public void sendSeasons(User user, UUID competitionId, Integer messageId) {
     var inlineKeyboardButtons = new ArrayList<InlineKeyboardButton>();
+    var competition = competitionService.getCompetition(competitionId);
     competitionService.getSeasons(competitionId).forEach(season -> {
       var inlineKeyboardButton = new InlineKeyboardButton(season.getYear().toString());
       inlineKeyboardButton.callbackData("/season " + season.getId());
@@ -147,7 +150,8 @@ public class TelegramService {
     backButton.callbackData("/results");
     inlineKeyboardMatrix.add(List.of(backButton).toArray(new InlineKeyboardButton[1]));
 
-    var editMessageText = new EditMessageText(user.id(), messageId, messageSource.getMessage("results.seasons", null, getLocale(user)));
+    var message = "<pre>" + competition.getName() + "\n\n" + messageSource.getMessage("results.seasons", null, getLocale(user)) + "</pre>";
+    var editMessageText = new EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML);
     editMessageText.replyMarkup(new InlineKeyboardMarkup(inlineKeyboardMatrix.toArray(new InlineKeyboardButton[0][])));
     editMessage(editMessageText);
   }
