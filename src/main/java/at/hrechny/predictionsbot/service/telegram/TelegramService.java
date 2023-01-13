@@ -107,34 +107,13 @@ public class TelegramService {
 
   public void sendPredictions(User user) {
     var locale = getLocale(user);
-    var buttons = new ArrayList<List<KeyboardButton>>();
-
-    var competitions = competitionService.getCompetitions();
-    competitions.forEach(competition -> {
-      if (competition.isActive()) {
-        var buttonsRow = new ArrayList<KeyboardButton>();
-        var predictionsKeyboardButton = new KeyboardButton(competition.getName());
-        predictionsKeyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(user.id(), competition.getId(), null,"predictions")));
-        buttonsRow.add(predictionsKeyboardButton);
-
-        var resultsKeyboardButton = new KeyboardButton("\uD83C\uDFC6");
-        resultsKeyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(user.id(), competition.getId(), null, "results")));
-        buttonsRow.add(resultsKeyboardButton);
-        buttons.add(buttonsRow);
-      }
-    });
+    var buttonsArray = getPredictionButtons(user.id());
 
     String message;
-    if (buttons.isEmpty()) {
+    if (buttonsArray.length == 0) {
       message = messageSource.getMessage("no_competitions", null, locale);
     } else {
       message = messageSource.getMessage("predictions", null, locale);
-    }
-
-    var buttonsArray = new KeyboardButton[buttons.size()][2];
-    for (int i = 0; i < buttons.size(); i++) {
-      var button = buttons.get(i);
-      buttonsArray[i] = button.toArray(new KeyboardButton[0]);
     }
 
     SendMessage sendMessage = new SendMessage(user.id(), message);
@@ -259,6 +238,45 @@ public class TelegramService {
 
     SendMessage sendMessage = new SendMessage(user.id(), message);
     sendMessage(sendMessage);
+  }
+
+  public void pushUpdate(Long userId, String message, boolean updateCompetitionList) {
+    log.info("Sending push update to user {}", userId);
+    SendMessage sendMessage = new SendMessage(userId, message);
+    sendMessage.parseMode(ParseMode.HTML);
+
+    if (updateCompetitionList) {
+      var buttonsArray = getPredictionButtons(userId);
+      sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttonsArray).resizeKeyboard(true));
+    }
+
+    sendMessage(sendMessage);
+  }
+
+  private KeyboardButton[][] getPredictionButtons(Long userId) {
+    var buttons = new ArrayList<List<KeyboardButton>>();
+
+    var competitions = competitionService.getCompetitions();
+    competitions.forEach(competition -> {
+      if (competition.isActive()) {
+        var buttonsRow = new ArrayList<KeyboardButton>();
+        var predictionsKeyboardButton = new KeyboardButton(competition.getName());
+        predictionsKeyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(userId, competition.getId(), null,"predictions")));
+        buttonsRow.add(predictionsKeyboardButton);
+
+        var resultsKeyboardButton = new KeyboardButton("\uD83C\uDFC6");
+        resultsKeyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(userId, competition.getId(), null, "results")));
+        buttonsRow.add(resultsKeyboardButton);
+        buttons.add(buttonsRow);
+      }
+    });
+
+    var buttonsArray = new KeyboardButton[buttons.size()][2];
+    for (int i = 0; i < buttons.size(); i++) {
+      var button = buttons.get(i);
+      buttonsArray[i] = button.toArray(new KeyboardButton[0]);
+    }
+    return buttonsArray;
   }
 
   private InlineKeyboardButton[][] getCompetitionButtonsMatrix() {

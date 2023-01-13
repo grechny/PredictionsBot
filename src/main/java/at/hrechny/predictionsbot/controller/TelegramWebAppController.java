@@ -92,7 +92,7 @@ public class TelegramWebAppController {
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
       @RequestParam("leagueId") UUID leagueId,
-      @RequestParam("seasonId") UUID seasonId,
+      @RequestParam(value = "seasonId", required = false) UUID seasonId,
       @RequestParam(value = "round", required = false) Integer roundNumber) {
 
     if (!hashUtils.getHash(userId.toString()).equals(hash)) {
