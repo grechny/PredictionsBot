@@ -96,6 +96,10 @@ public class CompetitionService {
     log.info("The season {} has been successfully updated", seasonEntity.getId());
   }
 
+  public SeasonEntity getSeason(UUID seasonId) {
+    return seasonRepository.findById(seasonId).orElseThrow(() -> new NotFoundException("Season " + seasonId + " not found"));
+  }
+
   public List<Season> getSeasons(UUID competitionId) {
     var entityList = seasonRepository.findAllByCompetition_Id(competitionId);
     var seasonList = new ArrayList<Season>();
@@ -127,8 +131,8 @@ public class CompetitionService {
     activeSeasons.forEach(this::refreshFixtures);
   }
 
-  public void refreshActiveFixtures(UUID leagueId) {
-    var seasonEntity = getCurrentSeason(leagueId);
+  public void refreshActiveFixtures(UUID seasonId) {
+    var seasonEntity = getSeason(seasonId);
     var activeMatches = matchRepository.findAllActive(seasonEntity);
     if (activeMatches.isEmpty()) {
       return;

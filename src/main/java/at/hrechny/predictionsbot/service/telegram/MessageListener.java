@@ -12,11 +12,13 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.pengrad.telegrambot.UpdatesListener;
+import com.pengrad.telegrambot.model.CallbackQuery;
 import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.model.User;
 import jakarta.annotation.PostConstruct;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -42,15 +44,13 @@ public class MessageListener implements UpdatesListener {
 
   @SneakyThrows
   @EnableErrorReport
+  @SuppressWarnings("java:S135")
   public int process(List<Update> updates) {
     log.debug("Processing Bot updates: {}", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(updates));
     for (var updateMessage : updates) {
       try {
         if (updateMessage.callbackQuery() != null) {
-          var callbackQuery = updateMessage.callbackQuery();
-          if (callbackQuery.data().startsWith("/language ")) {
-            updateLanguage(callbackQuery.from(), callbackQuery.data().substring(10));
-          }
+          processCallbackQuery(updateMessage.callbackQuery());
           continue;
         }
 
@@ -59,33 +59,12 @@ public class MessageListener implements UpdatesListener {
           continue;
         }
 
-        if (updateMessage.callbackQuery() != null) {
-          log.info("Got callback query with data: {}", updateMessage.callbackQuery().data());
-        } else if (message.location() != null) {
+        if (message.location() != null) {
           updateLocation(message);
         } else if (message.webAppData() != null) {
           savePredictions(message);
         } else if (message.text() != null) {
-          var user = message.from();
-
-          switch (message.text()) {
-            case "/start" -> telegramService.startBot(user);
-            case "/predictions" -> telegramService.sendPredictions(user);
-            case "/results" -> telegramService.sendResults(user);
-            case "/timezone" -> telegramService.sendTimezoneMessage(user);
-            case "/language" -> telegramService.sendLanguageMessage(user);
-            case "/help" -> telegramService.sendHelp(user);
-            case "/stop" -> stopBot(user);
-            default -> {
-              if (message.text().startsWith("/username ")) {
-                updateUsername(user, message.text().substring(10));
-              } else if (message.text().startsWith("/language ")) {
-                updateLanguage(user, message.text().substring(10));
-              } else {
-                log.warn("Got the message which won't be processed: {}", message.text());
-              }
-            }
-          }
+          processMessageText(message);
         } else {
           log.warn("Got unexpected update: {}", updateMessage.updateId());
         }
@@ -105,6 +84,44 @@ public class MessageListener implements UpdatesListener {
     objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
     objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
     objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+  }
+
+  private void processMessageText(Message message) {
+    var user = message.from();
+
+    switch (message.text()) {
+      case "/start" -> telegramService.startBot(user);
+      case "/predictions" -> telegramService.sendPredictions(user);
+      case "/results" -> telegramService.sendCompetitions(user);
+      case "/timezone" -> telegramService.sendTimezoneMessage(user);
+      case "/language" -> telegramService.sendLanguageMessage(user);
+      case "/help" -> telegramService.sendHelp(user);
+      case "/stop" -> stopBot(user);
+      default -> {
+        if (message.text().startsWith("/username ")) {
+          updateUsername(user, message.text().substring(10));
+        } else if (message.text().startsWith("/language ")) {
+          updateLanguage(user, message.text().substring(10));
+        } else {
+          log.warn("Got the message which won't be processed: {}", message.text());
+        }
+      }
+    }
+  }
+
+  private void processCallbackQuery(CallbackQuery callbackQuery) {
+    var messageId = callbackQuery.message().messageId();
+    if (callbackQuery.data().startsWith("/language ")) {
+      updateLanguage(callbackQuery.from(), callbackQuery.data().substring(10));
+    } else if (callbackQuery.data().startsWith("/results")) {
+      telegramService.sendCompetitions(callbackQuery.from(), messageId);
+    } else if (callbackQuery.data().startsWith("/seasons ")) {
+      var competitionId = UUID.fromString(callbackQuery.data().substring(9));
+      telegramService.sendSeasons(callbackQuery.from(), competitionId, messageId);
+    } else if (callbackQuery.data().startsWith("/season ")) {
+      var seasonId = UUID.fromString(callbackQuery.data().substring(8));
+      telegramService.sendResults(callbackQuery.from(), seasonId, messageId);
+    }
   }
 
   @SneakyThrows

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 @Aspect
 @Service
 @RequiredArgsConstructor
-public class ErrorInterceptor {
+public class ExceptionInterceptor {
 
   private final TelegramService telegramService;
 

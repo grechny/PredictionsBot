@@ -74,8 +74,8 @@ public class PredictionService {
     }
   }
 
-  public List<Result> getResults(UUID competitionId) {
-    var season = competitionService.getCurrentSeason(competitionId);
+  public List<Result> getResults(UUID seasonId) {
+    var season = competitionService.getSeason(seasonId);
     var matches = season.getRounds().stream().flatMap(roundEntity -> roundEntity.getMatches().stream()).toList();
     return getResults(matches);
   }

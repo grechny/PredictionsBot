@@ -92,6 +92,7 @@ public class TelegramWebAppController {
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
       @RequestParam("leagueId") UUID leagueId,
+      @RequestParam("seasonId") UUID seasonId,
       @RequestParam(value = "round", required = false) Integer roundNumber) {
 
     if (!hashUtils.getHash(userId.toString()).equals(hash)) {
@@ -103,8 +104,8 @@ public class TelegramWebAppController {
       localeResolver.setLocale(request, null, user.getLanguage());
     }
 
-    competitionService.refreshActiveFixtures(leagueId);
-    var season = competitionService.getCurrentSeason(leagueId);
+    var season = seasonId != null ? competitionService.getSeason(seasonId) : competitionService.getCurrentSeason(leagueId);
+    competitionService.refreshActiveFixtures(seasonId);
 
     List<Result> results;
     List<MatchEntity> matches;
@@ -120,7 +121,7 @@ public class TelegramWebAppController {
           .sorted(Comparator.comparing(MatchEntity::getStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
           .toList();
     } else {
-      results = predictionService.getResults(leagueId);
+      results = predictionService.getResults(season.getId());
       matches = season.getRounds().stream()
           .flatMap(roundEntity -> roundEntity.getMatches().stream())
           .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
