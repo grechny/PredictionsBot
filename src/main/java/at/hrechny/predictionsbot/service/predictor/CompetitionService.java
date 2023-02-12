@@ -28,7 +28,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
@@ -171,23 +170,21 @@ public class CompetitionService {
       if (existingMatchEntity.isPresent()) {
         matchEntity = existingMatchEntity.get();
       } else {
-        var roundOptional = getRound(rounds, fixture.getLeague().getRound());
-        if (roundOptional.isEmpty()) {
+        var roundList = getRound(rounds, fixture.getLeague().getRound());
+        if (roundList.isEmpty()) {
           refreshRounds(seasonEntity);
-          roundOptional = getRound(rounds, fixture.getLeague().getRound());
+          roundList = getRound(rounds, fixture.getLeague().getRound());
         }
 
-        var round = roundOptional.orElseThrow(() -> new FixturesSynchronizationException(
-            "Round " + fixture.getLeague().getRound() + " could not be synchronized for the season " + seasonEntity.getId()));
-        if (round.getOrderNumber() == 0) {
-          return;
-        }
+        var homeTeam = getTeamEntity(fixture.getTeams().getHome());
+        var awayTeam = getTeamEntity(fixture.getTeams().getAway());
+        var round = getRound(roundList, homeTeam, awayTeam);
 
         matchEntity = new MatchEntity();
         matchEntity.setApiFootballId(fixtureData.getId());
         matchEntity.setRound(round);
-        matchEntity.setHomeTeam(getTeamEntity(fixture.getTeams().getHome()));
-        matchEntity.setAwayTeam(getTeamEntity(fixture.getTeams().getAway()));
+        matchEntity.setHomeTeam(homeTeam);
+        matchEntity.setAwayTeam(awayTeam);
         round.getMatches().add(matchEntity);
       }
 
@@ -203,7 +200,6 @@ public class CompetitionService {
     seasonRepository.save(seasonEntity);
     log.info("Fixtures have been successfully updated for the season {}", seasonEntity.getId());
   }
-
 
   private MatchStatus mapStatus(Status status) {
     if (status == null || status.getStatus() == null) {
@@ -249,18 +245,53 @@ public class CompetitionService {
     AtomicInteger nextOrderNumber = new AtomicInteger(lastRound != null ? lastRound.getOrderNumber() + 1 : 1);
     for (var round : actualRounds) {
       if (roundEntities.stream().noneMatch(roundEntity -> roundEntity.getApiFootballId().equals(round))) {
-        var roundType = RoundType.getByAlias(round);
-        var roundEntity = new RoundEntity();
-        roundEntity.setType(roundType);
-        roundEntity.setOrderNumber(roundType == RoundType.QUALIFYING ? 0 : nextOrderNumber.getAndIncrement());
-        roundEntity.setApiFootballId(round);
-        roundEntity.setSeason(seasonEntity);
-        roundEntities.add(roundEntity);
+        RoundType.getByAlias(round).forEach(roundType -> {
+          var roundEntity = new RoundEntity();
+          roundEntity.setType(roundType);
+          roundEntity.setOrderNumber(roundType == RoundType.QUALIFYING ? 0 : nextOrderNumber.getAndIncrement());
+          roundEntity.setApiFootballId(round);
+          roundEntity.setSeason(seasonEntity);
+          roundEntities.add(roundEntity);
+        });
       }
     }
   }
 
-  private Optional<RoundEntity> getRound(List<RoundEntity> rounds, String apiFootballId) {
-    return rounds.stream().filter(roundEntity -> roundEntity.getApiFootballId().equals(apiFootballId)).findFirst();
+  private List<RoundEntity> getRound(List<RoundEntity> rounds, String apiFootballId) {
+    return rounds.stream().filter(roundEntity -> roundEntity.getApiFootballId().equals(apiFootballId)).toList();
+  }
+
+  private RoundEntity getRound(List<RoundEntity> roundList, TeamEntity homeTeam, TeamEntity awayTeam) {
+    if (roundList.isEmpty()) {
+      throw new FixturesSynchronizationException("Round could not be find for the match between " + homeTeam.getName() + " and " + awayTeam.getName());
+    }
+
+    if (roundList.size() == 1) {
+      return roundList.get(0);
+    }
+
+    if (roundList.size() == 2) {
+      RoundEntity firstRound;
+      RoundEntity returnRound;
+
+      if (roundList.get(0).getType().name().endsWith("RETURN")) {
+        firstRound = roundList.get(1);
+        returnRound = roundList.get(0);
+      } else {
+        firstRound = roundList.get(0);
+        returnRound = roundList.get(1);
+      }
+
+      var returnMatch = firstRound.getMatches().stream()
+          .anyMatch(matchEntity -> matchEntity.getHomeTeam().equals(awayTeam) && matchEntity.getAwayTeam().equals(homeTeam));
+      if (returnMatch) {
+        return returnRound;
+      } else {
+        return firstRound;
+      }
+    }
+
+    throw new FixturesSynchronizationException("Unexpected number of rounds found for the match between "
+        + homeTeam.getName() + " and " + awayTeam.getName() + ": " + roundList);
   }
 }
