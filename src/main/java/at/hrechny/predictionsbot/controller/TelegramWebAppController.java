@@ -3,10 +3,15 @@ package at.hrechny.predictionsbot.controller;
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.RoundEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
+import at.hrechny.predictionsbot.exception.InputValidationException;
+import at.hrechny.predictionsbot.exception.LimitExceededException;
 import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
+import at.hrechny.predictionsbot.model.LeagueRequest;
+import at.hrechny.predictionsbot.model.LeagueResponse;
 import at.hrechny.predictionsbot.model.Result;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
+import at.hrechny.predictionsbot.service.predictor.LeagueService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.util.HashUtils;
@@ -45,6 +50,7 @@ public class TelegramWebAppController {
   private final LocaleResolver localeResolver;
   private final CompetitionService competitionService;
   private final PredictionService predictionService;
+  private final LeagueService leagueService;
   private final UserService userService;
   private final HashUtils hashUtils;
   private final HttpServletRequest request;
@@ -159,6 +165,76 @@ public class TelegramWebAppController {
     modelAndView.addObject("baseUrl", buildBaseUrl("results", userId, competitionId, seasonId));
 
     return modelAndView;
+  }
+
+  @GetMapping(value = "/webapp/{hash}/users/{userId}/leagues", produces = MediaType.TEXT_HTML_VALUE)
+  public ModelAndView getLeagues(
+      @PathVariable("hash") String hash,
+      @PathVariable("userId") Long userId) {
+
+    var user = userService.getUser(userId);
+    if (user.getLanguage() != null) {
+      localeResolver.setLocale(request, null, user.getLanguage());
+    }
+
+    var modelAndView = new ModelAndView("leagues");
+    modelAndView.addObject("user", user);
+    return modelAndView;
+  }
+
+  @PostMapping(value = "/webapp/{hash}/users/{userId}/leagues", produces = MediaType.TEXT_HTML_VALUE)
+  public ResponseEntity<LeagueResponse> createLeague(
+      @PathVariable("hash") String hash,
+      @PathVariable("userId") Long userId,
+      @RequestBody LeagueRequest leagueRequest) {
+
+    try {
+      return ResponseEntity.ok(leagueService.create(userId, leagueRequest));
+    } catch (InputValidationException inputValidationException) {
+      return ResponseEntity.badRequest().body(null);
+    } catch (LimitExceededException limitExceededException) {
+      return new ResponseEntity<>(HttpStatus.CONFLICT);
+    }
+  }
+
+  @PutMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.TEXT_HTML_VALUE)
+  public ResponseEntity<LeagueResponse> updateLeague(
+      @PathVariable("hash") String hash,
+      @PathVariable("userId") Long userId,
+      @PathVariable("leagueId") UUID leagueId,
+      @RequestBody LeagueRequest leagueRequest) {
+
+    try {
+      return ResponseEntity.ok(leagueService.update(userId, leagueId, leagueRequest));
+    } catch (InputValidationException inputValidationException) {
+      return ResponseEntity.badRequest().body(null);
+    }
+  }
+
+  @PostMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.TEXT_HTML_VALUE)
+  public ResponseEntity<LeagueResponse> joinLeague(
+      @PathVariable("hash") String hash,
+      @PathVariable("userId") Long userId,
+      @PathVariable("leagueId") UUID leagueId) {
+
+    try {
+      return ResponseEntity.ok(leagueService.join(userId, leagueId));
+    } catch (InputValidationException inputValidationException) {
+      return ResponseEntity.badRequest().body(null);
+    }
+  }
+
+  @DeleteMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.TEXT_HTML_VALUE)
+  public ResponseEntity<LeagueResponse> deleteLeague(
+      @PathVariable("hash") String hash,
+      @PathVariable("userId") Long userId,
+      @PathVariable("leagueId") UUID leagueId) {
+
+    try {
+      return ResponseEntity.ok(leagueService.delete(userId, leagueId));
+    } catch (InputValidationException inputValidationException) {
+      return ResponseEntity.badRequest().body(null);
+    }
   }
 
   private String buildBaseUrl(String key, Long userId, UUID competitionId, UUID seasonId) {

@@ -199,6 +199,17 @@ public class TelegramService {
     editMessage(editMessageText);
   }
 
+  public void sendLeagues(User user) {
+    var locale = getLocale(user);
+
+    var leagueButton = new InlineKeyboardButton(messageSource.getMessage("leagues.button", null, locale));
+    leagueButton.webApp(new WebAppInfo(buildGeneralUrl(user.id(), null, null,"leagues")));
+
+    var sendMessage = new SendMessage(user.id(), messageSource.getMessage("leagues", null, locale));
+    sendMessage.replyMarkup(new InlineKeyboardMarkup(leagueButton));
+    sendMessage(sendMessage);
+  }
+
   @Transactional(readOnly = true)
   public void sendCompetition(UUID competitionId) {
     var competition = competitionService.getCompetition(competitionId);

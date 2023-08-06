@@ -20,7 +20,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"competitions"})
+@EqualsAndHashCode(exclude = {"leagues", "competitions"})
 @Entity
 @Table(name = "users")
 public class UserEntity {
@@ -40,6 +40,9 @@ public class UserEntity {
   @Column
   @Convert(converter = ZoneIdConverter.class)
   private ZoneId timezone;
+
+  @ManyToMany(mappedBy = "users")
+  private List<LeagueEntity> leagues;
 
   @ManyToMany
   private List<CompetitionEntity> competitions;

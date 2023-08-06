@@ -84,6 +84,7 @@ public class MessageListener implements UpdatesListener {
       case "/start" -> telegramService.startBot(user);
       case "/predictions" -> telegramService.sendPredictions(user);
       case "/results" -> telegramService.sendResults(user);
+      case "/leagues" -> telegramService.sendLeagues(user);
       case "/competitions" -> telegramService.sendCompetitions(user);
       case "/timezone" -> telegramService.sendTimezoneMessage(user);
       case "/language" -> telegramService.sendLanguageMessage(user);
