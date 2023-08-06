@@ -119,8 +119,8 @@ public class CompetitionService {
     return matchRepository.findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(from, to);
   }
 
-  public RoundEntity getRound(UUID leagueId, Integer orderNumber) {
-    var season = getCurrentSeason(leagueId);
+  public RoundEntity getRound(UUID competitionId, Integer orderNumber) {
+    var season = getCurrentSeason(competitionId);
     return season.getRounds().stream().filter(roundEntity -> orderNumber.equals(roundEntity.getOrderNumber())).findFirst().orElse(null);
   }
 

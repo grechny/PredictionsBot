@@ -46,18 +46,18 @@ public class ApiFootballConnector {
   @Value("${connectors.api-football.dayStarts}")
   private String dayStarts;
 
-  public List<String> getRounds(Long leagueId, String seasonYear) {
+  public List<String> getRounds(Long competitionId, String seasonYear) {
     URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures/rounds")
-        .queryParam("league", leagueId)
+        .queryParam("league", competitionId)
         .queryParam("season", seasonYear)
         .build().toUri();
 
     return sendRequest(uri, RoundsResponse.class).getResponse();
   }
 
-  public List<Fixture> getFixtures(Long leagueId, String seasonYear) throws ApiFootballConnectorException {
+  public List<Fixture> getFixtures(Long competitionId, String seasonYear) throws ApiFootballConnectorException {
     URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures")
-        .queryParam("league", leagueId)
+        .queryParam("league", competitionId)
         .queryParam("season", seasonYear)
         .build().toUri();
 

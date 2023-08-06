@@ -1,6 +1,6 @@
 package at.hrechny.predictionsbot.service.telegram;
 
-import at.hrechny.predictionsbot.database.entity.UserEntity;
+import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
@@ -22,7 +22,6 @@ import com.pengrad.telegrambot.request.EditMessageText;
 import com.pengrad.telegrambot.request.SendDocument;
 import com.pengrad.telegrambot.request.SendMessage;
 import jakarta.annotation.PostConstruct;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -30,10 +29,12 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -85,7 +86,7 @@ public class TelegramService {
     if (StringUtils.isBlank(username)) {
       username = StringUtils.isNotBlank(user.firstName()) ? user.firstName() : user.lastName();
     }
-    userService.saveUser(new UserEntity(user.id(), username, null, ZoneOffset.UTC, true));
+    userService.createUser(user.id(), username);
     message = buildGreetingMessage(user, username);
     sendMessage(message);
   }
@@ -105,54 +106,41 @@ public class TelegramService {
     sendMessage(message);
   }
 
+  @Transactional(readOnly = true)
   public void sendPredictions(User user) {
-    var locale = getLocale(user);
     var buttonsArray = getPredictionButtons(user.id());
 
-    String message;
     if (buttonsArray.length == 0) {
-      message = messageSource.getMessage("no_competitions", null, locale);
+      var userEntity = userService.getUser(user.id());
+      if (userEntity.getCompetitions().isEmpty()) {
+        sendCompetitions(user);
+      } else {
+        var message = messageSource.getMessage("no_competitions", null, getLocale(user));
+        var sendMessage = new SendMessage(user.id(), message);
+        sendMessage.replyMarkup(new ReplyKeyboardRemove());
+        sendMessage(sendMessage);
+      }
     } else {
-      message = messageSource.getMessage("predictions", null, locale);
+      var message = messageSource.getMessage("predictions", null, getLocale(user));
+      var sendMessage = new SendMessage(user.id(), message);
+      sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttonsArray).resizeKeyboard(true));
+      sendMessage(sendMessage);
     }
-
-    SendMessage sendMessage = new SendMessage(user.id(), message);
-    sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttonsArray).resizeKeyboard(true));
-    sendMessage(sendMessage);
   }
 
-  public void sendCompetitions(User user) {
+  @Transactional(readOnly = true)
+  public void sendResults(User user) {
     var message = "<pre>" + messageSource.getMessage("results.competitions", null, getLocale(user)) + "</pre>";
     SendMessage sendMessage = new SendMessage(user.id(), message).parseMode(ParseMode.HTML);
-    sendMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitionButtonsMatrix()));
+    sendMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitionButtonsMatrix(user.id())));
     sendMessage(sendMessage);
   }
 
-  public void sendCompetitions(User user, Integer messageId) {
+  @Transactional(readOnly = true)
+  public void sendResults(User user, Integer messageId) {
     var message = "<pre>" + messageSource.getMessage("results.competitions", null, getLocale(user)) + "</pre>";
     var editMessageText = new EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML);
-    editMessageText.replyMarkup(new InlineKeyboardMarkup(getCompetitionButtonsMatrix()));
-    editMessage(editMessageText);
-  }
-
-  public void sendSeasons(User user, UUID competitionId, Integer messageId) {
-    var inlineKeyboardButtons = new ArrayList<InlineKeyboardButton>();
-    var competition = competitionService.getCompetition(competitionId);
-    competitionService.getSeasons(competitionId).forEach(season -> {
-      var inlineKeyboardButton = new InlineKeyboardButton(season.getYear().toString());
-      inlineKeyboardButton.callbackData("/season " + season.getId());
-      inlineKeyboardButtons.add(inlineKeyboardButton);
-    });
-
-    var inlineKeyboardMatrix = splitKeyboardButtonList(inlineKeyboardButtons, 4);
-
-    var backButton = new InlineKeyboardButton(messageSource.getMessage("results.seasons.back_button", null, getLocale(user)));
-    backButton.callbackData("/results");
-    inlineKeyboardMatrix.add(List.of(backButton).toArray(new InlineKeyboardButton[1]));
-
-    var message = "<pre>" + competition.getName() + "\n\n" + messageSource.getMessage("results.seasons", null, getLocale(user)) + "</pre>";
-    var editMessageText = new EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML);
-    editMessageText.replyMarkup(new InlineKeyboardMarkup(inlineKeyboardMatrix.toArray(new InlineKeyboardButton[0][])));
+    editMessageText.replyMarkup(new InlineKeyboardMarkup(getCompetitionButtonsMatrix(user.id())));
     editMessage(editMessageText);
   }
 
@@ -188,6 +176,83 @@ public class TelegramService {
     var editMessageText = new EditMessageText(user.id(), messageId, message.toString());
     editMessageText.replyMarkup(new InlineKeyboardMarkup(inlineKeyboardMatrix.toArray(new InlineKeyboardButton[0][])));
     editMessage(editMessageText.parseMode(ParseMode.HTML));
+  }
+
+  public void sendResultsBySeasons(User user, UUID competitionId, Integer messageId) {
+    var inlineKeyboardButtons = new ArrayList<InlineKeyboardButton>();
+    var competition = competitionService.getCompetition(competitionId);
+    competitionService.getSeasons(competitionId).forEach(season -> {
+      var inlineKeyboardButton = new InlineKeyboardButton(season.getYear().toString());
+      inlineKeyboardButton.callbackData("/season " + season.getId());
+      inlineKeyboardButtons.add(inlineKeyboardButton);
+    });
+
+    var backButton = new InlineKeyboardButton(messageSource.getMessage("results.seasons.back_button", null, getLocale(user)));
+    backButton.callbackData("/results");
+
+    var inlineKeyboardMatrix = convertToMatrix(inlineKeyboardButtons, 4);
+    inlineKeyboardMatrix = ArrayUtils.add(inlineKeyboardMatrix, List.of(backButton).toArray(new InlineKeyboardButton[1]));
+
+    var message = "<pre>" + competition.getName() + "\n\n" + messageSource.getMessage("results.seasons", null, getLocale(user)) + "</pre>";
+    var editMessageText = new EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML);
+    editMessageText.replyMarkup(new InlineKeyboardMarkup(inlineKeyboardMatrix));
+    editMessage(editMessageText);
+  }
+
+  @Transactional(readOnly = true)
+  public void sendCompetition(UUID competitionId) {
+    var competition = competitionService.getCompetition(competitionId);
+    userService.getUsers().forEach(user -> {
+      var locale = user.getLanguage() != null ? user.getLanguage() : new Locale("ru");
+      var sendMessage = new SendMessage(user.getId(), messageSource.getMessage("competitions.new", new String [] { competition.getName() }, locale));
+      sendMessage.replyMarkup(new InlineKeyboardMarkup(new InlineKeyboardButton(competition.getName()).callbackData("/competition " + competitionId)));
+      sendMessage.parseMode(ParseMode.HTML);
+      sendMessage(sendMessage);
+
+      if (competition.isActive()) {
+        pushUpdate(user.getId(), messageSource.getMessage("push.update", null, locale), true);
+      }
+    });
+  }
+
+  @Transactional(readOnly = true)
+  public void sendCompetition(User user, Integer messageId, UUID competitionId) {
+    var locale = getLocale(user);
+    var userEntity = userService.getUser(user.id());
+    var competition = competitionService.getCompetition(competitionId);
+    var activated = userEntity.getCompetitions().stream().anyMatch(competitionEntity -> competitionEntity.getId().equals(competitionId));
+    var button = new InlineKeyboardButton((activated ? "✅ " : "") + competition.getName());
+    button.callbackData("/competitions " + competition.getId());
+
+    var editMessage = new EditMessageText(user.id(), messageId, messageSource.getMessage("competitions.new", null, getLocale(user)));
+    editMessage.replyMarkup(new InlineKeyboardMarkup(new InlineKeyboardButton(competition.getName()).callbackData("/competition " + competitionId)));
+    editMessage.parseMode(ParseMode.HTML);
+    editMessage(editMessage);
+
+    if (competition.isActive()) {
+      pushUpdate(user.id(), messageSource.getMessage("push.update", null, locale), true);
+    }
+  }
+
+  @Transactional(readOnly = true)
+  public void sendCompetitions(User user) {
+    var sendMessage = new SendMessage(user.id(), messageSource.getMessage("competitions", null, getLocale(user)));
+    sendMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitions(user)));
+    sendMessage.parseMode(ParseMode.HTML);
+    sendMessage(sendMessage);
+  }
+
+  @Transactional(readOnly = true)
+  public void sendCompetitions(User user, Integer messageId, UUID competitionId) {
+    var editMessage = new EditMessageText(user.id(), messageId, messageSource.getMessage("competitions", null, getLocale(user)));
+    editMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitions(user)));
+    editMessage.parseMode(ParseMode.HTML);
+    editMessage(editMessage);
+
+    var competition = competitionService.getCompetition(competitionId);
+    if (competition.isActive()) {
+      pushUpdate(user.id(), messageSource.getMessage("push.update", null, getLocale(user)), true);
+    }
   }
 
   public void sendLanguageMessage(User user) {
@@ -244,6 +309,15 @@ public class TelegramService {
     sendMessage(sendMessage);
   }
 
+  @Transactional(readOnly = true)
+  public void pushUpdate(UUID competitionId) {
+    userService.getUsers(competitionId).forEach(user -> {
+      var locale = user.getLanguage() != null ? user.getLanguage() : new Locale("ru");
+      pushUpdate(user.getId(), messageSource.getMessage("push.update", null, locale), true);
+    });
+  }
+
+  @Transactional(readOnly = true)
   public void pushUpdate(Long userId, String message, boolean updateCompetitionList) {
     log.info("Sending push update to user {}", userId);
     SendMessage sendMessage = new SendMessage(userId, message);
@@ -251,7 +325,11 @@ public class TelegramService {
 
     if (updateCompetitionList) {
       var buttonsArray = getPredictionButtons(userId);
-      sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttonsArray).resizeKeyboard(true));
+      if (buttonsArray.length > 0) {
+        sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttonsArray).resizeKeyboard(true));
+      } else {
+        sendMessage.replyMarkup(new ReplyKeyboardRemove());
+      }
     }
 
     sendMessage(sendMessage);
@@ -260,9 +338,8 @@ public class TelegramService {
   private KeyboardButton[][] getPredictionButtons(Long userId) {
     var buttons = new ArrayList<List<KeyboardButton>>();
 
-    var competitions = competitionService.getCompetitions();
-    competitions.forEach(competition -> {
-      if (competition.isActive()) {
+    userService.getUser(userId).getCompetitions().forEach(competition -> {
+      if (competition.getSeasons().stream().anyMatch(SeasonEntity::isActive)) {
         var buttonsRow = new ArrayList<KeyboardButton>();
         var predictionsKeyboardButton = new KeyboardButton(competition.getName());
         predictionsKeyboardButton.webAppInfo(new WebAppInfo(buildGeneralUrl(userId, competition.getId(), null,"predictions")));
@@ -283,35 +360,28 @@ public class TelegramService {
     return buttonsArray;
   }
 
-  private InlineKeyboardButton[][] getCompetitionButtonsMatrix() {
+  private InlineKeyboardButton[][] getCompetitionButtonsMatrix(Long userId) {
     var inlineKeyboardButtons = new ArrayList<InlineKeyboardButton>();
-    competitionService.getCompetitions().forEach(competition -> {
+    userService.getUser(userId).getCompetitions().forEach(competition -> {
       var inlineKeyboardButton = new InlineKeyboardButton(competition.getName());
       inlineKeyboardButton.callbackData("/seasons " + competition.getId());
       inlineKeyboardButtons.add(inlineKeyboardButton);
     });
 
-    var inlineKeyboardMatrix = splitKeyboardButtonList(inlineKeyboardButtons, 2);
-    return inlineKeyboardMatrix.toArray(new InlineKeyboardButton[0][]);
+    return convertToMatrix(inlineKeyboardButtons, 2);
   }
 
-  private List<InlineKeyboardButton[]> splitKeyboardButtonList(ArrayList<InlineKeyboardButton> inlineKeyboardButtons, int rowLength) {
-    var inlineKeyboardMatrix = new ArrayList<InlineKeyboardButton[]>();
-    for (var i = 0; i < inlineKeyboardButtons.size(); i = i + rowLength) {
-      List<InlineKeyboardButton> inlineKeyboardButtonsRow;
-      if (inlineKeyboardButtons.size() > i + rowLength) {
-        inlineKeyboardButtonsRow = inlineKeyboardButtons.subList(i, i + rowLength);
-      } else {
-        inlineKeyboardButtonsRow = inlineKeyboardButtons.subList(i, inlineKeyboardButtons.size());
-      }
-      inlineKeyboardMatrix.add(inlineKeyboardButtonsRow.toArray(new InlineKeyboardButton[0]));
-    }
-    return inlineKeyboardMatrix;
-  }
-
-  private String buildGeneralUrl(Long userId, UUID competitionId, UUID seasonId, String key) {
-    var url = applicationUrl + "/" + hashUtils.getHash(userId.toString()) + "/users/" + userId + "/" + key + "?leagueId=" + competitionId;
-    return seasonId != null ? url + "&seasonId=" + seasonId : url;
+  private InlineKeyboardButton[][] getCompetitions(User user) {
+    var userEntity = userService.getUser(user.id());
+    var competitions = competitionService.getCompetitions();
+    var competitionList = new ArrayList<InlineKeyboardButton>();
+    competitions.forEach(competition -> {
+      var activated = userEntity.getCompetitions().stream().anyMatch(competitionEntity -> competitionEntity.getId().equals(competition.getId()));
+      var button = new InlineKeyboardButton((activated ? "✅ " : "") + competition.getName());
+      button.callbackData("/competitions " + competition.getId());
+      competitionList.add(button);
+    });
+    return convertToMatrix(competitionList, 2);
   }
 
   private SendMessage buildGreetingMessage(User user, String username) {
@@ -371,5 +441,31 @@ public class TelegramService {
       log.error("Error report document was not send: [{}] {}", response.errorCode(), response.description());
       throw new TelegramException("Unable to send error report", response);
     }
+  }
+
+  private InlineKeyboardButton[][] convertToMatrix(ArrayList<InlineKeyboardButton> buttons, int maxColumns) {
+    var rows = (buttons.size() + maxColumns - 1) / maxColumns;
+    var iterator = buttons.iterator();
+    var matrix = new InlineKeyboardButton[rows][];
+    for (int i = 0; i < rows; i++) {
+      var columns = new ArrayList<InlineKeyboardButton>();
+      for (int j = 0; j < maxColumns && iterator.hasNext(); j++) {
+        columns.add(iterator.next());
+      }
+      matrix[i] = columns.toArray(new InlineKeyboardButton[0]);
+    }
+
+    return matrix;
+  }
+
+  private String buildGeneralUrl(Long userId, UUID competitionId, UUID seasonId, String key) {
+    var url = applicationUrl + "/webapp/" + hashUtils.getHash(userId.toString()) + "/users/" + userId + "/" + key;
+    if (competitionId != null) {
+      url += "?competitionId=" + competitionId;
+      if (seasonId != null) {
+        url += "&seasonId=" + seasonId;
+      }
+    }
+    return url;
   }
 }

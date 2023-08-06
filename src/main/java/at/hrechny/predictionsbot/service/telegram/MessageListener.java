@@ -77,22 +77,14 @@ public class MessageListener implements UpdatesListener {
     return UpdatesListener.CONFIRMED_UPDATES_ALL;
   }
 
-  private void initObjectMapper() {
-    objectMapper = new ObjectMapper();
-    objectMapper.setVisibility(PropertyAccessor.ALL, Visibility.NONE);
-    objectMapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
-    objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-    objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
-    objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-  }
-
   private void processMessageText(Message message) {
     var user = message.from();
 
     switch (message.text()) {
       case "/start" -> telegramService.startBot(user);
       case "/predictions" -> telegramService.sendPredictions(user);
-      case "/results" -> telegramService.sendCompetitions(user);
+      case "/results" -> telegramService.sendResults(user);
+      case "/competitions" -> telegramService.sendCompetitions(user);
       case "/timezone" -> telegramService.sendTimezoneMessage(user);
       case "/language" -> telegramService.sendLanguageMessage(user);
       case "/help" -> telegramService.sendHelp(user);
@@ -114,13 +106,21 @@ public class MessageListener implements UpdatesListener {
     if (callbackQuery.data().startsWith("/language ")) {
       updateLanguage(callbackQuery.from(), callbackQuery.data().substring(10));
     } else if (callbackQuery.data().startsWith("/results")) {
-      telegramService.sendCompetitions(callbackQuery.from(), messageId);
+      telegramService.sendResults(callbackQuery.from(), messageId);
     } else if (callbackQuery.data().startsWith("/seasons ")) {
       var competitionId = UUID.fromString(callbackQuery.data().substring(9));
-      telegramService.sendSeasons(callbackQuery.from(), competitionId, messageId);
+      telegramService.sendResultsBySeasons(callbackQuery.from(), competitionId, messageId);
     } else if (callbackQuery.data().startsWith("/season ")) {
       var seasonId = UUID.fromString(callbackQuery.data().substring(8));
       telegramService.sendResults(callbackQuery.from(), seasonId, messageId);
+    } else if (callbackQuery.data().startsWith("/competition ")) {
+      var competitionId = UUID.fromString(callbackQuery.data().substring(13));
+      userService.updateCompetitions(callbackQuery.from().id(), competitionId);
+      telegramService.sendCompetition(callbackQuery.from(), messageId, competitionId);
+    } else if (callbackQuery.data().startsWith("/competitions ")) {
+      var competitionId = UUID.fromString(callbackQuery.data().substring(14));
+      userService.updateCompetitions(callbackQuery.from().id(), competitionId);
+      telegramService.sendCompetitions(callbackQuery.from(), messageId, competitionId);
     }
   }
 
@@ -167,4 +167,12 @@ public class MessageListener implements UpdatesListener {
     userService.deactivate(user.id());
   }
 
+  private void initObjectMapper() {
+    objectMapper = new ObjectMapper();
+    objectMapper.setVisibility(PropertyAccessor.ALL, Visibility.NONE);
+    objectMapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
+    objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+    objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
+    objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+  }
 }

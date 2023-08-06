@@ -141,7 +141,6 @@
     window.Telegram.WebApp.enableClosingConfirmation();
 
     const mainButton = window.Telegram.WebApp.MainButton;
-    mainButton.setText("<@spring.message "buttons.save" />");
     mainButton.onClick(function () {
       save();
     });
@@ -149,8 +148,10 @@
 
     if (document.querySelector(".double")) {
       mainButton.enable();
+      mainButton.setText("<@spring.message "buttons.save" />")
     } else {
       mainButton.disable();
+      mainButton.setText("<@spring.message "buttons.save.disabled" />")
       mainButton.color = '#d7d7d7'
     }
   }
@@ -221,6 +222,7 @@
 
     window.Telegram.WebApp.MainButton.enable();
     window.Telegram.WebApp.MainButton.color = null;
+    window.Telegram.WebApp.MainButton.setText("<@spring.message "buttons.save" />")
     console.log("Double attribute has set");
   }
 

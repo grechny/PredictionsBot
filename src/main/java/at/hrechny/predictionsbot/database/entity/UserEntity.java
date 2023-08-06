@@ -5,8 +5,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Locale;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -18,13 +20,16 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = {"competitions"})
 @Entity
 @Table(name = "users")
 public class UserEntity {
 
   @Id
   private Long id;
+
+  @Column
+  private boolean active = true;
 
   @Column
   private String username;
@@ -36,7 +41,7 @@ public class UserEntity {
   @Convert(converter = ZoneIdConverter.class)
   private ZoneId timezone;
 
-  @Column
-  private boolean active = true;
+  @ManyToMany
+  private List<CompetitionEntity> competitions;
 
 }

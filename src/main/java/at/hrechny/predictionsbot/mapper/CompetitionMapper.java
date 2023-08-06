@@ -1,13 +1,14 @@
 package at.hrechny.predictionsbot.mapper;
 
+import at.hrechny.predictionsbot.config.MapperConfig;
+import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.model.Competition;
-import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
-@Mapper
+@Mapper(config = MapperConfig.class)
 public interface CompetitionMapper {
 
   @Mapping(target = "active", source = "source", qualifiedByName = "isActive")

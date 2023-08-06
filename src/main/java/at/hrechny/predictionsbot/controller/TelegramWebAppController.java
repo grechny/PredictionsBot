@@ -20,10 +20,16 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.ModelAndView;
@@ -43,16 +49,12 @@ public class TelegramWebAppController {
   private final HashUtils hashUtils;
   private final HttpServletRequest request;
 
-  @GetMapping(value = "/{hash}/users/{userId}/predictions", produces = MediaType.TEXT_HTML_VALUE)
+  @GetMapping(value = "/webapp/{hash}/users/{userId}/predictions", produces = MediaType.TEXT_HTML_VALUE)
   public ModelAndView getPredictions(
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
-      @RequestParam("leagueId") UUID leagueId,
+      @RequestParam("competitionId") UUID competitionId,
       @RequestParam(value = "round", required = false) Integer roundNumber) {
-
-    if (!hashUtils.getHash(userId.toString()).equals(hash)) {
-      throw new NotFoundException("User not found");
-    }
 
     var user = userService.getUser(userId);
     if (user.getLanguage() != null) {
@@ -61,14 +63,14 @@ public class TelegramWebAppController {
 
     RoundEntity round;
     if (roundNumber == null || roundNumber.equals(0)) {
-      round = competitionService.getUpcomingRound(leagueId);
+      round = competitionService.getUpcomingRound(competitionId);
     } else {
-      round = competitionService.getRound(leagueId, roundNumber);
+      round = competitionService.getRound(competitionId, roundNumber);
     }
 
     if (round == null || CollectionUtils.isEmpty(round.getMatches())) {
       var modelAndView = new ModelAndView("no-upcoming-matches");
-      modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());
+      modelAndView.addObject("competitionName", competitionService.getCompetition(competitionId).getName());
       return modelAndView;
     }
 
@@ -85,28 +87,24 @@ public class TelegramWebAppController {
     modelAndView.addObject("user", user);
     modelAndView.addObject("fixtures", fixtures);
     modelAndView.addObject("rounds", rounds);
-    modelAndView.addObject("baseUrl", buildBaseUrl("predictions", userId, leagueId, null));
+    modelAndView.addObject("baseUrl", buildBaseUrl("predictions", userId, competitionId, null));
     return modelAndView;
   }
 
-  @GetMapping(value = "/{hash}/users/{userId}/results", produces = MediaType.TEXT_HTML_VALUE)
+  @GetMapping(value = "/webapp/{hash}/users/{userId}/results", produces = MediaType.TEXT_HTML_VALUE)
   public ModelAndView getResults(
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
-      @RequestParam("leagueId") UUID leagueId,
+      @RequestParam("competitionId") UUID competitionId,
       @RequestParam(value = "seasonId", required = false) UUID seasonId,
       @RequestParam(value = "round", required = false) Integer roundNumber) {
-
-    if (!hashUtils.getHash(userId.toString()).equals(hash)) {
-      throw new NotFoundException("User not found");
-    }
 
     var user = userService.getUser(userId);
     if (user.getLanguage() != null) {
       localeResolver.setLocale(request, null, user.getLanguage());
     }
 
-    var season = seasonId != null ? competitionService.getSeason(seasonId) : competitionService.getCurrentSeason(leagueId);
+    var season = seasonId != null ? competitionService.getSeason(seasonId) : competitionService.getCurrentSeason(competitionId);
     competitionService.refreshActiveFixtures(season.getId());
 
     List<Result> results;
@@ -146,7 +144,7 @@ public class TelegramWebAppController {
 
     if (CollectionUtils.isEmpty(rounds)) {
       var modelAndView = new ModelAndView("no-results");
-      modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());
+      modelAndView.addObject("competitionName", competitionService.getCompetition(competitionId).getName());
       return modelAndView;
     }
 
@@ -157,14 +155,14 @@ public class TelegramWebAppController {
     modelAndView.addObject("activeRound", roundNumber);
     modelAndView.addObject("matches", matches);
     modelAndView.addObject("matchResults", matchResults);
-    modelAndView.addObject("competitionName", competitionService.getCompetition(leagueId).getName());
-    modelAndView.addObject("baseUrl", buildBaseUrl("results", userId, leagueId, seasonId));
+    modelAndView.addObject("competitionName", competitionService.getCompetition(competitionId).getName());
+    modelAndView.addObject("baseUrl", buildBaseUrl("results", userId, competitionId, seasonId));
 
     return modelAndView;
   }
 
   private String buildBaseUrl(String key, Long userId, UUID competitionId, UUID seasonId) {
-    var url = applicationUrl + "/" + hashUtils.getHash(userId.toString()) + "/users/" + userId + "/" + key + "?leagueId=" + competitionId;
+    var url = applicationUrl + "/webapp/" + hashUtils.getHash(userId.toString()) + "/users/" + userId + "/" + key + "?competitionId=" + competitionId;
     if (seasonId != null) {
       url += "&seasonId=" + seasonId;
     }

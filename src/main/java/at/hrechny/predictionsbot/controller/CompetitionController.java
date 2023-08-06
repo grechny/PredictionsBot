@@ -4,6 +4,7 @@ import at.hrechny.predictionsbot.exception.RequestValidationException;
 import at.hrechny.predictionsbot.model.Competition;
 import at.hrechny.predictionsbot.model.Season;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
+import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CompetitionController {
 
   private final CompetitionService competitionService;
+  private final TelegramService telegramService;
 
   @PostMapping(value = "/${secrets.adminKey}/competitions", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<Map<String, UUID>> addCompetition(@Valid @RequestBody Competition competition) {
@@ -31,6 +33,7 @@ public class CompetitionController {
     }
 
     var id = competitionService.addCompetition(competition);
+    telegramService.sendCompetition(id);
     return ResponseEntity.ok(Map.of("id", id));
   }
 
@@ -46,6 +49,7 @@ public class CompetitionController {
     }
 
     var id = competitionService.addSeason(competitionId, season);
+    telegramService.pushUpdate(competitionId);
     return ResponseEntity.ok(Map.of("id", id));
   }
 
@@ -66,6 +70,7 @@ public class CompetitionController {
 
     season.setId(seasonId);
     competitionService.updateSeason(competitionId, season);
+    telegramService.pushUpdate(competitionId);
     return ResponseEntity.ok().build();
   }
 

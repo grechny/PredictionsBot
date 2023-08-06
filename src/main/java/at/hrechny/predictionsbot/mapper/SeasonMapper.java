@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.mapper;
 
+import at.hrechny.predictionsbot.config.MapperConfig;
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.model.Season;
@@ -7,7 +8,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
-@Mapper(uses = YearMapper.class)
+@Mapper(config = MapperConfig.class, uses = YearMapper.class)
 public interface SeasonMapper {
 
   @Mapping(target = "competition", source = "competition.name")

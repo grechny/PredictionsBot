@@ -1,15 +1,14 @@
 plugins {
+    id 'io.spring.dependency-management' version '1.1.2'
+    id 'org.springframework.boot' version '3.1.2'
     id 'java'
-    id 'idea'
-    id 'io.spring.dependency-management' version '1.1.0'
-    id 'org.springframework.boot' version '3.0.1'
 }
 
 group 'at.hrechny'
-version '1.1'
+version '1.2'
 
 ext {
-    set('springCloudVersion', "2022.0.0")
+    set('springCloudVersion', "2022.0.3")
 }
 
 dependencyManagement {
@@ -18,10 +17,10 @@ dependencyManagement {
     }
 }
 
-compileJava {
-    options.compilerArgs += [
-            '-Amapstruct.defaultComponentModel=spring'
-    ]
+sourceSets {
+    main {
+        java.srcDirs += "build/generated/src/main/java"
+    }
 }
 
 repositories {
@@ -38,27 +37,28 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-vault-config'
 
     // Tools
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.13.3'
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.2'
-    implementation 'com.github.pengrad:java-telegram-bot-api:6.2.0'
+    implementation 'com.github.pengrad:java-telegram-bot-api:6.7.0'
     implementation 'org.apache.commons:commons-collections4:4.4'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
-    implementation 'org.apache.pdfbox:pdfbox:2.0.27'
-    implementation 'org.apache.pdfbox:pdfbox-tools:2.0.27'
-    implementation 'org.mapstruct:mapstruct:1.5.2.Final'
+    implementation 'org.apache.pdfbox:pdfbox:2.0.28'
+    implementation 'org.apache.pdfbox:pdfbox-tools:2.0.28'
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+    implementation 'org.mapstruct.extensions.spring:mapstruct-spring-annotations:1.0.1'
     implementation 'us.dustinj.timezonemap:timezonemap:4.5'
 
-    runtimeOnly 'org.postgresql:postgresql:42.4.2'
+    runtimeOnly 'org.postgresql:postgresql:42.6.0'
     compileOnly 'org.projectlombok:lombok'
 
     annotationProcessor 'org.projectlombok:lombok'
-    annotationProcessor "org.mapstruct:mapstruct-processor:1.5.2.Final"
+    annotationProcessor "org.projectlombok:lombok-mapstruct-binding:0.2.0"
+    annotationProcessor "org.mapstruct:mapstruct-processor:1.5.5.Final"
+    annotationProcessor 'org.mapstruct.extensions.spring:mapstruct-spring-extensions:1.0.1'
+    annotationProcessor "org.mapstruct:mapstruct-processor:1.5.5.Final"
 
     // Tests and test tools
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'com.h2database:h2:2.1.214'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+    testImplementation 'com.h2database:h2:2.2.220'
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
 }

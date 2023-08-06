@@ -89,6 +89,12 @@ public class ReminderScheduler {
     var predictionMissedMatches = new ArrayList<MatchEntity>();
 
     for (var upcoming : upcomingFixtures) {
+      // skip if user is not participating in the competition
+      if (user.getCompetitions().stream().noneMatch(competition -> upcoming.getRound().getSeason().getCompetition().getId().equals(competition.getId()))) {
+        continue;
+      }
+
+      // skip if user already made a prediction
       var predictionMissed = upcoming.getPredictions().stream().noneMatch(p -> p.getUser().equals(user));
       if (predictionMissed) {
         predictionMissedMatches.add(upcoming);
@@ -104,6 +110,12 @@ public class ReminderScheduler {
     var weekBeforeNow = Instant.now().minus(Duration.ofDays(7));
 
     for (var upcoming : upcomingFixtures) {
+      // skip if user is not participating in the competition
+      if (user.getCompetitions().stream().noneMatch(competition -> upcoming.getRound().getSeason().getCompetition().getId().equals(competition.getId()))) {
+        continue;
+      }
+
+      // check if prediction made more than week ago
       var userPrediction = upcoming.getPredictions().stream().filter(p -> p.getUser().equals(user)).findAny();
       if (userPrediction.isPresent() && userPrediction.get().getUpdatedAt().isBefore(weekBeforeNow)) {
         var fixturesOfRound = upcoming.getRound().getMatches();

@@ -8,7 +8,7 @@ import lombok.Setter;
 @Getter
 public abstract class ApiFootballResponse<T> {
 
-  protected List<String> errors;
-  protected List<T> response;
+  private List<String> errors;
+  private List<T> response;
 
 }
