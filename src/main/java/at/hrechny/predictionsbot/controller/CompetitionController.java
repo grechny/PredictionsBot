@@ -76,7 +76,7 @@ public class CompetitionController {
 
   @PostMapping(value = "/${secrets.adminKey}/fixtures")
   public ResponseEntity<Void> refreshFixtures() {
-    competitionService.refreshFixtures();
+    competitionService.getActiveSeasons().forEach(competitionService::refreshFixtures);
     return ResponseEntity.ok().build();
   }
 

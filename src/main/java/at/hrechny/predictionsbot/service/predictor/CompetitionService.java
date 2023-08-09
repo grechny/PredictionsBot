@@ -100,14 +100,14 @@ public class CompetitionService {
   }
 
   public List<Season> getSeasons(UUID competitionId) {
-    var entityList = seasonRepository.findAllByCompetition_Id(competitionId);
+    var entityList = seasonRepository.findAllByCompetitionId(competitionId);
     var seasonList = new ArrayList<Season>();
     entityList.forEach(entity -> seasonList.add(seasonMapper.entityToModel(entity)));
     return seasonList;
   }
 
   public SeasonEntity getCurrentSeason(UUID competitionId) {
-    return seasonRepository.findFirstByCompetition_IdAndActiveIsTrue(competitionId)
+    return seasonRepository.findFirstByCompetitionIdAndActiveIsTrue(competitionId)
         .orElseThrow(() -> new NotFoundException("No active season found for the competition " + competitionId));
   }
 
@@ -124,10 +124,9 @@ public class CompetitionService {
     return season.getRounds().stream().filter(roundEntity -> orderNumber.equals(roundEntity.getOrderNumber())).findFirst().orElse(null);
   }
 
-  public void refreshFixtures() {
+  public List<SeasonEntity> getActiveSeasons() {
     log.info("Starting to refresh fixtures data for the all active competitions");
-    var activeSeasons = seasonRepository.findAllByActiveIsTrue();
-    activeSeasons.forEach(this::refreshFixtures);
+    return seasonRepository.findAllByActiveIsTrue();
   }
 
   public void refreshActiveFixtures(UUID seasonId) {
@@ -147,13 +146,13 @@ public class CompetitionService {
     }
   }
 
-  private void refreshFixtures(SeasonEntity seasonEntity) {
+  public void refreshFixtures(SeasonEntity seasonEntity) {
     log.info("Start refreshing fixtures data for the season {}", seasonEntity.getId());
     try {
       var fixtures = apiFootballConnector.getFixtures(seasonEntity.getCompetition().getApiFootballId(), seasonEntity.getYear());
       refreshFixtures(fixtures, seasonEntity);
     } catch (ApiFootballConnectorException ex) {
-      log.error("Failed to refresh fixtures: {}", ex.getMessage());
+      log.error("Failed to refresh fixtures for {}: {}", seasonEntity.getCompetition().getName(), ex.getMessage());
     }
   }
 
@@ -231,7 +230,7 @@ public class CompetitionService {
 
   private void validateActiveSeasons(UUID competitionId, Season season) {
     if (season.isActive()) {
-      int activeSeasons = seasonRepository.countAllByActiveIsTrueAndCompetition_Id(competitionId);
+      int activeSeasons = seasonRepository.countAllByActiveIsTrueAndCompetitionId(competitionId);
       if (activeSeasons > 0) {
         throw new RequestValidationException("Not possible to add more than one active season");
       }

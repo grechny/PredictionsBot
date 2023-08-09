@@ -15,7 +15,7 @@ public interface UserRepository extends CrudRepository<UserEntity, Long> {
 
   List<UserEntity> findAllByActiveIsTrue();
 
-  @Query("select u from UserEntity u where u.active = true and ?1 member of u.competitions")
+  @Query("select u from UserEntity u JOIN u.competitions c WHERE u.active = true and c.id = :competitionId")
   List<UserEntity> findAllActiveByCompetitionsId(UUID competitionId);
 
 }

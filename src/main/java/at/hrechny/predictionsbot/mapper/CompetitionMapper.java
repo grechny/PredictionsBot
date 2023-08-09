@@ -4,6 +4,7 @@ import at.hrechny.predictionsbot.config.MapperConfig;
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.model.Competition;
+import org.apache.commons.collections4.CollectionUtils;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
@@ -19,7 +20,7 @@ public interface CompetitionMapper {
 
   @Named("isActive")
   default boolean isActive(CompetitionEntity entity) {
-    return entity.getSeasons().stream().anyMatch(SeasonEntity::isActive);
+    return CollectionUtils.isNotEmpty(entity.getSeasons()) && entity.getSeasons().stream().anyMatch(SeasonEntity::isActive);
   }
 
 }

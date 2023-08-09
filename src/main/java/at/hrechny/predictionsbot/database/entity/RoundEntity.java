@@ -6,7 +6,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -38,7 +37,7 @@ public class RoundEntity extends GeneratedIdEntity {
   @Column
   private String apiFootballId;
 
-  @OneToMany(mappedBy="round",  fetch = FetchType.EAGER, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+  @OneToMany(mappedBy="round", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
   private List<MatchEntity> matches = new ArrayList<>();
 
 }

@@ -5,15 +5,20 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "audit")
+@EqualsAndHashCode(callSuper = true)
+@Table(name = "audit", indexes = {
+    @Index(name = "idx_api_key_provider", columnList = "apiKey, apiProvider", unique = true)
+})
 public class AuditEntity extends GeneratedIdEntity {
 
   @Column

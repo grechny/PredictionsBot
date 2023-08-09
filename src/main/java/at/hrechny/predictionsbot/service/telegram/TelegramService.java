@@ -39,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class TelegramService {
 
   @Value("${telegram.token}")
@@ -72,6 +73,7 @@ public class TelegramService {
     sendMessage(new SendMessage(userId, message).parseMode(ParseMode.HTML));
   }
 
+  @Transactional
   public void startBot(User user) {
     SendMessage message;
     try {
@@ -106,7 +108,6 @@ public class TelegramService {
     sendMessage(message);
   }
 
-  @Transactional(readOnly = true)
   public void sendPredictions(User user) {
     var buttonsArray = getPredictionButtons(user.id());
 
@@ -128,7 +129,6 @@ public class TelegramService {
     }
   }
 
-  @Transactional(readOnly = true)
   public void sendResults(User user) {
     var message = "<pre>" + messageSource.getMessage("results.competitions", null, getLocale(user)) + "</pre>";
     SendMessage sendMessage = new SendMessage(user.id(), message).parseMode(ParseMode.HTML);
@@ -136,7 +136,6 @@ public class TelegramService {
     sendMessage(sendMessage);
   }
 
-  @Transactional(readOnly = true)
   public void sendResults(User user, Integer messageId) {
     var message = "<pre>" + messageSource.getMessage("results.competitions", null, getLocale(user)) + "</pre>";
     var editMessageText = new EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML);
@@ -210,7 +209,6 @@ public class TelegramService {
     sendMessage(sendMessage);
   }
 
-  @Transactional(readOnly = true)
   public void sendCompetition(UUID competitionId) {
     var competition = competitionService.getCompetition(competitionId);
     userService.getUsers().forEach(user -> {
@@ -226,17 +224,16 @@ public class TelegramService {
     });
   }
 
-  @Transactional(readOnly = true)
   public void sendCompetition(User user, Integer messageId, UUID competitionId) {
     var locale = getLocale(user);
     var userEntity = userService.getUser(user.id());
     var competition = competitionService.getCompetition(competitionId);
     var activated = userEntity.getCompetitions().stream().anyMatch(competitionEntity -> competitionEntity.getId().equals(competitionId));
     var button = new InlineKeyboardButton((activated ? "✅ " : "") + competition.getName());
-    button.callbackData("/competitions " + competition.getId());
+    button.callbackData("/competition " + competition.getId());
 
-    var editMessage = new EditMessageText(user.id(), messageId, messageSource.getMessage("competitions.new", null, getLocale(user)));
-    editMessage.replyMarkup(new InlineKeyboardMarkup(new InlineKeyboardButton(competition.getName()).callbackData("/competition " + competitionId)));
+    var editMessage = new EditMessageText(user.id(), messageId, messageSource.getMessage("competitions.new", new String [] { competition.getName() }, getLocale(user)));
+    editMessage.replyMarkup(new InlineKeyboardMarkup(button));
     editMessage.parseMode(ParseMode.HTML);
     editMessage(editMessage);
 
@@ -245,7 +242,6 @@ public class TelegramService {
     }
   }
 
-  @Transactional(readOnly = true)
   public void sendCompetitions(User user) {
     var sendMessage = new SendMessage(user.id(), messageSource.getMessage("competitions", null, getLocale(user)));
     sendMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitions(user)));
@@ -253,7 +249,6 @@ public class TelegramService {
     sendMessage(sendMessage);
   }
 
-  @Transactional(readOnly = true)
   public void sendCompetitions(User user, Integer messageId, UUID competitionId) {
     var editMessage = new EditMessageText(user.id(), messageId, messageSource.getMessage("competitions", null, getLocale(user)));
     editMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitions(user)));
@@ -320,7 +315,6 @@ public class TelegramService {
     sendMessage(sendMessage);
   }
 
-  @Transactional(readOnly = true)
   public void pushUpdate(UUID competitionId) {
     userService.getUsers(competitionId).forEach(user -> {
       var locale = user.getLanguage() != null ? user.getLanguage() : new Locale("ru");
@@ -328,7 +322,6 @@ public class TelegramService {
     });
   }
 
-  @Transactional(readOnly = true)
   public void pushUpdate(Long userId, String message, boolean updateCompetitionList) {
     log.info("Sending push update to user {}", userId);
     SendMessage sendMessage = new SendMessage(userId, message);

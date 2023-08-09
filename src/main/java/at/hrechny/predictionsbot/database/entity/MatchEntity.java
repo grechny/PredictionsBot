@@ -6,7 +6,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -54,7 +53,7 @@ public class MatchEntity extends GeneratedIdEntity {
   @Column(unique=true)
   private Long apiFootballId;
 
-  @OneToMany(mappedBy="match", fetch = FetchType.EAGER, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+  @OneToMany(mappedBy="match", cascade = { CascadeType.PERSIST, CascadeType.MERGE })
   private List<PredictionEntity> predictions = new ArrayList<>();
 
   public Optional<PredictionEntity> getPrediction(Long userId) {

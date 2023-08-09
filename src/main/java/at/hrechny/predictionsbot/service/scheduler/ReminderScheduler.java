@@ -25,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.context.MessageSource;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -37,6 +38,7 @@ public class ReminderScheduler {
   private final CompetitionService competitionService;
   private final MessageSource messageSource;
 
+  @Transactional(readOnly = true)
   @Scheduled(cron = "0 0 * * * *", zone = "UTC")
   public void sendReminders() {
     var todayFixtures = competitionService.getFixtures(
