@@ -92,11 +92,19 @@ public class UserService {
     saveUser(userEntity);
   }
 
+  public void activate(Long userId) {
+    var user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("User not found"));
+    if (!user.isActive()) {
+      user.setActive(true);
+      userRepository.save(user);
+      log.info("Activated user {}", userId);
+    }
+  }
+
   public void deactivate(Long userId) {
     log.info("Deactivating user {}", userId);
     var userEntity = getUser(userId);
     userEntity.setActive(false);
     saveUser(userEntity);
   }
-
 }

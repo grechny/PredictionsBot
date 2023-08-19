@@ -70,7 +70,7 @@ public class TelegramService {
 
   public void sendMessage(Long userId, String message) {
     log.debug("Sending message to the user {}: {}", userId, message);
-    sendMessage(new SendMessage(userId, message).parseMode(ParseMode.HTML));
+    sendMessage(new SendMessage(userId, message).parseMode(ParseMode.HTML), userId);
   }
 
   @Transactional
@@ -90,12 +90,12 @@ public class TelegramService {
     }
     userService.createUser(user.id(), username);
     message = buildGreetingMessage(user, username);
-    sendMessage(message);
+    sendMessage(message, user.id());
   }
 
   public void sendHelp(User user) {
     var sendMessage = new SendMessage(user.id(), messageSource.getMessage("help", null, getLocale(user)));
-    sendMessage(sendMessage);
+    sendMessage(sendMessage, user.id());
   }
 
   public void sendTimezoneMessage(User user) {
@@ -105,7 +105,7 @@ public class TelegramService {
 
     var message = new SendMessage(user.id(), messageSource.getMessage("start.location.change", null, locale));
     message.replyMarkup(new ReplyKeyboardMarkup(locationButton).resizeKeyboard(true));
-    sendMessage(message);
+    sendMessage(message, user.id());
   }
 
   public void sendPredictions(User user) {
@@ -119,13 +119,13 @@ public class TelegramService {
         var message = messageSource.getMessage("no_competitions", null, getLocale(user));
         var sendMessage = new SendMessage(user.id(), message);
         sendMessage.replyMarkup(new ReplyKeyboardRemove());
-        sendMessage(sendMessage);
+        sendMessage(sendMessage, user.id());
       }
     } else {
       var message = messageSource.getMessage("predictions", null, getLocale(user));
       var sendMessage = new SendMessage(user.id(), message);
       sendMessage.replyMarkup(new ReplyKeyboardMarkup(buttonsArray).resizeKeyboard(true));
-      sendMessage(sendMessage);
+      sendMessage(sendMessage, user.id());
     }
   }
 
@@ -133,14 +133,14 @@ public class TelegramService {
     var message = "<pre>" + messageSource.getMessage("results.competitions", null, getLocale(user)) + "</pre>";
     SendMessage sendMessage = new SendMessage(user.id(), message).parseMode(ParseMode.HTML);
     sendMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitionButtonsMatrix(user.id())));
-    sendMessage(sendMessage);
+    sendMessage(sendMessage, user.id());
   }
 
   public void sendResults(User user, Integer messageId) {
     var message = "<pre>" + messageSource.getMessage("results.competitions", null, getLocale(user)) + "</pre>";
     var editMessageText = new EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML);
     editMessageText.replyMarkup(new InlineKeyboardMarkup(getCompetitionButtonsMatrix(user.id())));
-    editMessage(editMessageText);
+    editMessage(editMessageText, user.id());
   }
 
   public void sendResults(User user, UUID seasonId, Integer messageId) {
@@ -174,7 +174,7 @@ public class TelegramService {
 
     var editMessageText = new EditMessageText(user.id(), messageId, message.toString());
     editMessageText.replyMarkup(new InlineKeyboardMarkup(inlineKeyboardMatrix.toArray(new InlineKeyboardButton[0][])));
-    editMessage(editMessageText.parseMode(ParseMode.HTML));
+    editMessage(editMessageText.parseMode(ParseMode.HTML), user.id());
   }
 
   public void sendResultsBySeasons(User user, UUID competitionId, Integer messageId) {
@@ -195,7 +195,7 @@ public class TelegramService {
     var message = "<pre>" + competition.getName() + "\n\n" + messageSource.getMessage("results.seasons", null, getLocale(user)) + "</pre>";
     var editMessageText = new EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML);
     editMessageText.replyMarkup(new InlineKeyboardMarkup(inlineKeyboardMatrix));
-    editMessage(editMessageText);
+    editMessage(editMessageText, user.id());
   }
 
   public void sendLeagues(User user) {
@@ -206,7 +206,7 @@ public class TelegramService {
 
     var sendMessage = new SendMessage(user.id(), messageSource.getMessage("leagues", null, locale));
     sendMessage.replyMarkup(new InlineKeyboardMarkup(leagueButton));
-    sendMessage(sendMessage);
+    sendMessage(sendMessage, user.id());
   }
 
   public void sendCompetition(UUID competitionId) {
@@ -216,7 +216,7 @@ public class TelegramService {
       var sendMessage = new SendMessage(user.getId(), messageSource.getMessage("competitions.new", new String [] { competition.getName() }, locale));
       sendMessage.replyMarkup(new InlineKeyboardMarkup(new InlineKeyboardButton(competition.getName()).callbackData("/competition " + competitionId)));
       sendMessage.parseMode(ParseMode.HTML);
-      sendMessage(sendMessage);
+      sendMessage(sendMessage, user.getId());
 
       if (competition.isActive()) {
         pushUpdate(user.getId(), messageSource.getMessage("push.update", null, locale), true);
@@ -235,7 +235,7 @@ public class TelegramService {
     var editMessage = new EditMessageText(user.id(), messageId, messageSource.getMessage("competitions.new", new String [] { competition.getName() }, getLocale(user)));
     editMessage.replyMarkup(new InlineKeyboardMarkup(button));
     editMessage.parseMode(ParseMode.HTML);
-    editMessage(editMessage);
+    editMessage(editMessage, user.id());
 
     if (competition.isActive()) {
       pushUpdate(user.id(), messageSource.getMessage("push.update", null, locale), true);
@@ -246,14 +246,14 @@ public class TelegramService {
     var sendMessage = new SendMessage(user.id(), messageSource.getMessage("competitions", null, getLocale(user)));
     sendMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitions(user)));
     sendMessage.parseMode(ParseMode.HTML);
-    sendMessage(sendMessage);
+    sendMessage(sendMessage, user.id());
   }
 
   public void sendCompetitions(User user, Integer messageId, UUID competitionId) {
     var editMessage = new EditMessageText(user.id(), messageId, messageSource.getMessage("competitions", null, getLocale(user)));
     editMessage.replyMarkup(new InlineKeyboardMarkup(getCompetitions(user)));
     editMessage.parseMode(ParseMode.HTML);
-    editMessage(editMessage);
+    editMessage(editMessage, user.id());
 
     var competition = competitionService.getCompetition(competitionId);
     if (competition.isActive()) {
@@ -275,15 +275,15 @@ public class TelegramService {
 
     var sendMessage = new SendMessage(user.id(), messageSource.getMessage("language", null, locale));
     sendMessage.replyMarkup(new InlineKeyboardMarkup(systemLanguageButton, enLanguageButton, ruLanguageButton));
-    sendMessage(sendMessage);
+    sendMessage(sendMessage, user.id());
   }
 
   public void stopBot(User user) {
-    sendMessage(new SendMessage(user.id(), messageSource.getMessage("stop", null, getLocale(user))));
+    sendMessage(new SendMessage(user.id(), messageSource.getMessage("stop", null, getLocale(user))), user.id());
   }
 
   public void sendLanguageConfirmation(User user) {
-    sendMessage(new SendMessage(user.id(), messageSource.getMessage("change_success", null, getLocale(user))));
+    sendMessage(new SendMessage(user.id(), messageSource.getMessage("change_success", null, getLocale(user))), user.id());
   }
 
   public void sendUpdateLocationConfirmation(User user, String zoneId) {
@@ -298,7 +298,7 @@ public class TelegramService {
 
     var sendMessage = new SendMessage(user.id(), message);
     sendMessage.replyMarkup(new ReplyKeyboardRemove());
-    sendMessage(sendMessage);
+    sendMessage(sendMessage, user.id());
   }
 
   public void sendUsernameConfirmation(User user, String username) {
@@ -312,7 +312,7 @@ public class TelegramService {
     }
 
     SendMessage sendMessage = new SendMessage(user.id(), message);
-    sendMessage(sendMessage);
+    sendMessage(sendMessage, user.id());
   }
 
   public void pushUpdate(UUID competitionId) {
@@ -336,7 +336,7 @@ public class TelegramService {
       }
     }
 
-    sendMessage(sendMessage);
+    sendMessage(sendMessage, userId);
   }
 
   private KeyboardButton[][] getPredictionButtons(Long userId) {
@@ -404,24 +404,32 @@ public class TelegramService {
   }
 
   @SneakyThrows
-  private void sendMessage(SendMessage message) {
+  private void sendMessage(SendMessage message, Long userId) {
     var response = telegramBot.execute(message);
     if (response.isOk()) {
       log.info("Message {} has been successfully sent", response.message().messageId());
     } else {
       log.error("Message was not send: [{}] {}", response.errorCode(), response.description());
-      throw new TelegramException("Unable to send message", response);
+      if (response.errorCode() == 403) {
+        userService.deactivate(userId);
+      } else {
+        throw new TelegramException("Unable to send message", response);
+      }
     }
   }
 
   @SneakyThrows
-  private void editMessage(EditMessageText editMessage) {
+  private void editMessage(EditMessageText editMessage, Long userId) {
     var response = telegramBot.execute(editMessage);
     if (response.isOk()) {
       log.info("Message has been successfully updated");
     } else {
-      log.error("Message could not be updated: [{}] {}", response.errorCode(), response.description());
-      throw new TelegramException("Unable to send message", response);
+      log.error("Message was not updated: [{}] {}", response.errorCode(), response.description());
+      if (response.errorCode() == 403) {
+        userService.deactivate(userId);
+      } else {
+        throw new TelegramException("Unable to send message", response);
+      }
     }
   }
 

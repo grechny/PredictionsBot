@@ -79,6 +79,7 @@ public class MessageListener implements UpdatesListener {
 
   private void processMessageText(Message message) {
     var user = message.from();
+    userService.activate(user.id());
 
     switch (message.text()) {
       case "/start" -> telegramService.startBot(user);
