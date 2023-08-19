@@ -173,7 +173,7 @@ public class ReminderScheduler {
   }
 
   private Locale getLocale(UserEntity user) {
-    return user.getLanguage() != null ? user.getLanguage() : new Locale("ru");
+    return user.getLanguage() != null ? user.getLanguage() : user.getInitialLanguage();
   }
 
 }

@@ -24,10 +24,11 @@ public class UserService {
 
   private final UserRepository userRepository;
 
-  public void createUser(Long userId, String username) {
+  public void createUser(Long userId, String username, String language) {
     log.info("Creating new user {} with id {}", username, userId);
     var userEntity = userRepository.findById(userId).orElse(new UserEntity());
     userEntity.setId(userId);
+    userEntity.setInitialLanguage(new Locale(language));
     userEntity.setUsername(userEntity.getUsername() == null ? NameUtils.formatName(username) : userEntity.getUsername());
     userEntity.setTimezone(userEntity.getTimezone() == null ? ZoneOffset.UTC : userEntity.getTimezone());
     userEntity.setActive(true);
@@ -90,15 +91,6 @@ public class UserService {
       userEntity.getCompetitions().add(competitionEntity);
     }
     saveUser(userEntity);
-  }
-
-  public void activate(Long userId) {
-    var user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("User not found"));
-    if (!user.isActive()) {
-      user.setActive(true);
-      userRepository.save(user);
-      log.info("Activated user {}", userId);
-    }
   }
 
   public void deactivate(Long userId) {

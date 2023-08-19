@@ -38,6 +38,9 @@ public class UserEntity {
   private Locale language;
 
   @Column
+  private Locale initialLanguage;
+
+  @Column
   @Convert(converter = ZoneIdConverter.class)
   private ZoneId timezone;
 

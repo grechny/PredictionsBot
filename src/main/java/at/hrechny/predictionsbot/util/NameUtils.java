@@ -16,27 +16,20 @@ public class NameUtils {
   }
 
   public static String formatName(String name) {
+    var nameBuilder = new StringBuilder();
     if (name != null) {
-      name = name.trim().replaceAll(ALLOWED_SYMBOLS, "");
+      for(var c  : name.toCharArray()) {
+        if (String.valueOf(c).matches(ALLOWED_SYMBOLS)) {
+          nameBuilder.append(c);
+        }
+      }
     }
 
-    if (isValid(name)) {
-      return name;
+    var formattedName = nameBuilder.toString().trim();
+    if (isValid(formattedName)) {
+      return formattedName;
     } else {
-      return generateName(name);
+      return RandomStringUtils.randomAlphanumeric(6);
     }
   }
-
-  private static String generateName(String baseString) {
-    if (baseString == null) {
-      baseString = "";
-    }
-
-    if (baseString.length() > 14) {
-      baseString = baseString.substring(0, 14);
-    }
-
-    return baseString + '-' + RandomStringUtils.randomAlphanumeric(5);
-  }
-
 }

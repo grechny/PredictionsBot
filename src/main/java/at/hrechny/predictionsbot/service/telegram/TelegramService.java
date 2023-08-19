@@ -1,6 +1,7 @@
 package at.hrechny.predictionsbot.service.telegram;
 
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
+import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
@@ -88,13 +89,20 @@ public class TelegramService {
     if (StringUtils.isBlank(username)) {
       username = StringUtils.isNotBlank(user.firstName()) ? user.firstName() : user.lastName();
     }
-    userService.createUser(user.id(), username);
+    userService.createUser(user.id(), username, user.languageCode());
     message = buildGreetingMessage(user, username);
+    sendMessage(message, user.id());
+    sendHelp(user);
+    sendReport(user, "report.user.created");
+  }
+
+  public void sendActivateMessage(User user) {
+    var message = new SendMessage(user.id(), messageSource.getMessage("non_activated", null, new Locale(user.languageCode())));
     sendMessage(message, user.id());
   }
 
   public void sendHelp(User user) {
-    var sendMessage = new SendMessage(user.id(), messageSource.getMessage("help", null, getLocale(user)));
+    var sendMessage = new SendMessage(user.id(), messageSource.getMessage("help", null, getLocale(user))).parseMode(ParseMode.HTML);
     sendMessage(sendMessage, user.id());
   }
 
@@ -403,6 +411,10 @@ public class TelegramService {
     return userEntity.getLanguage() != null ? userEntity.getLanguage() : new Locale(user.languageCode());
   }
 
+  private Locale getLocale(UserEntity userEntity) {
+    return userEntity.getLanguage() != null ? userEntity.getLanguage() : userEntity.getInitialLanguage();
+  }
+
   @SneakyThrows
   private void sendMessage(SendMessage message, Long userId) {
     var response = telegramBot.execute(message);
@@ -441,11 +453,9 @@ public class TelegramService {
     }
 
     var reportUser = userService.getUser(Long.valueOf(reportUserId));
-    var locale = reportUser.getLanguage() != null ? reportUser.getLanguage() : new Locale("en");
-
     var sendDocument = new SendDocument(reportUserId, FileUtils.buildPdfDocument(exception));
     sendDocument.fileName(exception.getClass().getSimpleName() + ".pdf");
-    sendDocument.caption(messageSource.getMessage("error", null, locale) + ": " + exception.getMessage());
+    sendDocument.caption(messageSource.getMessage("error", null, getLocale(reportUser)) + ": " + exception.getMessage());
     var response = telegramBot.execute(sendDocument);
     if (response.isOk()) {
       log.info("Error report document {} has been successfully sent", response.message().messageId());
@@ -453,6 +463,16 @@ public class TelegramService {
       log.error("Error report document was not send: [{}] {}", response.errorCode(), response.description());
       throw new TelegramException("Unable to send error report", response);
     }
+  }
+
+  private void sendReport(User user, String reportCode) {
+    if (StringUtils.isBlank(reportUserId)) {
+      log.info("No user specified to send error report");
+      return;
+    }
+    var reportUser = userService.getUser(Long.valueOf(reportUserId));
+    var reportMessage = new SendMessage(reportUser.getId(), messageSource.getMessage(reportCode, List.of(user.id().toString()).toArray(), getLocale(reportUser)));
+    sendMessage(reportMessage, reportUser.getId());
   }
 
   private InlineKeyboardButton[][] convertToMatrix(ArrayList<InlineKeyboardButton> buttons, int maxColumns) {

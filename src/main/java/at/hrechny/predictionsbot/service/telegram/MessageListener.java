@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.service.telegram;
 
+import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
@@ -79,27 +80,31 @@ public class MessageListener implements UpdatesListener {
 
   private void processMessageText(Message message) {
     var user = message.from();
-    userService.activate(user.id());
 
-    switch (message.text()) {
-      case "/start" -> telegramService.startBot(user);
-      case "/predictions" -> telegramService.sendPredictions(user);
-      case "/results" -> telegramService.sendResults(user);
-      case "/leagues" -> telegramService.sendLeagues(user);
-      case "/competitions" -> telegramService.sendCompetitions(user);
-      case "/timezone" -> telegramService.sendTimezoneMessage(user);
-      case "/language" -> telegramService.sendLanguageMessage(user);
-      case "/help" -> telegramService.sendHelp(user);
-      case "/stop" -> stopBot(user);
-      default -> {
-        if (message.text().startsWith("/username ")) {
-          updateUsername(user, message.text().substring(10));
-        } else if (message.text().startsWith("/language ")) {
-          updateLanguage(user, message.text().substring(10));
-        } else {
-          log.warn("Got the message which won't be processed: {}", message.text());
+    try {
+      switch (message.text()) {
+        case "/start" -> telegramService.startBot(user);
+        case "/predictions" -> telegramService.sendPredictions(user);
+        case "/results" -> telegramService.sendResults(user);
+        case "/leagues" -> telegramService.sendLeagues(user);
+        case "/competitions" -> telegramService.sendCompetitions(user);
+        case "/timezone" -> telegramService.sendTimezoneMessage(user);
+        case "/language" -> telegramService.sendLanguageMessage(user);
+        case "/help" -> telegramService.sendHelp(user);
+        case "/stop" -> stopBot(user);
+        default -> {
+          if (message.text().startsWith("/username ")) {
+            updateUsername(user, message.text().substring(10));
+          } else if (message.text().startsWith("/language ")) {
+            updateLanguage(user, message.text().substring(10));
+          } else {
+            log.warn("Got the message which won't be processed: {}", message.text());
+          }
         }
       }
+    } catch (NotFoundException notFoundException) {
+      log.warn("Active user {} is not found. Trying to send a message", user.id());
+      telegramService.sendActivateMessage(user);
     }
   }
 
