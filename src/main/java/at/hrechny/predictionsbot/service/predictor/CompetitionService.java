@@ -30,6 +30,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -163,30 +164,38 @@ public class CompetitionService {
     fixtures.forEach(fixture -> {
       var fixtureData = fixture.getFixture();
       var score = fixture.getScore().getFulltime().getHome() != null ? fixture.getScore().getFulltime() : fixture.getGoals();
+      var roundList = getRound(rounds, fixture.getLeague().getRound());
+      if (roundList.isEmpty()) {
+        refreshRounds(seasonEntity);
+        roundList = getRound(rounds, fixture.getLeague().getRound());
+      }
 
       MatchEntity matchEntity;
       var existingMatchEntity = matches.stream().filter(match -> match.getApiFootballId().equals(fixtureData.getId())).findFirst();
       if (existingMatchEntity.isPresent()) {
         matchEntity = existingMatchEntity.get();
       } else {
-        var roundList = getRound(rounds, fixture.getLeague().getRound());
-        if (roundList.isEmpty()) {
-          refreshRounds(seasonEntity);
-          roundList = getRound(rounds, fixture.getLeague().getRound());
-        }
-
         var homeTeam = getTeamEntity(fixture.getTeams().getHome());
         var awayTeam = getTeamEntity(fixture.getTeams().getAway());
-        var round = getRound(roundList, homeTeam, awayTeam);
 
         matchEntity = new MatchEntity();
         matchEntity.setApiFootballId(fixtureData.getId());
-        matchEntity.setRound(round);
         matchEntity.setHomeTeam(homeTeam);
         matchEntity.setAwayTeam(awayTeam);
+      }
+
+      // update round if needed
+      var round = getRound(roundList, matchEntity.getHomeTeam(), matchEntity.getAwayTeam());
+      if (matchEntity.getRound() == null) {
+        matchEntity.setRound(round);
+        round.getMatches().add(matchEntity);
+      } else if (!matchEntity.getRound().equals(round)) {
+        matchEntity.getRound().getMatches().remove(matchEntity);
+        matchEntity.setRound(round);
         round.getMatches().add(matchEntity);
       }
 
+      // update match status and results
       matchEntity.setHomeTeamScore(score.getHome());
       matchEntity.setAwayTeamScore(score.getAway());
       matchEntity.setStatus(mapStatus(fixture.getFixture().getStatus()));
@@ -247,13 +256,21 @@ public class CompetitionService {
         RoundType.getByAlias(round).forEach(roundType -> {
           var roundEntity = new RoundEntity();
           roundEntity.setType(roundType);
-          roundEntity.setOrderNumber(roundType == RoundType.QUALIFYING ? 0 : nextOrderNumber.getAndIncrement());
+          roundEntity.setOrderNumber(getOrderNumber(round, roundType, nextOrderNumber));
           roundEntity.setApiFootballId(round);
           roundEntity.setSeason(seasonEntity);
           roundEntities.add(roundEntity);
         });
       }
     }
+  }
+
+  private int getOrderNumber(String roundName, RoundType roundType, AtomicInteger nextOrderNumber) {
+    var pattern = Pattern.compile("^(.+) - (\\d+)$").matcher(roundName);
+    if (pattern.matches()) {
+      return Integer.parseInt(pattern.group(2));
+    }
+    return roundType == RoundType.QUALIFYING ? 0 : nextOrderNumber.getAndIncrement();
   }
 
   private List<RoundEntity> getRound(List<RoundEntity> rounds, String apiFootballId) {

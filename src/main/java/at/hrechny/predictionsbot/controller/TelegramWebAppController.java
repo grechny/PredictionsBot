@@ -5,7 +5,6 @@ import at.hrechny.predictionsbot.database.entity.RoundEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.exception.InputValidationException;
 import at.hrechny.predictionsbot.exception.LimitExceededException;
-import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.model.LeagueRequest;
 import at.hrechny.predictionsbot.model.LeagueResponse;
@@ -85,7 +84,9 @@ public class TelegramWebAppController {
         .filter(ObjectUtils.distinctByKey(RoundEntity::getOrderNumber))
         .sorted(Comparator.comparingInt(RoundEntity::getOrderNumber))
         .toList();
-    var fixtures = round.getMatches().stream()
+    var fixtures = round.getSeason().getRounds().stream()
+        .filter(roundEntity -> roundEntity.getOrderNumber() == round.getOrderNumber())
+        .flatMap(roundEntity -> roundEntity.getMatches().stream())
         .sorted(Comparator.comparing(MatchEntity::getStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
         .toList();
 
@@ -116,16 +117,14 @@ public class TelegramWebAppController {
     List<Result> results;
     List<MatchEntity> matches;
     if (roundNumber != null && !roundNumber.equals(0)) {
-      var round = season.getRounds().stream()
+      matches = season.getRounds().stream()
           .filter(roundEntity -> roundNumber.equals(roundEntity.getOrderNumber()))
-          .findFirst()
-          .orElseThrow(() -> new NotFoundException("Round with order number " + roundNumber + "could not be found for the season " + season.getId()));
-      results = predictionService.getResults(round.getMatches());
-      matches = round.getMatches().stream()
+          .flatMap(roundEntity -> roundEntity.getMatches().stream())
           .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
           .filter(match -> CollectionUtils.isNotEmpty(match.getPredictions()))
           .sorted(Comparator.comparing(MatchEntity::getStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
           .toList();
+      results = predictionService.getResults(matches);
     } else {
       results = predictionService.getResults(season.getId());
       matches = season.getRounds().stream()
@@ -144,6 +143,7 @@ public class TelegramWebAppController {
         .filter(match -> Arrays.asList(MatchStatus.STARTED, MatchStatus.FINISHED).contains(match.getStatus()))
         .filter(match -> CollectionUtils.isNotEmpty(match.getPredictions()))
         .map(MatchEntity::getRound)
+        .filter(ObjectUtils.distinctByKey(RoundEntity::getOrderNumber))
         .sorted(Comparator.comparingInt(RoundEntity::getOrderNumber))
         .distinct()
         .toList();

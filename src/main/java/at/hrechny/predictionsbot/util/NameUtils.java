@@ -8,8 +8,8 @@ public class NameUtils {
   private NameUtils() {
   }
 
-  private static final String ALLOWED_SYMBOLS = "[\\d -/:-~À-ž\\u0370-\\u03FFА-я∂]";
-  private static final Pattern NAME_PATTERN = Pattern.compile("^" + ALLOWED_SYMBOLS + "{3,20}$");
+  private static final String ALLOWED_SYMBOLS = "[^\\t\\n]"; // allows all characters except mentioned ones
+  private static final Pattern NAME_PATTERN = Pattern.compile("^" + ALLOWED_SYMBOLS + "{2,20}$");
 
   public static boolean isValid(String name) {
     return name != null && NAME_PATTERN.matcher(name).matches();

@@ -80,4 +80,10 @@ public class CompetitionController {
     return ResponseEntity.ok().build();
   }
 
+  @PostMapping(value = "/${secrets.adminKey}/fixtures/{competitionId}")
+  public ResponseEntity<Void> refreshFixtures(@PathVariable("competitionId") UUID competitionId) {
+    var season = competitionService.getCurrentSeason(competitionId);
+    competitionService.refreshFixtures(season);
+    return ResponseEntity.ok().build();
+  }
 }

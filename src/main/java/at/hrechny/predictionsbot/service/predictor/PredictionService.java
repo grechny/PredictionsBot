@@ -2,6 +2,7 @@ package at.hrechny.predictionsbot.service.predictor;
 
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.PredictionEntity;
+import at.hrechny.predictionsbot.database.entity.RoundEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
@@ -10,6 +11,7 @@ import at.hrechny.predictionsbot.exception.RequestValidationException;
 import at.hrechny.predictionsbot.mapper.UserMapper;
 import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.model.Result;
+import at.hrechny.predictionsbot.util.ObjectUtils;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -187,19 +189,22 @@ public class PredictionService {
     }
 
     var rounds = predictionEntities.stream().map(prediction -> prediction.getMatch().getRound()).distinct().toList();
-    if (rounds.size() > 1) {
+    if (!isSameRound(rounds)) {
       throw new RequestValidationException("Updating of predictions of different rounds at once is not supported");
     }
 
-    var round = rounds.get(0);
-    round.getMatches().forEach(match -> {
+    var roundOrderNumber = rounds.get(0).getOrderNumber();
+    var matches = rounds.get(0).getSeason().getRounds().stream()
+        .filter(round -> round.getOrderNumber() == roundOrderNumber)
+        .flatMap(round -> round.getMatches().stream()).toList();
+    matches.forEach(match -> {
       var predictionsOfMatch = match.getPredictions().stream().filter(prediction -> prediction.getUser().getId().equals(userId));
       if (predictionsOfMatch.count() > 1) {
         throw new RequestValidationException("User can not make more than one prediction for the match");
       }
     });
 
-    var doubleUpOfTheRound = round.getMatches().stream()
+    var doubleUpOfTheRound = matches.stream()
         .map(MatchEntity::getPredictions)
         .flatMap(Collection::stream)
         .filter(prediction -> prediction.getUser().getId().equals(userId))
@@ -207,6 +212,15 @@ public class PredictionService {
     if (doubleUpOfTheRound.count() != 1) {
       throw new RequestValidationException("User has no/more than one double up for for the round");
     }
+  }
+
+  private boolean isSameRound(List<RoundEntity> rounds) {
+    if (rounds.size() > 1) {
+      var seasonCount = rounds.stream().filter(ObjectUtils.distinctByKey(round -> round.getSeason().getId())).count();
+      var roundOrderNumberCount = rounds.stream().filter(ObjectUtils.distinctByKey(RoundEntity::getOrderNumber)).count();
+      return seasonCount == 1 && roundOrderNumberCount == 1;
+    }
+    return true;
   }
 
 }
