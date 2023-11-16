@@ -24,6 +24,7 @@ public class UserService {
 
   private final UserRepository userRepository;
 
+  @Transactional
   public void createUser(Long userId, String username, String language) {
     log.info("Creating new user {} with id {}", username, userId);
     var userEntity = userRepository.findById(userId).orElse(new UserEntity());
@@ -36,6 +37,7 @@ public class UserService {
     log.info("Created user {} with id {}", userEntity.getUsername(), userEntity.getId());
   }
 
+  @Transactional
   public void saveUser(UserEntity userEntity) {
     userRepository.save(userEntity);
     log.info("Added/updated user {} with id {}", userEntity.getUsername(), userEntity.getId());
@@ -53,6 +55,7 @@ public class UserService {
     return userRepository.findAllActiveByCompetitionsId(competitionId);
   }
 
+  @Transactional
   public void updateUsername(Long userId, String username) {
     log.info("Updating username to '{}' for the {}", username, userId);
     if (StringUtils.isBlank(username)) {
@@ -64,6 +67,7 @@ public class UserService {
     saveUser(userEntity);
   }
 
+  @Transactional
   public void updateTimeZone(Long userId, String zoneId) {
     log.info("Updating time zone to '{}' for the {}", zoneId, userId);
     var userEntity = getUser(userId);
@@ -71,6 +75,7 @@ public class UserService {
     saveUser(userEntity);
   }
 
+  @Transactional
   public void updateLanguage(Long userId, String language) {
     log.info("Updating language to '{}' for the {}", language, userId);
     var userEntity = getUser(userId);
@@ -93,6 +98,7 @@ public class UserService {
     saveUser(userEntity);
   }
 
+  @Transactional
   public void deactivate(Long userId) {
     log.info("Deactivating user {}", userId);
     var userEntity = getUser(userId);
