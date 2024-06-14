@@ -9,7 +9,7 @@ import lombok.Getter;
 @Getter
 public enum RoundType {
 
-  QUALIFYING(null, List.of("Play-offs", "Preliminary Round", ".*Qualifying.*")),
+  QUALIFYING(null, List.of(".*Play-offs.*", "Preliminary Round", ".*Qualifying.*", "Relegation Round")),
   SEASON("$round", List.of("Regular Season.*")),
   GROUP_STAGE("$round", List.of("Group.*")),
   ROUND_OF_16("1 / 8", List.of("Round of 16")),
@@ -18,8 +18,8 @@ public enum RoundType {
   QUARTER_FINAL_RETURN("1 / 4", List.of("Quarter-finals")),
   SEMI_FINAL("1 / 2", List.of("Semi-finals")),
   SEMI_FINAL_RETURN("1 / 2", List.of("Semi-finals")),
-  THIRD_PLACE_FINAL("&#x1f949;", List.of("3rd Place Final")),
-  FINAL("&#x1f3c6;", List.of("Final"));
+  THIRD_PLACE_FINAL("\uD83E\uDD49", List.of("3rd Place Final")),
+  FINAL("\uD83C\uDFC6", List.of("Final"));
 
   private final String name;
   private final List<String> aliasNames;
