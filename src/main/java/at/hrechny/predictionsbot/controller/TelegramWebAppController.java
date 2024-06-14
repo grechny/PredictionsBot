@@ -80,6 +80,7 @@ public class TelegramWebAppController {
     }
 
     var rounds = round.getSeason().getRounds().stream()
+        .filter(roundEntity -> !roundEntity.getMatches().isEmpty())
         .filter(roundEntity -> roundEntity.getOrderNumber() != 0)
         .filter(ObjectUtils.distinctByKey(RoundEntity::getOrderNumber))
         .sorted(Comparator.comparingInt(RoundEntity::getOrderNumber))
