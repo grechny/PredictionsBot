@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class JsonBodyHandler<W> implements HttpResponse.BodyHandler<W> {
 
   private final Class<W> wClass;
@@ -33,9 +35,9 @@ public class JsonBodyHandler<W> implements HttpResponse.BodyHandler<W> {
 
         return objectMapper.readValue(body, targetType);
       } catch (IOException e) {
+        log.error("Failed to deserialize JSON response for {}: {}", targetType.getSimpleName(), body, e);
         throw new UncheckedIOException(e);
       }
     });
   }
 }
-
