@@ -4,7 +4,6 @@ import at.hrechny.predictionsbot.database.entity.LeagueEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.repository.CompetitionRepository;
 import at.hrechny.predictionsbot.database.repository.LeagueRepository;
-import at.hrechny.predictionsbot.database.repository.TeamRepository;
 import at.hrechny.predictionsbot.database.repository.UserRepository;
 import at.hrechny.predictionsbot.exception.InputValidationException;
 import at.hrechny.predictionsbot.exception.LimitExceededException;
@@ -27,7 +26,6 @@ public class LeagueService {
   private static final int MAX_LEAGUES_PER_USER = 10;
 
   private final LeagueRepository leagueRepository;
-  private final TeamRepository teamRepository;
   private final UserRepository userRepository;
   private final CompetitionRepository competitionRepository;
 

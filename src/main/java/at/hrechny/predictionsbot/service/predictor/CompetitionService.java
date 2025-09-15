@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -175,13 +176,10 @@ public class CompetitionService {
       if (existingMatchEntity.isPresent()) {
         matchEntity = existingMatchEntity.get();
       } else {
-        var homeTeam = getTeamEntity(fixture.getTeams().getHome());
-        var awayTeam = getTeamEntity(fixture.getTeams().getAway());
-
         matchEntity = new MatchEntity();
         matchEntity.setApiFootballId(fixtureData.getId());
-        matchEntity.setHomeTeam(homeTeam);
-        matchEntity.setAwayTeam(awayTeam);
+        matchEntity.setHomeTeam(getTeamEntity(fixture.getTeams().getHome()));
+        matchEntity.setAwayTeam(getTeamEntity(fixture.getTeams().getAway()));
       }
 
       // update round if needed
@@ -224,7 +222,20 @@ public class CompetitionService {
 
   private TeamEntity getTeamEntity(Team team) {
     var teamEntityOptional = teamRepository.findFirstByApiFootballId(team.getId());
-    return teamEntityOptional.orElseGet(() -> createTeam(team));
+    if (teamEntityOptional.isPresent()) {
+      var teamEntity = teamEntityOptional.get();
+      // if no changes for the team detected, return the existing entity, otherwise update it
+      if (Objects.equals(teamEntity.getName(), team.getName()) && Objects.equals(teamEntity.getLogoUrl(), team.getLogo())) {
+        return teamEntity;
+      }
+      teamEntity.setName(team.getName());
+      teamEntity.setLogoUrl(team.getLogo());
+      teamEntity = teamRepository.save(teamEntity);
+      log.info("Team {} has been updated: {}", teamEntity.getName(), teamEntity.getId());
+      return teamEntity;
+    } else {
+        return createTeam(team);
+    }
   }
 
   private TeamEntity createTeam(Team team) {
