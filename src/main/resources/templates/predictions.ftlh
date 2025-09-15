@@ -108,7 +108,9 @@
     <div class="row">
 
       <div class="column" style="padding-right: 8px">
-        <img src="${match.homeTeam.logoUrl}" alt style="width: 50px">
+        <div class="logo-box">
+          <img class="logo-img" src="${match.homeTeam.logoUrl}" alt="">
+        </div>
       </div>
 
       <div class="column" style="height: 40px;max-height: 40px;padding-left: 5px;padding-right: 5px;">
@@ -124,7 +126,9 @@
       </div>
 
       <div class="column" style="padding-left: 8px">
-        <img src="${match.awayTeam.logoUrl}" alt style="width: 50px">
+        <div class="logo-box">
+          <img class="logo-img" src="${match.awayTeam.logoUrl}" alt="">
+        </div>
       </div>
 
     </div>
