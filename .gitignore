@@ -3,3 +3,8 @@
 /.gradle/
 /build/
 /build/classes/java/main/
+
+# Agents
+.codex/
+.planning/
+AGENTS.md
