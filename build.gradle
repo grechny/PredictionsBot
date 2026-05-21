@@ -9,6 +9,7 @@ version '1.2'
 
 ext {
     set('springCloudVersion', "2022.0.3")
+    set('lombokVersion', "1.18.32")
 }
 
 dependencyManagement {
@@ -50,9 +51,9 @@ dependencies {
     implementation 'us.dustinj.timezonemap:timezonemap:4.5'
 
     runtimeOnly 'org.postgresql:postgresql:42.7.6'
-    compileOnly 'org.projectlombok:lombok'
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
 
-    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok-mapstruct-binding:0.2.0"
     annotationProcessor "org.mapstruct:mapstruct-processor:1.5.5.Final"
     annotationProcessor 'org.mapstruct.extensions.spring:mapstruct-spring-extensions:1.0.1'
@@ -61,8 +62,8 @@ dependencies {
     // Tests and test tools
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'com.h2database:h2:2.2.220'
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 }
 
 test {

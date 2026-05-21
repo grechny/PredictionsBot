@@ -12,12 +12,13 @@ spring:
     driver-class-name: org.postgresql.Driver
   cloud:
     vault:
+      enabled: ${SPRING_CLOUD_VAULT_ENABLED:true}
       authentication: TOKEN
       uri: ${VAULT_URI}
       token: ${VAULT_TOKEN}
       fail-fast: true
   config:
-    import: vault:///secret/${spring.application.name}
+    import: ${SPRING_CONFIG_IMPORT:vault:///secret/${spring.application.name}}
 
 connectors:
   api-football:

@@ -8,3 +8,11 @@
 .codex/
 .planning/
 AGENTS.md
+
+# Local runtime data and credentials
+local/
+data/
+docs/
+scripts/
+mocks/
+.env.local

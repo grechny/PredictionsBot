@@ -34,10 +34,10 @@ requires valid **https** connection to the bot endpoints with valid and properly
 ## Properties
 
 ### Environment properties
-| Property    | Description                 | Example                             |
-|-------------|-----------------------------|-------------------------------------|
-| VAULT_URI   | Vault URL                   | http://localhost:8200               |
-| VAULT_TOKEN | Authorization service token | hvs.CAESIJRM-T1q5lEjIWux1Tjx-VGqAYJ |
+| Property    | Description                 | Example               |
+|-------------|-----------------------------|-----------------------|
+| VAULT_URI   | Vault URL                   | http://localhost:8200 |
+| VAULT_TOKEN | Authorization service token | `<vault-token>`       |
 
 ### Application properties
 | Property                            | Description                                                    | Example                                         |
@@ -45,13 +45,13 @@ requires valid **https** connection to the bot endpoints with valid and properly
 | application.url                     | URL of application                                             | https://predictionsbot.example.com              |
 | secrets.adminKey                    | UUID key for admin endpoints                                   | 00000000-0000-0000-0000-000000000000            |
 | secrets.telegramKey                 | UUID key for application endpoints                             | 12345678-1234-1234-1234-1234567890ab            |
-| telegram.token                      | Telegram Bot authentication token                              | 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11       |
+| telegram.token                      | Telegram Bot authentication token                              | `<telegram-bot-token>`                          |
 | telegram.reportTo                   | Telegram User ID to whom the error reports will be sent        | 12345678                                        |
 | spring.datasource.url               | DB url                                                         | jdbc:postgresql://127.0.0.1:5432/predictionsbot |
 | spring.datasource.username          | DB username                                                    | postgres                                        |
 | spring.datasource.password          | DB password                                                    | postgres                                        |
 | connectors.api-football.url         | Api-Football api URL                                           | https://v3.football.api-sports.io/              |
-| connectors.api-football.apiKey      | Api-Football api key                                           | demshd0c6f1cc61ab603p152db1jsn22cf              |
+| connectors.api-football.apiKey      | Api-Football api key                                           | `<api-football-key>`                            |
 | connectors.api-football.dayStarts   | Time in UTC to start billing day                               | 22:00                                           |
 | connectors.api-football.maxAttempts | Maximum of successful requests per billing day                 | 100                                             |
 | connectors.api-football.minInterval | Minimal interval between identical requests (cache) in seconds | 60                                              |
