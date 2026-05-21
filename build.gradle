@@ -68,4 +68,7 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    systemProperty 'SPRING_CLOUD_VAULT_ENABLED', 'false'
+    systemProperty 'SPRING_CONFIG_IMPORT', 'optional:file:./does-not-exist.properties'
+    systemProperty 'logging.level', 'INFO'
 }
