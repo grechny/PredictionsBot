@@ -27,7 +27,7 @@
   Telegram.WebApp.ready();
 
   Telegram.WebApp.MainButton
-      .setText(<@spring.message "buttons.close" />)
+      .setText("<@spring.message "buttons.close" />")
       .show()
       .onClick(function(){ webviewClose(); });
 
