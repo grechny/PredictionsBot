@@ -4,12 +4,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -25,7 +31,10 @@ import at.hrechny.predictionsbot.database.entity.TeamEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.model.RoundType;
+import at.hrechny.predictionsbot.exception.InputValidationException;
+import at.hrechny.predictionsbot.exception.LimitExceededException;
 import at.hrechny.predictionsbot.model.Competition;
+import at.hrechny.predictionsbot.model.LeagueResponse;
 import at.hrechny.predictionsbot.model.Result;
 import at.hrechny.predictionsbot.model.User;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
@@ -45,6 +54,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.servlet.LocaleResolver;
 
@@ -223,15 +233,135 @@ class TelegramWebAppControllerTest {
   @Test
   void leaguesRouteMapsValidationFailuresToBadRequest() throws Exception {
     var requestBody = "{\"name\":\"ab\",\"competitions\":[]}";
-    when(leagueService.create(any(), any())).thenThrow(new at.hrechny.predictionsbot.exception.InputValidationException("invalid"));
+    when(leagueService.create(any(), any())).thenThrow(new InputValidationException("invalid"));
 
-    mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
-            "/webapp/{hash}/users/{userId}/leagues", HASH, USER_ID)
+    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues", HASH, USER_ID)
             .contentType("application/json")
             .content(requestBody))
         .andExpect(status().isBadRequest());
 
     verify(userService, never()).getUser(USER_ID);
+  }
+
+  @Test
+  void createLeagueRouteDelegatesRequestToLeagueService() throws Exception {
+    var leagueId = UUID.randomUUID();
+    var competitionId = UUID.randomUUID();
+    when(leagueService.create(eq(USER_ID), any())).thenReturn(new LeagueResponse(leagueId));
+
+    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues", HASH, USER_ID)
+            .contentType("application/json")
+            .content("""
+                {
+                  "name": "Office League",
+                  "competitions": ["%s"]
+                }
+                """.formatted(competitionId)))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(leagueId.toString()));
+
+    verify(leagueService).create(eq(USER_ID), argThat(request ->
+        "Office League".equals(request.getName())
+            && request.getCompetitions().equals(List.of(competitionId))));
+  }
+
+  @Test
+  void createLeagueRouteMapsLimitFailuresToConflict() throws Exception {
+    when(leagueService.create(any(), any())).thenThrow(new LimitExceededException("too many leagues"));
+
+    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues", HASH, USER_ID)
+            .contentType("application/json")
+            .content("""
+                {
+                  "name": "Office League",
+                  "competitions": []
+                }
+                """))
+        .andExpect(status().isConflict());
+  }
+
+  @Test
+  void updateLeagueRouteDelegatesRequestToLeagueService() throws Exception {
+    var leagueId = UUID.randomUUID();
+    var competitionId = UUID.randomUUID();
+    when(leagueService.update(eq(USER_ID), eq(leagueId), any())).thenReturn(new LeagueResponse(leagueId));
+
+    mockMvc.perform(put("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId)
+            .contentType("application/json")
+            .content("""
+                {
+                  "name": "Updated League",
+                  "competitions": ["%s"]
+                }
+                """.formatted(competitionId)))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(leagueId.toString()));
+
+    verify(leagueService).update(eq(USER_ID), eq(leagueId), argThat(request ->
+        "Updated League".equals(request.getName())
+            && request.getCompetitions().equals(List.of(competitionId))));
+  }
+
+  @Test
+  void updateLeagueRouteMapsValidationFailuresToBadRequest() throws Exception {
+    var leagueId = UUID.randomUUID();
+    when(leagueService.update(eq(USER_ID), eq(leagueId), any())).thenThrow(new InputValidationException("invalid"));
+
+    mockMvc.perform(put("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId)
+            .contentType("application/json")
+            .content("""
+                {
+                  "name": "Updated League",
+                  "competitions": []
+                }
+                """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void joinLeagueRouteDelegatesToLeagueService() throws Exception {
+    var leagueId = UUID.randomUUID();
+    when(leagueService.join(USER_ID, leagueId)).thenReturn(new LeagueResponse(leagueId));
+
+    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(leagueId.toString()));
+
+    verify(leagueService).join(USER_ID, leagueId);
+  }
+
+  @Test
+  void joinLeagueRouteMapsValidationFailuresToBadRequest() throws Exception {
+    var leagueId = UUID.randomUUID();
+    when(leagueService.join(USER_ID, leagueId)).thenThrow(new InputValidationException("invalid"));
+
+    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void deleteLeagueRouteDelegatesToLeagueService() throws Exception {
+    var leagueId = UUID.randomUUID();
+    when(leagueService.delete(USER_ID, leagueId)).thenReturn(new LeagueResponse(leagueId));
+
+    mockMvc.perform(delete("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.id").value(leagueId.toString()));
+
+    verify(leagueService).delete(USER_ID, leagueId);
+  }
+
+  @Test
+  void deleteLeagueRouteMapsValidationFailuresToBadRequest() throws Exception {
+    var leagueId = UUID.randomUUID();
+    when(leagueService.delete(USER_ID, leagueId)).thenThrow(new InputValidationException("invalid"));
+
+    mockMvc.perform(delete("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId))
+        .andExpect(status().isBadRequest());
   }
 
   private UserEntity userEntity() {

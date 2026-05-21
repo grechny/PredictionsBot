@@ -183,7 +183,7 @@ public class TelegramWebAppController {
     return modelAndView;
   }
 
-  @PostMapping(value = "/webapp/{hash}/users/{userId}/leagues", produces = MediaType.TEXT_HTML_VALUE)
+  @PostMapping(value = "/webapp/{hash}/users/{userId}/leagues", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<LeagueResponse> createLeague(
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
@@ -198,7 +198,7 @@ public class TelegramWebAppController {
     }
   }
 
-  @PutMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.TEXT_HTML_VALUE)
+  @PutMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<LeagueResponse> updateLeague(
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
@@ -212,7 +212,7 @@ public class TelegramWebAppController {
     }
   }
 
-  @PostMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.TEXT_HTML_VALUE)
+  @PostMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<LeagueResponse> joinLeague(
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
@@ -225,7 +225,7 @@ public class TelegramWebAppController {
     }
   }
 
-  @DeleteMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.TEXT_HTML_VALUE)
+  @DeleteMapping(value = "/webapp/{hash}/users/{userId}/leagues/{leagueId}", produces = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<LeagueResponse> deleteLeague(
       @PathVariable("hash") String hash,
       @PathVariable("userId") Long userId,
