@@ -16,6 +16,7 @@ ext {
 
 application {
     mainClass = 'at.hrechny.predictionsbot.Application'
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
 kotlin {
