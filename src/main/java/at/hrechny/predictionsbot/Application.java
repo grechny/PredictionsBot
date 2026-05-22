@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot;
 
+import java.time.Clock;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -25,5 +26,10 @@ public class Application {
   @Bean
   public LocaleResolver localeResolver() {
     return new SessionLocaleResolver();
+  }
+
+  @Bean
+  public Clock clock() {
+    return Clock.systemUTC();
   }
 }

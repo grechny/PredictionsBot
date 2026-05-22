@@ -6,6 +6,7 @@ import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
@@ -37,16 +38,18 @@ public class ReminderScheduler {
   private final TelegramService telegramService;
   private final CompetitionService competitionService;
   private final MessageSource messageSource;
+  private final Clock clock;
 
   @Transactional(readOnly = true)
   @Scheduled(cron = "0 0 * * * *", zone = "UTC")
   public void sendReminders() {
+    var now = Instant.now(clock);
     var todayFixtures = competitionService.getFixtures(
-        Instant.now().truncatedTo(ChronoUnit.DAYS),
-        Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS));
+        now.truncatedTo(ChronoUnit.DAYS),
+        now.plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS));
     var tomorrowFixtures = competitionService.getFixtures(
-        Instant.now().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS),
-        Instant.now().plus(Duration.ofDays(2)).truncatedTo(ChronoUnit.DAYS));
+        now.plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.DAYS),
+        now.plus(Duration.ofDays(2)).truncatedTo(ChronoUnit.DAYS));
     var todayFixturesByRound = todayFixtures.stream().collect(Collectors.groupingBy(MatchEntity::getRound));
     var tomorrowNewRoundFixtures = tomorrowFixtures.stream()
         .filter(match -> todayFixturesByRound.getOrDefault(match.getRound(), Collections.emptyList()).stream()
@@ -57,8 +60,8 @@ public class ReminderScheduler {
       // send reminder if predictions are missing for the upcoming today's matches (<= 2 hours till the first one)
       var firstMatch = todayFixtures.stream().min(Comparator.comparing(MatchEntity::getStartTime));
       if (firstMatch.isPresent() // first match is between 1 and 2 hours from now
-          && firstMatch.get().getStartTime().isBefore(Instant.now().plus(Duration.ofHours(2).plusSeconds(1)))
-          && firstMatch.get().getStartTime().isAfter(Instant.now().plus(Duration.ofHours(1)))) {
+          && firstMatch.get().getStartTime().isBefore(now.plus(Duration.ofHours(2).plusSeconds(1)))
+          && firstMatch.get().getStartTime().isAfter(now.plus(Duration.ofHours(1)))) {
         String upcomingMatchesString = getMissedPredictions(todayFixtures, user);
         if (StringUtils.isNotBlank(upcomingMatchesString)) {
           sendReminder(user, "reminders.today", upcomingMatchesString);
@@ -70,14 +73,14 @@ public class ReminderScheduler {
       // or if some predictions were made more than week ago
       if (CollectionUtils.isNotEmpty(tomorrowNewRoundFixtures)) {
         var dailyNotificationTime = LocalTime.parse("20:00");
-        var userTime = LocalTime.now(user.getTimezone());
+        var userTime = LocalTime.now(clock.withZone(user.getTimezone()));
         if (userTime.isAfter(dailyNotificationTime.minusMinutes(1)) && userTime.isBefore(dailyNotificationTime.plusMinutes(59))) {
           String missedPredictionsString = getMissedPredictions(tomorrowNewRoundFixtures, user);
           if (StringUtils.isNoneBlank(missedPredictionsString)) {
             sendReminder(user, "reminders.tomorrow", missedPredictionsString);
           }
 
-          String oldPredictionsString = getOldPredictions(tomorrowNewRoundFixtures, user);
+          String oldPredictionsString = getOldPredictions(tomorrowNewRoundFixtures, user, now);
           if (StringUtils.isNoneBlank(oldPredictionsString)) {
             sendReminder(user, "reminders.recheck", oldPredictionsString);
           }
@@ -107,9 +110,9 @@ public class ReminderScheduler {
   }
 
   @Nullable
-  private String getOldPredictions(List<MatchEntity> upcomingFixtures, UserEntity user) {
+  private String getOldPredictions(List<MatchEntity> upcomingFixtures, UserEntity user, Instant now) {
     var oldPredictions = new ArrayList<MatchEntity>();
-    var weekBeforeNow = Instant.now().minus(Duration.ofDays(7));
+    var weekBeforeNow = now.minus(Duration.ofDays(7));
 
     for (var upcoming : upcomingFixtures) {
       // skip if user is not participating in the competition
@@ -123,7 +126,7 @@ public class ReminderScheduler {
         var fixturesOfRound = upcoming.getRound().getMatches();
         var fixturesOfRoundThisWeek = fixturesOfRound.stream()
             .filter(match -> match.getStartTime() != null)
-            .filter(match -> match.getStartTime().isAfter(weekBeforeNow) && match.getStartTime().isBefore(Instant.now()))
+            .filter(match -> match.getStartTime().isAfter(weekBeforeNow) && match.getStartTime().isBefore(now))
             .findAny();
         if (fixturesOfRoundThisWeek.isEmpty()) {
           oldPredictions.add(upcoming);
