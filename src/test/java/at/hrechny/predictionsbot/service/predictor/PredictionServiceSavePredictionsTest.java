@@ -46,7 +46,7 @@ class PredictionServiceSavePredictionsTest {
 
   @BeforeEach
   void setUp() {
-    predictionService = new PredictionService(userMapper, matchRepository, null, userService);
+    predictionService = new PredictionService(userMapper, matchRepository, null, userService, new PredictionResultsCalculator());
     user = new UserEntity();
     user.setId(USER_ID);
   }

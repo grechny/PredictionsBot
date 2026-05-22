@@ -16,15 +16,11 @@ import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.SetUtils;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -37,6 +33,7 @@ public class PredictionService {
   private final MatchRepository matchRepository;
   private final CompetitionService competitionService;
   private final UserService userService;
+  private final PredictionResultsCalculator predictionResultsCalculator;
 
   public void savePredictions(Long userId, List<Prediction> predictions) {
     log.info("Saving predictions for the user {}", userId);
@@ -83,87 +80,39 @@ public class PredictionService {
   }
 
   public List<Result> getResults(List<MatchEntity> matches) {
-    var predictions = matches.stream()
-        .filter(match -> match.getStatus() == MatchStatus.FINISHED)
-        .flatMap(match -> match.getPredictions().stream())
-        .collect(Collectors.groupingBy(PredictionEntity::getUser));
-
-    var predictionsLive = matches.stream()
-        .filter(match -> match.getStatus() == MatchStatus.STARTED)
-        .flatMap(match -> match.getPredictions().stream())
-        .collect(Collectors.groupingBy(PredictionEntity::getUser));
-
-    var results = new ArrayList<Result>();
-    for (var user : SetUtils.union(predictions.keySet(), predictionsLive.keySet())) {
-      var result = new Result();
-      result.setUser(userMapper.entityToModel(user));
-      result.setPredictions(predictions.get(user) != null ? predictions.get(user).size() : 0);
-      result.setGuessed(calculateGuessed(predictions.get(user)));
-      result.setSum(calculateResults(predictions.get(user)));
-      if (CollectionUtils.isNotEmpty(predictionsLive.get(user))) {
-        result.setPredictionsLive(predictionsLive.get(user).size());
-        result.setGuessedLive(calculateGuessed(predictionsLive.get(user)));
-        result.setLiveSum(calculateResults(predictionsLive.get(user)));
-      }
-      results.add(result);
-    }
-    return results.stream().sorted(Comparator.comparingInt(Result::getTotalSum).reversed()).toList();
+    return predictionResultsCalculator.calculate(toResultInputs(matches)).stream()
+        .map(this::toResult)
+        .toList();
   }
 
-  private Integer calculateGuessed(List<PredictionEntity> predictionEntities) {
-    if (CollectionUtils.isEmpty(predictionEntities)) {
-      return 0;
-    }
-
-    AtomicInteger sum = new AtomicInteger();
-    predictionEntities.forEach(prediction -> {
-      var match = prediction.getMatch();
-
-      //draw hit
-      if (match.getHomeTeamScore() - match.getAwayTeamScore() == prediction.getPredictionHome() - prediction.getPredictionAway()) {
-        sum.incrementAndGet();
-      //winner hit
-      } else if (match.getHomeTeamScore() > match.getAwayTeamScore() && prediction.getPredictionHome() > prediction.getPredictionAway()) {
-        sum.incrementAndGet();
-      } else if (match.getHomeTeamScore() < match.getAwayTeamScore() && prediction.getPredictionHome() < prediction.getPredictionAway()) {
-        sum.incrementAndGet();
-      }
-    });
-    return sum.intValue();
+  private List<PredictionResultInput> toResultInputs(List<MatchEntity> matches) {
+    return matches.stream()
+        .filter(match -> match.getStatus() == MatchStatus.FINISHED || match.getStatus() == MatchStatus.STARTED)
+        .flatMap(match -> match.getPredictions().stream()
+            .map(prediction -> new PredictionResultInput(
+                prediction.getUser(),
+                match.getStatus(),
+                match.getHomeTeamScore(),
+                match.getAwayTeamScore(),
+                prediction.getPredictionHome(),
+                prediction.getPredictionAway(),
+                prediction.isDoubleUp())))
+        .toList();
   }
 
-  private Integer calculateResults(List<PredictionEntity> predictionEntities) {
-    if (CollectionUtils.isEmpty(predictionEntities)) {
-      return 0;
+  private Result toResult(PredictionUserResult predictionUserResult) {
+    var result = new Result();
+    result.setUser(userMapper.entityToModel(predictionUserResult.getUser()));
+    result.setPredictions(predictionUserResult.getPredictions());
+    result.setGuessed(predictionUserResult.getGuessed());
+    result.setSum(predictionUserResult.getSum());
+
+    if (predictionUserResult.getPredictionsLive() != null) {
+      result.setPredictionsLive(predictionUserResult.getPredictionsLive());
+      result.setGuessedLive(predictionUserResult.getGuessedLive());
+      result.setLiveSum(predictionUserResult.getLiveSum());
     }
-
-    AtomicInteger sum = new AtomicInteger();
-    predictionEntities.forEach(prediction -> {
-      int result = 0;
-      var match = prediction.getMatch();
-
-      //exact hit
-      if (match.getHomeTeamScore().equals(prediction.getPredictionHome()) && match.getAwayTeamScore().equals(prediction.getPredictionAway())) {
-        result = 5;
-      //difference hit
-      } else if (match.getHomeTeamScore() - match.getAwayTeamScore() == prediction.getPredictionHome() - prediction.getPredictionAway()) {
-        result = 3;
-      //winner hit (home)
-      } else if (match.getHomeTeamScore() > match.getAwayTeamScore() && prediction.getPredictionHome() > prediction.getPredictionAway()) {
-        result = 2;
-      //winner hit (away)
-      } else if (match.getHomeTeamScore() < match.getAwayTeamScore() && prediction.getPredictionHome() < prediction.getPredictionAway()) {
-        result = 2;
-      }
-
-      if (prediction.isDoubleUp()) {
-        result *= 2;
-      }
-
-      sum.addAndGet(result);
-    });
-
-    return sum.intValue();
+    return result;
   }
 
   private PredictionEntity createPredictionEntity(UserEntity user, MatchEntity matchEntity) {

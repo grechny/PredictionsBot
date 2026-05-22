@@ -30,7 +30,7 @@ class PredictionServiceResultsTest {
 
   @BeforeEach
   void setUp() {
-    predictionService = new PredictionService(userMapper, null, null, null);
+    predictionService = new PredictionService(userMapper, null, null, null, new PredictionResultsCalculator());
   }
 
   @Test
