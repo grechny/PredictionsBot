@@ -23,9 +23,9 @@ kotlin {
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    kotlinOptions {
-        jvmTarget = '25'
-        javaParameters = true
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+        javaParameters.set(true)
     }
 }
 
@@ -115,5 +115,6 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    jvmArgs '-Xshare:off'
     systemProperty 'logging.level', 'INFO'
 }

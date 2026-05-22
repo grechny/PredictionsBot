@@ -97,9 +97,8 @@ open class MessageListener(
         }
     }
 
-    @Suppress("DEPRECATION")
     private fun processCallbackQuery(callbackQuery: CallbackQuery) {
-        val messageId = callbackQuery.message().messageId()
+        val messageId = callbackQuery.maybeInaccessibleMessage().messageId()
         val data = callbackQuery.data()
         if (data.startsWith("/language ")) {
             updateLanguage(callbackQuery.from(), data.substring(10))

@@ -161,8 +161,9 @@ class TelegramWebAppControllerTest {
     assertThat(model.get("competitionName")).isEqualTo("Premier League");
     assertThat(model.get("baseUrl"))
         .isEqualTo("http://localhost/webapp/" + HASH + "/users/" + USER_ID + "/results?competitionId=" + competitionId + "&round=");
-    assertThat(((Map<String, ?>) model.get("matchResults")).keySet())
-        .contains(startedMatch.getId().toString(), finishedMatch.getId().toString());
+    var matchResults = (Map<?, ?>) model.get("matchResults");
+    assertThat(matchResults.containsKey(startedMatch.getId().toString())).isTrue();
+    assertThat(matchResults.containsKey(finishedMatch.getId().toString())).isTrue();
     verify(competitionService).refreshActiveFixtures(season.getId());
   }
 
