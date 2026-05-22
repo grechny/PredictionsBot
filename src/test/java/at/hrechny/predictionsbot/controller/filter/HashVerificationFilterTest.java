@@ -10,6 +10,8 @@ import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -34,9 +36,15 @@ class HashVerificationFilterTest {
     filter = new HashVerificationFilter(hashUtils);
   }
 
-  @Test
-  void doFilterContinuesWhenHashMatchesUserIdFromWebappPath() throws Exception {
-    var request = request("/webapp/%s/users/%s/predictions".formatted(HASH, USER_ID));
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "/webapp/%s/users/%s/predictions",
+      "/webapp/%s/users/%s/results",
+      "/webapp/%s/users/%s/leagues",
+      "/webapp/%s/users/%s/leagues/747654fa-25d6-4e27-beb2-331ec865a803"
+  })
+  void doFilterContinuesWhenHashMatchesUserIdFromWebappPath(String uriTemplate) throws Exception {
+    var request = request(uriTemplate.formatted(HASH, USER_ID));
     var response = new MockHttpServletResponse();
     when(hashUtils.getHash(USER_ID)).thenReturn(HASH);
 
@@ -56,6 +64,21 @@ class HashVerificationFilterTest {
 
     assertThat(response.getStatus()).isEqualTo(400);
     assertThat(response.getErrorMessage()).isEqualTo("User not found");
+    verify(filterChain, never()).doFilter(request, response);
+  }
+
+  @Test
+  void doFilterRejectsRequestWhenHashBelongsToDifferentPathUserId() throws Exception {
+    var otherUserId = "43";
+    var request = request("/webapp/%s/users/%s/predictions".formatted(HASH, otherUserId));
+    var response = new MockHttpServletResponse();
+    when(hashUtils.getHash(otherUserId)).thenReturn("other-user-hash");
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(400);
+    assertThat(response.getErrorMessage()).isEqualTo("User not found");
+    verify(hashUtils).getHash(otherUserId);
     verify(filterChain, never()).doFilter(request, response);
   }
 
