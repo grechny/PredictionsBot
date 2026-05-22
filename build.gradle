@@ -20,6 +20,7 @@ ext {
     set('micronautValidationVersion', "4.12.0")
     set('micronautTestVersion', "4.10.3")
     set('nettyVersion', "4.2.13.Final")
+    set('testcontainersVersion', "2.0.5")
 }
 
 dependencyManagement {
@@ -77,6 +78,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     implementation 'org.springframework.cloud:spring-cloud-starter-vault-config'
+    implementation 'org.flywaydb:flyway-core'
 
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib'
@@ -120,6 +122,8 @@ dependencies {
     testImplementation "io.micronaut:micronaut-http-client:${micronautCoreVersion}"
     testImplementation "io.micronaut.test:micronaut-test-junit5:${micronautTestVersion}"
     testImplementation 'com.h2database:h2:2.2.220'
+    testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testcontainersVersion}"
+    testImplementation "org.testcontainers:testcontainers-postgresql:${testcontainersVersion}"
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
     testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
