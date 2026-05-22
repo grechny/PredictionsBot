@@ -1,4 +1,4 @@
-FROM openjdk:17-jdk-slim-buster
+FROM eclipse-temurin:25-jre
 
 # create non-root user and group
 # -l and static IDs assigned to avoid delay in lookups and system logging
@@ -14,5 +14,5 @@ USER spring:spring
 
 EXPOSE 8080
 
-COPY build/libs/*.jar app.jar
-ENTRYPOINT ["java","-jar","/app.jar"]
+COPY build/install/PredictionsBot /app
+ENTRYPOINT ["/app/bin/PredictionsBot"]

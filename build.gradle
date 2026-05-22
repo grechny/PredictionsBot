@@ -6,13 +6,11 @@ plugins {
     id 'com.google.devtools.ksp' version '2.3.8'
 }
 
-group 'at.hrechny'
-version '1.2'
+group = 'at.hrechny'
+version = '2.0.0'
 
 ext {
-    set('lombokVersion', "1.18.32")
-    set('mapstructVersion', "1.6.3")
-    set('micronautPlatformVersion', "4.10.14")
+    set('micronautPlatformVersion', "5.0.0")
     set('testcontainersVersion', "2.0.5")
 }
 
@@ -21,12 +19,12 @@ application {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(25)
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
-        jvmTarget = '17'
+        jvmTarget = '25'
         javaParameters = true
     }
 }
@@ -36,15 +34,15 @@ allOpen {
     annotation("io.micronaut.context.annotation.ConfigurationProperties")
     annotation("io.micronaut.http.annotation.Controller")
     annotation("io.micronaut.data.annotation.MappedEntity")
+    annotation("jakarta.persistence.Converter")
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.MappedSuperclass")
     annotation("jakarta.inject.Singleton")
 }
 
 ksp {
     arg("micronaut.processing.incremental", "true")
-    arg(
-        "micronaut.processing.annotations",
-        "at.hrechny.predictionsbot.foundation.*,at.hrechny.predictionsbot.service.predictor.LeagueRules,at.hrechny.predictionsbot.service.predictor.PredictionResultsCalculator"
-    )
+    arg("micronaut.processing.annotations", "at.hrechny.predictionsbot.*")
 }
 
 repositories {
@@ -80,24 +78,21 @@ dependencies {
     // Tools
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.2'
     implementation 'com.github.pengrad:java-telegram-bot-api:9.2.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     implementation 'org.apache.commons:commons-collections4:4.4'
     implementation 'org.apache.commons:commons-lang3:3.14.0'
     implementation 'org.apache.httpcomponents:fluent-hc:4.5.14'
     implementation 'org.apache.httpcomponents:httpclient:4.5.14'
     implementation 'org.apache.pdfbox:pdfbox:2.0.28'
     implementation 'org.apache.pdfbox:pdfbox-tools:2.0.28'
-    implementation "org.mapstruct:mapstruct:${mapstructVersion}"
     implementation 'org.jetbrains:annotations:24.1.0'
     implementation 'us.dustinj.timezonemap:timezonemap:4.5'
 
     runtimeOnly 'com.github.luben:zstd-jni:1.5.7-9'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql:42.7.6'
     runtimeOnly 'org.yaml:snakeyaml'
-    compileOnly "org.projectlombok:lombok:${lombokVersion}"
-
-    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
-    annotationProcessor "org.projectlombok:lombok-mapstruct-binding:0.2.0"
-    annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
 
     ksp 'io.micronaut:micronaut-inject-kotlin'
     ksp 'io.micronaut.validation:micronaut-validation-processor'
@@ -114,8 +109,6 @@ dependencies {
     testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testcontainersVersion}"
     testImplementation "org.testcontainers:testcontainers-postgresql:${testcontainersVersion}"
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
-    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 }
 
 test {
