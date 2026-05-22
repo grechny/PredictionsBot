@@ -12,7 +12,7 @@ import at.hrechny.predictionsbot.mapper.UserMapper
 import at.hrechny.predictionsbot.model.Prediction
 import at.hrechny.predictionsbot.model.Result
 import jakarta.inject.Singleton
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 import org.slf4j.LoggerFactory

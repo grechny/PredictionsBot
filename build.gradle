@@ -33,6 +33,7 @@ allOpen {
     annotation("io.micronaut.aop.Around")
     annotation("io.micronaut.context.annotation.ConfigurationProperties")
     annotation("io.micronaut.http.annotation.Controller")
+    annotation("io.micronaut.transaction.annotation.Transactional")
     annotation("io.micronaut.data.annotation.MappedEntity")
     annotation("jakarta.persistence.Converter")
     annotation("jakarta.persistence.Entity")
@@ -89,6 +90,7 @@ dependencies {
     implementation 'org.jetbrains:annotations:24.1.0'
     implementation 'us.dustinj.timezonemap:timezonemap:4.5'
 
+    runtimeOnly 'ch.qos.logback:logback-classic'
     runtimeOnly 'com.github.luben:zstd-jni:1.5.7-9'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql:42.7.6'

@@ -9,7 +9,7 @@ import at.hrechny.predictionsbot.service.predictor.UserService
 import at.hrechny.predictionsbot.service.telegram.TelegramService
 import io.micronaut.scheduling.annotation.Scheduled
 import jakarta.inject.Singleton
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant

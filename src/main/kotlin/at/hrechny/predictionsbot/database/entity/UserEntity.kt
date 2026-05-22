@@ -2,7 +2,6 @@ package at.hrechny.predictionsbot.database.entity
 
 import at.hrechny.predictionsbot.database.converter.ZoneIdConverter
 import io.micronaut.core.annotation.Introspected
-import io.micronaut.data.annotation.MappedEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Convert
 import jakarta.persistence.Entity
@@ -13,36 +12,35 @@ import java.time.ZoneId
 import java.util.Locale
 
 @Introspected(accessKind = [Introspected.AccessKind.FIELD])
-@MappedEntity("users")
 @Entity
 @Table(name = "users")
-class UserEntity(
+class UserEntity {
     @field:io.micronaut.data.annotation.Id
     @field:Id
-    var id: Long? = null,
+    var id: Long? = null
 
     @field:Column
-    var active: Boolean = true,
+    var active: Boolean = true
 
     @field:Column
-    var username: String? = null,
+    var username: String? = null
 
     @field:Column
-    var language: Locale? = null,
+    var language: Locale? = null
 
     @field:Column
-    var initialLanguage: Locale? = null,
+    var initialLanguage: Locale? = null
 
     @field:Column
     @field:Convert(converter = ZoneIdConverter::class)
-    var timezone: ZoneId? = null,
+    var timezone: ZoneId? = null
 
     @field:ManyToMany(mappedBy = "users")
-    var leagues: MutableList<LeagueEntity> = mutableListOf(),
+    var leagues: MutableList<LeagueEntity> = mutableListOf()
 
     @field:ManyToMany
-    var competitions: MutableList<CompetitionEntity> = mutableListOf(),
-) {
+    var competitions: MutableList<CompetitionEntity> = mutableListOf()
+
     fun isActive(): Boolean = active
 
     override fun equals(other: Any?): Boolean {

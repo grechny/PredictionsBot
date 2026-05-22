@@ -1,7 +1,6 @@
 package at.hrechny.predictionsbot.service.telegram
 
 import at.hrechny.predictionsbot.exception.NotFoundException
-import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport
 import at.hrechny.predictionsbot.model.Prediction
 import at.hrechny.predictionsbot.service.predictor.PredictionService
 import at.hrechny.predictionsbot.service.predictor.UserService
@@ -37,7 +36,6 @@ open class MessageListener(
         telegramService.setUpListener(this)
     }
 
-    @EnableErrorReport
     override fun process(updates: List<Update>): Int {
         log.debug("Processing Bot updates: {}", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(updates))
         for (updateMessage in updates) {

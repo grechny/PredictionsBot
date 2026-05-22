@@ -26,7 +26,7 @@ import com.pengrad.telegrambot.request.SendMessage
 import io.micronaut.context.annotation.Value
 import jakarta.annotation.PostConstruct
 import jakarta.inject.Singleton
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.util.Locale
 import java.util.UUID
 import org.apache.commons.lang3.StringUtils

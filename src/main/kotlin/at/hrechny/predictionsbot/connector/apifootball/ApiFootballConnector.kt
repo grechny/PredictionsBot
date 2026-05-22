@@ -9,7 +9,6 @@ import at.hrechny.predictionsbot.connector.apifootball.model.RoundsResponse
 import at.hrechny.predictionsbot.database.entity.AuditEntity
 import at.hrechny.predictionsbot.database.model.ApiProvider
 import at.hrechny.predictionsbot.database.repository.AuditRepository
-import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
@@ -31,7 +30,6 @@ import org.apache.http.client.fluent.Request
 import org.slf4j.LoggerFactory
 
 @Singleton
-@EnableErrorReport
 open class ApiFootballConnector(
     private val auditRepository: AuditRepository,
     @param:Value("\${connectors.api-football.url}")

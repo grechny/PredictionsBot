@@ -9,8 +9,11 @@ micronaut:
         paths:
           - classpath:static
   views:
+    folder: templates
     freemarker:
       enabled: true
+      default-extension: ftlh
+      recognize-standard-file-extensions: true
 
 datasources:
   default:

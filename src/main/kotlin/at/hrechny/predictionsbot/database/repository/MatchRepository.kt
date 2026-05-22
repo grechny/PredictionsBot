@@ -5,12 +5,13 @@ import at.hrechny.predictionsbot.database.entity.SeasonEntity
 import at.hrechny.predictionsbot.database.model.MatchStatus
 import jakarta.inject.Singleton
 import jakarta.persistence.EntityManager
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
 
 @Singleton
+@Transactional
 class MatchRepository(
     private val entityManager: EntityManager,
 ) {

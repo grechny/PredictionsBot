@@ -4,12 +4,13 @@ import at.hrechny.predictionsbot.database.entity.AuditEntity
 import at.hrechny.predictionsbot.database.model.ApiProvider
 import jakarta.inject.Singleton
 import jakarta.persistence.EntityManager
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
 
 @Singleton
+@Transactional
 class AuditRepository(
     private val entityManager: EntityManager,
 ) {

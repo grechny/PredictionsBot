@@ -4,7 +4,7 @@ import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport
 import at.hrechny.predictionsbot.service.predictor.CompetitionService
 import io.micronaut.scheduling.annotation.Scheduled
 import jakarta.inject.Singleton
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import org.slf4j.LoggerFactory
 
 @Singleton

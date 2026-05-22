@@ -4,6 +4,7 @@ import at.hrechny.predictionsbot.service.telegram.TelegramService
 import io.micronaut.aop.MethodInterceptor
 import io.micronaut.aop.MethodInvocationContext
 import jakarta.inject.Singleton
+import org.slf4j.LoggerFactory
 
 @Singleton
 class ExceptionInterceptor(
@@ -13,8 +14,16 @@ class ExceptionInterceptor(
         try {
             return context.proceed()
         } catch (exception: RuntimeException) {
-            telegramService.sendErrorReport(exception)
+            try {
+                telegramService.sendErrorReport(exception)
+            } catch (reportException: RuntimeException) {
+                log.error("Failed to send error report", reportException)
+            }
             throw exception
         }
+    }
+
+    private companion object {
+        val log = LoggerFactory.getLogger(ExceptionInterceptor::class.java)
     }
 }

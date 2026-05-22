@@ -9,7 +9,7 @@ import at.hrechny.predictionsbot.exception.InputValidationException
 import at.hrechny.predictionsbot.model.LeagueRequest
 import at.hrechny.predictionsbot.model.LeagueResponse
 import jakarta.inject.Singleton
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.util.UUID
 import org.slf4j.LoggerFactory
 

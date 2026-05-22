@@ -3,11 +3,12 @@ package at.hrechny.predictionsbot.database.repository
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity
 import jakarta.inject.Singleton
 import jakarta.persistence.EntityManager
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.util.Optional
 import java.util.UUID
 
 @Singleton
+@Transactional
 class CompetitionRepository(
     private val entityManager: EntityManager,
 ) {

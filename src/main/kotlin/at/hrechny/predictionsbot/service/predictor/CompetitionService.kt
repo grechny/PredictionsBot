@@ -25,7 +25,7 @@ import at.hrechny.predictionsbot.mapper.SeasonMapper
 import at.hrechny.predictionsbot.model.Competition
 import at.hrechny.predictionsbot.model.Season
 import jakarta.inject.Singleton
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger

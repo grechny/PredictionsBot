@@ -7,7 +7,7 @@ import at.hrechny.predictionsbot.exception.NotFoundException
 import at.hrechny.predictionsbot.exception.RequestValidationException
 import at.hrechny.predictionsbot.util.NameUtils
 import jakarta.inject.Singleton
-import jakarta.transaction.Transactional
+import io.micronaut.transaction.annotation.Transactional
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.Locale

@@ -29,6 +29,7 @@ import io.micronaut.http.annotation.PathVariable
 import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Put
 import io.micronaut.http.annotation.QueryValue
+import io.micronaut.transaction.annotation.Transactional
 import io.micronaut.views.ModelAndView
 import org.apache.commons.collections4.CollectionUtils
 import java.util.Comparator
@@ -49,6 +50,7 @@ open class TelegramWebAppController(
     private lateinit var applicationUrl: String
 
     @Get(value = "/webapp/{hash}/users/{userId}/predictions", produces = [MediaType.TEXT_HTML])
+    @Transactional
     open fun getPredictions(
         @PathVariable("hash") hash: String,
         @PathVariable("userId") userId: Long,
@@ -79,6 +81,9 @@ open class TelegramWebAppController(
             .flatMap { roundEntity -> roundEntity.matches }
             .sortedWith(compareBy(Comparator.nullsLast(Comparator.naturalOrder())) { match -> match.startTime })
 
+        initializeRoundsForView(rounds)
+        initializeMatchesForView(fixtures)
+
         val model = webModel(user)
         model["user"] = user
         model["fixtures"] = fixtures
@@ -88,6 +93,7 @@ open class TelegramWebAppController(
     }
 
     @Get(value = "/webapp/{hash}/users/{userId}/results", produces = [MediaType.TEXT_HTML])
+    @Transactional
     open fun getResults(
         @PathVariable("hash") hash: String,
         @PathVariable("userId") userId: Long,
@@ -134,6 +140,9 @@ open class TelegramWebAppController(
             .distinctBy(RoundEntity::orderNumber)
             .sortedBy(RoundEntity::orderNumber)
             .distinct()
+
+        initializeRoundsForView(rounds)
+        initializeMatchesForView(matches)
 
         if (CollectionUtils.isEmpty(rounds)) {
             val model = webModel(user)
@@ -231,6 +240,31 @@ open class TelegramWebAppController(
 
     private fun webModel(user: UserEntity): MutableMap<String, Any> =
         hashMapOf("i18n" to messageResolver.forLocale(getLocale(user)))
+
+    private fun initializeRoundsForView(rounds: Collection<RoundEntity>) {
+        rounds.forEach { round ->
+            round.type
+            round.orderNumber
+            round.season?.competition?.name
+            round.matches.size
+        }
+    }
+
+    private fun initializeMatchesForView(matches: Collection<MatchEntity>) {
+        matches.forEach { match ->
+            match.round?.season?.competition?.name
+            match.homeTeam?.name
+            match.homeTeam?.logoUrl
+            match.awayTeam?.name
+            match.awayTeam?.logoUrl
+            match.predictions.forEach { prediction ->
+                prediction.user?.id
+                prediction.predictionHome
+                prediction.predictionAway
+                prediction.doubleUp
+            }
+        }
+    }
 
     private fun getLocale(user: UserEntity): Locale? = user.language ?: user.initialLanguage
 }
