@@ -1,0 +1,3 @@
+micronaut:
+  config:
+    import: "vault://${VAULT_HOST}:8200/PredictionsBot?token=${VAULT_TOKEN}&kv-version=V2&secret-engine-name=secret&fail-fast=true"

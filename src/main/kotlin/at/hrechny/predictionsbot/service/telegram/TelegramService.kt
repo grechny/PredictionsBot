@@ -9,28 +9,35 @@ import at.hrechny.predictionsbot.service.predictor.PredictionService
 import at.hrechny.predictionsbot.service.predictor.UserService
 import at.hrechny.predictionsbot.util.FileUtils
 import at.hrechny.predictionsbot.util.HashUtils
-import com.pengrad.telegrambot.TelegramBot
-import com.pengrad.telegrambot.TelegramException
-import com.pengrad.telegrambot.UpdatesListener
-import com.pengrad.telegrambot.model.User
-import com.pengrad.telegrambot.model.WebAppInfo
-import com.pengrad.telegrambot.model.request.InlineKeyboardButton
-import com.pengrad.telegrambot.model.request.InlineKeyboardMarkup
-import com.pengrad.telegrambot.model.request.KeyboardButton
-import com.pengrad.telegrambot.model.request.ParseMode
-import com.pengrad.telegrambot.model.request.ReplyKeyboardMarkup
-import com.pengrad.telegrambot.model.request.ReplyKeyboardRemove
-import com.pengrad.telegrambot.request.EditMessageText
-import com.pengrad.telegrambot.request.SendDocument
-import com.pengrad.telegrambot.request.SendMessage
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.github.kotlintelegrambot.Bot
+import com.github.kotlintelegrambot.bot
+import com.github.kotlintelegrambot.dispatch
+import com.github.kotlintelegrambot.dispatcher.telegramError
+import com.github.kotlintelegrambot.dispatcher.handlers.Handler
+import com.github.kotlintelegrambot.network.Response as TelegramApiResponse
+import com.github.kotlintelegrambot.entities.ChatId
+import com.github.kotlintelegrambot.entities.InlineKeyboardMarkup
+import com.github.kotlintelegrambot.entities.KeyboardReplyMarkup
+import com.github.kotlintelegrambot.entities.ParseMode
+import com.github.kotlintelegrambot.entities.ReplyKeyboardRemove
+import com.github.kotlintelegrambot.entities.ReplyMarkup
+import com.github.kotlintelegrambot.entities.TelegramFile
+import com.github.kotlintelegrambot.entities.Update
+import com.github.kotlintelegrambot.entities.User
+import com.github.kotlintelegrambot.entities.keyboard.InlineKeyboardButton
+import com.github.kotlintelegrambot.entities.keyboard.KeyboardButton
+import com.github.kotlintelegrambot.entities.keyboard.WebAppInfo
+import com.github.kotlintelegrambot.types.TelegramBotResult
 import io.micronaut.context.annotation.Value
+import io.micronaut.transaction.annotation.Transactional
 import jakarta.annotation.PostConstruct
 import jakarta.inject.Singleton
-import io.micronaut.transaction.annotation.Transactional
 import java.util.Locale
 import java.util.UUID
 import org.apache.commons.lang3.StringUtils
 import org.slf4j.LoggerFactory
+import retrofit2.Response as RetrofitResponse
 
 @Singleton
 @Transactional
@@ -47,115 +54,143 @@ open class TelegramService(
     @param:Value("\${application.url}")
     private val applicationUrl: String,
 ) {
-    private lateinit var telegramBot: TelegramBot
+    private lateinit var telegramBot: Bot
 
     @PostConstruct
     open fun init() {
-        telegramBot = TelegramBot(botToken)
+        telegramBot = bot { token = botToken }
     }
 
-    open fun setUpListener(updatesListener: UpdatesListener) {
-        telegramBot.setUpdatesListener(updatesListener)
+    open fun setUpListener(updatesListener: TelegramUpdateListener) {
+        telegramBot = bot {
+            token = botToken
+            dispatch {
+                addHandler(TelegramUpdateHandler(updatesListener))
+                telegramError {
+                    log.error("Telegram polling error [{}]: {}", error.getType(), error.getErrorMessage())
+                }
+            }
+        }
+        log.info("Starting Telegram long polling")
+        telegramBot.startPolling()
+        log.info("Telegram long polling started")
     }
 
     open fun sendMessage(userId: Long?, message: String?) {
         log.debug("Sending message to the user {}: {}", userId, message)
-        sendMessage(SendMessage(userId!!, message!!).parseMode(ParseMode.HTML), userId)
+        sendTelegramMessage(userId!!, message!!, ParseMode.HTML)
     }
 
     @Transactional
     open fun startBot(user: User) {
         val username: String?
         try {
-            userService.getUser(user.id())
+            userService.getUser(user.id)
             sendHelp(user)
             return
         } catch (exception: NotFoundException) {
-            log.info("No active user found with id {}. New user will be created", user.id())
+            log.info("No active user found with id {}. New user will be created", user.id)
         }
 
-        username = if (StringUtils.isBlank(user.username())) {
-            if (StringUtils.isNotBlank(user.firstName())) user.firstName() else user.lastName()
+        username = if (StringUtils.isBlank(user.username)) {
+            if (StringUtils.isNotBlank(user.firstName)) user.firstName else user.lastName
         } else {
-            user.username()
+            user.username
         }
-        userService.createUser(user.id(), username, user.languageCode())
+        userService.createUser(user.id, username, user.languageCode)
         val message = buildGreetingMessage(user, username)
-        sendMessage(message, user.id())
+        sendTelegramMessage(user.id, message, replyMarkup = locationKeyboard(user))
         sendHelp(user)
         sendReport(user, "report.user.created")
     }
 
     open fun sendActivateMessage(user: User) {
-        val message = SendMessage(user.id(), messageResolver.getMessage("non_activated", null, Locale.forLanguageTag(user.languageCode())))
-        sendMessage(message, user.id())
+        sendTelegramMessage(
+            user.id,
+            messageResolver.getMessage("non_activated", null, Locale.forLanguageTag(user.languageCode ?: "ru")),
+        )
     }
 
     open fun sendHelp(user: User) {
-        val sendMessage = SendMessage(user.id(), messageResolver.getMessage("help", null, getLocale(user))).parseMode(ParseMode.HTML)
-        sendMessage(sendMessage, user.id())
+        sendTelegramMessage(user.id, messageResolver.getMessage("help", null, getLocale(user)), ParseMode.HTML)
     }
 
     open fun sendTimezoneMessage(user: User) {
-        val locale = getLocale(user)
-        val locationButton = KeyboardButton(messageResolver.getMessage("buttons.location", null, locale))
-        locationButton.requestLocation(true)
-
-        val message = SendMessage(user.id(), messageResolver.getMessage("start.location.change", null, locale))
-        message.replyMarkup(ReplyKeyboardMarkup(locationButton).resizeKeyboard(true))
-        sendMessage(message, user.id())
+        sendTelegramMessage(
+            user.id,
+            messageResolver.getMessage("start.location.change", null, getLocale(user)),
+            replyMarkup = locationKeyboard(user),
+        )
     }
 
     open fun sendPredictions(user: User) {
-        val buttonsArray = getPredictionButtons(user.id())
-        if (buttonsArray.isEmpty()) {
-            val userEntity = userService.getUser(user.id())
+        val buttons = getPredictionButtons(user.id)
+        if (buttons.isEmpty()) {
+            val userEntity = userService.getUser(user.id)
             if (userEntity.competitions.isEmpty()) {
                 sendCompetitions(user)
             } else {
-                val message = messageResolver.getMessage("no_competitions", null, getLocale(user))
-                val sendMessage = SendMessage(user.id(), message)
-                sendMessage.replyMarkup(ReplyKeyboardRemove())
-                sendMessage(sendMessage, user.id())
+                sendTelegramMessage(
+                    user.id,
+                    messageResolver.getMessage("no_competitions", null, getLocale(user)),
+                    replyMarkup = ReplyKeyboardRemove(),
+                )
             }
         } else {
-            val message = messageResolver.getMessage("predictions", null, getLocale(user))
-            val sendMessage = SendMessage(user.id(), message)
-            sendMessage.replyMarkup(ReplyKeyboardMarkup(*buttonsArray).resizeKeyboard(true))
-            sendMessage(sendMessage, user.id())
+            sendTelegramMessage(
+                user.id,
+                messageResolver.getMessage("predictions", null, getLocale(user)),
+                replyMarkup = KeyboardReplyMarkup(buttons, resizeKeyboard = true),
+            )
         }
     }
 
     open fun sendResults(user: User) {
         val message = "<pre>${messageResolver.getMessage("results.competitions", null, getLocale(user))}</pre>"
-        val sendMessage = SendMessage(user.id(), message).parseMode(ParseMode.HTML)
-        sendMessage.replyMarkup(InlineKeyboardMarkup(*getCompetitionButtonsMatrix(user.id())))
-        sendMessage(sendMessage, user.id())
+        sendTelegramMessage(
+            user.id,
+            message,
+            ParseMode.HTML,
+            inlineKeyboard(getCompetitionButtonsMatrix(user.id)),
+        )
     }
 
     open fun sendResults(user: User, messageId: Int) {
         val message = "<pre>${messageResolver.getMessage("results.competitions", null, getLocale(user))}</pre>"
-        val editMessageText = EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML)
-        editMessageText.replyMarkup(InlineKeyboardMarkup(*getCompetitionButtonsMatrix(user.id())))
-        editMessage(editMessageText, user.id())
+        editTelegramMessage(
+            user.id,
+            messageId,
+            message,
+            ParseMode.HTML,
+            inlineKeyboard(getCompetitionButtonsMatrix(user.id)),
+        )
     }
 
     open fun sendResults(user: User, seasonId: UUID, messageId: Int) {
         val locale = getLocale(user)
-        val inlineKeyboardMatrix = ArrayList<Array<InlineKeyboardButton>>()
+        val rows = ArrayList<List<InlineKeyboardButton>>()
         val seasonEntity = competitionService.getSeason(seasonId)
         val competition = seasonEntity.competition!!
         val results = predictionService.getResults(seasonId)
         val maxLength = results.size.toString().length +
             results.mapNotNull { result -> result.user?.name }.maxOfOrNull(String::length).let { it ?: 0 }
 
-        val detailsButton = InlineKeyboardButton(messageResolver.getMessage("results.details", null, locale))
-        detailsButton.webApp(WebAppInfo(buildGeneralUrl(user.id(), competition.id, seasonId, "results")))
-        inlineKeyboardMatrix.add(arrayOf(detailsButton))
-
-        val backButton = InlineKeyboardButton(messageResolver.getMessage("results.details.back_button", null, locale))
-        backButton.callbackData("/seasons ${competition.id}")
-        inlineKeyboardMatrix.add(arrayOf(backButton))
+        rows.add(
+            listOf(
+                InlineKeyboardButton.WebApp(
+                    text = messageResolver.getMessage("results.details", null, locale),
+                    webApp = WebAppInfo(buildGeneralUrl(user.id, competition.id, seasonId, "results")),
+                ),
+            ),
+        )
+        rows.add(
+            listOf(
+                InlineKeyboardButton.CallbackData(
+                    text = messageResolver.getMessage("results.details.back_button", null, locale),
+                    callbackData = "/seasons ${competition.id}",
+                ),
+            ),
+        )
 
         val message = StringBuilder()
         message.append("<pre>")
@@ -169,53 +204,67 @@ open class TelegramService(
         }
         message.append("</pre>")
 
-        val editMessageText = EditMessageText(user.id(), messageId, message.toString())
-        editMessageText.replyMarkup(InlineKeyboardMarkup(*inlineKeyboardMatrix.toTypedArray()))
-        editMessage(editMessageText.parseMode(ParseMode.HTML), user.id())
+        editTelegramMessage(user.id, messageId, message.toString(), ParseMode.HTML, inlineKeyboard(rows))
     }
 
     open fun sendResultsBySeasons(user: User, competitionId: UUID, messageId: Int) {
         val inlineKeyboardButtons = ArrayList<InlineKeyboardButton>()
         val competition = competitionService.getCompetition(competitionId)
         competitionService.getSeasons(competitionId).forEach { season ->
-            val inlineKeyboardButton = InlineKeyboardButton(season.year.toString())
-            inlineKeyboardButton.callbackData("/season ${season.id}")
-            inlineKeyboardButtons.add(inlineKeyboardButton)
+            inlineKeyboardButtons.add(
+                InlineKeyboardButton.CallbackData(season.year.toString(), "/season ${season.id}"),
+            )
         }
 
-        val backButton = InlineKeyboardButton(messageResolver.getMessage("results.seasons.back_button", null, getLocale(user)))
-        backButton.callbackData("/results")
-
-        val inlineKeyboardMatrix = convertToMatrix(inlineKeyboardButtons, 4).toMutableList()
-        inlineKeyboardMatrix.add(arrayOf(backButton))
+        val rows = convertToMatrix(inlineKeyboardButtons, 4).toMutableList()
+        rows.add(
+            listOf(
+                InlineKeyboardButton.CallbackData(
+                    messageResolver.getMessage("results.seasons.back_button", null, getLocale(user)),
+                    "/results",
+                ),
+            ),
+        )
 
         val message = "<pre>${competition.name}\n\n${messageResolver.getMessage("results.seasons", null, getLocale(user))}</pre>"
-        val editMessageText = EditMessageText(user.id(), messageId, message).parseMode(ParseMode.HTML)
-        editMessageText.replyMarkup(InlineKeyboardMarkup(*inlineKeyboardMatrix.toTypedArray()))
-        editMessage(editMessageText, user.id())
+        editTelegramMessage(user.id, messageId, message, ParseMode.HTML, inlineKeyboard(rows))
     }
 
     open fun sendLeagues(user: User) {
         val locale = getLocale(user)
-        val leagueButton = InlineKeyboardButton(messageResolver.getMessage("leagues.button", null, locale))
-        leagueButton.webApp(WebAppInfo(buildGeneralUrl(user.id(), null, null, "leagues")))
-
-        val sendMessage = SendMessage(user.id(), messageResolver.getMessage("leagues", null, locale))
-        sendMessage.replyMarkup(InlineKeyboardMarkup(leagueButton))
-        sendMessage(sendMessage, user.id())
+        sendTelegramMessage(
+            user.id,
+            messageResolver.getMessage("leagues", null, locale),
+            replyMarkup = inlineKeyboard(
+                listOf(
+                    listOf(
+                        InlineKeyboardButton.WebApp(
+                            text = messageResolver.getMessage("leagues.button", null, locale),
+                            webApp = WebAppInfo(buildGeneralUrl(user.id, null, null, "leagues")),
+                        ),
+                    ),
+                ),
+            ),
+        )
     }
 
     open fun sendCompetition(competitionId: UUID) {
         val competition = competitionService.getCompetition(competitionId)
+        val competitionName = competition.name!!
         userService.getUsers().forEach { user ->
             val locale = user.language ?: Locale.forLanguageTag("ru")
-            val sendMessage = SendMessage(
+            sendTelegramMessage(
                 user.id!!,
-                messageResolver.getMessage("competitions.new", arrayOf<Any>(competition.name!!), locale),
+                messageResolver.getMessage("competitions.new", arrayOf<Any>(competitionName), locale),
+                ParseMode.HTML,
+                inlineKeyboard(
+                    listOf(
+                        listOf(
+                            InlineKeyboardButton.CallbackData(competitionName, "/competition $competitionId"),
+                        ),
+                    ),
+                ),
             )
-            sendMessage.replyMarkup(InlineKeyboardMarkup(InlineKeyboardButton(competition.name).callbackData("/competition $competitionId")))
-            sendMessage.parseMode(ParseMode.HTML)
-            sendMessage(sendMessage, user.id)
 
             if (competition.isActive()) {
                 pushUpdate(user.id, messageResolver.getMessage("push.update", null, locale), true)
@@ -225,67 +274,74 @@ open class TelegramService(
 
     open fun sendCompetition(user: User, messageId: Int, competitionId: UUID) {
         val locale = getLocale(user)
-        val userEntity = userService.getUser(user.id())
+        val userEntity = userService.getUser(user.id)
         val competition = competitionService.getCompetition(competitionId)
         val activated = userEntity.competitions.any { competitionEntity -> competitionEntity.id == competitionId }
-        val button = InlineKeyboardButton((if (activated) "✅ " else "") + competition.name)
-        button.callbackData("/competition ${competition.id}")
+        val button = InlineKeyboardButton.CallbackData(
+            (if (activated) "✅ " else "") + competition.name,
+            "/competition ${competition.id}",
+        )
 
-        val editMessage = EditMessageText(
-            user.id(),
+        editTelegramMessage(
+            user.id,
             messageId,
             messageResolver.getMessage("competitions.new", arrayOf<Any>(competition.name!!), getLocale(user)),
+            ParseMode.HTML,
+            inlineKeyboard(listOf(listOf(button))),
         )
-        editMessage.replyMarkup(InlineKeyboardMarkup(button))
-        editMessage.parseMode(ParseMode.HTML)
-        editMessage(editMessage, user.id())
 
         if (competition.isActive()) {
-            pushUpdate(user.id(), messageResolver.getMessage("push.update", null, locale), true)
+            pushUpdate(user.id, messageResolver.getMessage("push.update", null, locale), true)
         }
     }
 
     open fun sendCompetitions(user: User) {
-        val sendMessage = SendMessage(user.id(), messageResolver.getMessage("competitions", null, getLocale(user)))
-        sendMessage.replyMarkup(InlineKeyboardMarkup(*getCompetitions(user)))
-        sendMessage.parseMode(ParseMode.HTML)
-        sendMessage(sendMessage, user.id())
+        sendTelegramMessage(
+            user.id,
+            messageResolver.getMessage("competitions", null, getLocale(user)),
+            ParseMode.HTML,
+            inlineKeyboard(getCompetitions(user)),
+        )
     }
 
     open fun sendCompetitions(user: User, messageId: Int, competitionId: UUID) {
-        val editMessage = EditMessageText(user.id(), messageId, messageResolver.getMessage("competitions", null, getLocale(user)))
-        editMessage.replyMarkup(InlineKeyboardMarkup(*getCompetitions(user)))
-        editMessage.parseMode(ParseMode.HTML)
-        editMessage(editMessage, user.id())
+        editTelegramMessage(
+            user.id,
+            messageId,
+            messageResolver.getMessage("competitions", null, getLocale(user)),
+            ParseMode.HTML,
+            inlineKeyboard(getCompetitions(user)),
+        )
 
         val competition = competitionService.getCompetition(competitionId)
         if (competition.isActive()) {
-            pushUpdate(user.id(), messageResolver.getMessage("push.update", null, getLocale(user)), true)
+            pushUpdate(user.id, messageResolver.getMessage("push.update", null, getLocale(user)), true)
         }
     }
 
     open fun sendLanguageMessage(user: User) {
         val locale = getLocale(user)
-        val ruLanguageButton = InlineKeyboardButton("Русский")
-        ruLanguageButton.callbackData("/language ru")
+        val rows = listOf(
+            listOf(
+                InlineKeyboardButton.CallbackData(messageResolver.getMessage("language.system", null, locale), "/language system"),
+                InlineKeyboardButton.CallbackData("English", "/language en"),
+                InlineKeyboardButton.CallbackData("Русский", "/language ru"),
+            ),
+        )
 
-        val enLanguageButton = InlineKeyboardButton("English")
-        enLanguageButton.callbackData("/language en")
-
-        val systemLanguageButton = InlineKeyboardButton(messageResolver.getMessage("language.system", null, locale))
-        systemLanguageButton.callbackData("/language system")
-
-        val sendMessage = SendMessage(user.id(), messageResolver.getMessage("language", null, locale))
-        sendMessage.replyMarkup(InlineKeyboardMarkup(systemLanguageButton, enLanguageButton, ruLanguageButton))
-        sendMessage(sendMessage, user.id())
+        sendTelegramMessage(
+            user.id,
+            messageResolver.getMessage("language", null, locale),
+            replyMarkup = inlineKeyboard(rows),
+        )
     }
 
     open fun stopBot(user: User) {
-        sendMessage(SendMessage(user.id(), messageResolver.getMessage("stop", null, getLocale(user))), user.id())
+        sendTelegramMessage(user.id, messageResolver.getMessage("stop", null, getLocale(user)))
     }
 
     open fun sendLanguageConfirmation(user: User) {
-        sendMessage(SendMessage(user.id(), messageResolver.getMessage("change_success", null, getLocale(user))), user.id())
+        sendTelegramMessage(user.id, messageResolver.getMessage("change_success", null, getLocale(user)))
     }
 
     open fun sendUpdateLocationConfirmation(user: User, zoneId: String?) {
@@ -296,9 +352,7 @@ open class TelegramService(
             messageResolver.getMessage("start.location.error", null, locale)
         }
 
-        val sendMessage = SendMessage(user.id(), message)
-        sendMessage.replyMarkup(ReplyKeyboardRemove())
-        sendMessage(sendMessage, user.id())
+        sendTelegramMessage(user.id, message, replyMarkup = ReplyKeyboardRemove())
     }
 
     open fun sendUsernameConfirmation(user: User, username: String?) {
@@ -309,7 +363,7 @@ open class TelegramService(
             messageResolver.getMessage("username.success", arrayOf<Any>(username!!), locale)
         }
 
-        sendMessage(SendMessage(user.id(), message), user.id())
+        sendTelegramMessage(user.id, message)
     }
 
     open fun pushUpdate(competitionId: UUID) {
@@ -321,106 +375,19 @@ open class TelegramService(
 
     open fun pushUpdate(userId: Long?, message: String?, updateCompetitionList: Boolean) {
         log.info("Sending push update to user {}", userId)
-        val sendMessage = SendMessage(userId!!, message!!)
-        sendMessage.parseMode(ParseMode.HTML)
 
-        if (updateCompetitionList) {
-            val buttonsArray = getPredictionButtons(userId)
-            if (buttonsArray.isNotEmpty()) {
-                sendMessage.replyMarkup(ReplyKeyboardMarkup(*buttonsArray).resizeKeyboard(true))
+        val replyMarkup = if (updateCompetitionList) {
+            val buttons = getPredictionButtons(userId)
+            if (buttons.isNotEmpty()) {
+                KeyboardReplyMarkup(buttons, resizeKeyboard = true)
             } else {
-                sendMessage.replyMarkup(ReplyKeyboardRemove())
+                ReplyKeyboardRemove()
             }
-        }
-
-        sendMessage(sendMessage, userId)
-    }
-
-    private fun getPredictionButtons(userId: Long?): Array<Array<KeyboardButton>> {
-        val buttons = ArrayList<List<KeyboardButton>>()
-        userService.getUser(userId!!).competitions.forEach { competition ->
-            if (competition.seasons.any(SeasonEntity::isActive)) {
-                val buttonsRow = ArrayList<KeyboardButton>()
-                val predictionsKeyboardButton = KeyboardButton(competition.name)
-                predictionsKeyboardButton.webAppInfo(WebAppInfo(buildGeneralUrl(userId, competition.id, null, "predictions")))
-                buttonsRow.add(predictionsKeyboardButton)
-
-                val resultsKeyboardButton = KeyboardButton("\uD83C\uDFC6")
-                resultsKeyboardButton.webAppInfo(WebAppInfo(buildGeneralUrl(userId, competition.id, null, "results")))
-                buttonsRow.add(resultsKeyboardButton)
-                buttons.add(buttonsRow)
-            }
-        }
-
-        return Array(buttons.size) { index -> buttons[index].toTypedArray() }
-    }
-
-    private fun getCompetitionButtonsMatrix(userId: Long): Array<Array<InlineKeyboardButton>> {
-        val inlineKeyboardButtons = ArrayList<InlineKeyboardButton>()
-        userService.getUser(userId).competitions.forEach { competition ->
-            val inlineKeyboardButton = InlineKeyboardButton(competition.name)
-            inlineKeyboardButton.callbackData("/seasons ${competition.id}")
-            inlineKeyboardButtons.add(inlineKeyboardButton)
-        }
-
-        return convertToMatrix(inlineKeyboardButtons, 2)
-    }
-
-    private fun getCompetitions(user: User): Array<Array<InlineKeyboardButton>> {
-        val userEntity = userService.getUser(user.id())
-        val competitions = competitionService.getCompetitions()
-        val competitionList = ArrayList<InlineKeyboardButton>()
-        competitions.forEach { competition ->
-            val activated = userEntity.competitions.any { competitionEntity -> competitionEntity.id == competition.id }
-            val button = InlineKeyboardButton((if (activated) "✅ " else "") + competition.name)
-            button.callbackData("/competitions ${competition.id}")
-            competitionList.add(button)
-        }
-        return convertToMatrix(competitionList, 2)
-    }
-
-    private fun buildGreetingMessage(user: User, username: String?): SendMessage {
-        val locale = getLocale(user)
-        val locationButton = KeyboardButton(messageResolver.getMessage("buttons.location", null, locale))
-        locationButton.requestLocation(true)
-
-        val message = SendMessage(user.id(), messageResolver.getMessage("start.greeting", arrayOf<Any>(username!!), locale))
-        return message.replyMarkup(ReplyKeyboardMarkup(locationButton).resizeKeyboard(true))
-    }
-
-    private fun getLocale(user: User): Locale {
-        val userEntity = userService.getUser(user.id())
-        return userEntity.language ?: Locale.forLanguageTag(user.languageCode())
-    }
-
-    private fun getLocale(userEntity: UserEntity): Locale = userEntity.language ?: userEntity.initialLanguage!!
-
-    private fun sendMessage(message: SendMessage, userId: Long?) {
-        val response = telegramBot.execute(message)
-        if (response.isOk) {
-            log.info("Message {} has been successfully sent", response.message().messageId())
         } else {
-            log.error("Message was not send: [{}] {}", response.errorCode(), response.description())
-            if (response.errorCode() == 403) {
-                userService.deactivate(userId!!)
-            } else {
-                throw TelegramException("Unable to send message", response)
-            }
+            null
         }
-    }
 
-    private fun editMessage(editMessage: EditMessageText, userId: Long) {
-        val response = telegramBot.execute(editMessage)
-        if (response.isOk) {
-            log.info("Message has been successfully updated")
-        } else {
-            log.error("Message was not updated: [{}] {}", response.errorCode(), response.description())
-            if (response.errorCode() == 403) {
-                userService.deactivate(userId)
-            } else {
-                throw TelegramException("Unable to send message", response)
-            }
-        }
+        sendTelegramMessage(userId!!, message!!, ParseMode.HTML, replyMarkup)
     }
 
     open fun sendErrorReport(exception: Exception) {
@@ -430,15 +397,123 @@ open class TelegramService(
         }
 
         val reportUser = userService.getUser(reportUserId.toLong())
-        val sendDocument = SendDocument(reportUserId, FileUtils.buildPdfDocument(exception))
-        sendDocument.fileName(exception.javaClass.simpleName + ".pdf")
-        sendDocument.caption(messageResolver.getMessage("error", null, getLocale(reportUser)) + ": " + exception.message)
-        val response = telegramBot.execute(sendDocument)
-        if (response.isOk) {
-            log.info("Error report document {} has been successfully sent", response.message().messageId())
-        } else {
-            log.error("Error report document was not send: [{}] {}", response.errorCode(), response.description())
-            throw TelegramException("Unable to send error report", response)
+        val fileName = exception.javaClass.simpleName + ".pdf"
+        val response = telegramBot.sendDocument(
+            chatId = ChatId.fromId(reportUserId.toLong()),
+            document = TelegramFile.ByByteArray(FileUtils.buildPdfDocument(exception), fileName),
+            caption = messageResolver.getMessage("error", null, getLocale(reportUser)) + ": " + exception.message,
+        )
+        handleRequiredTelegramCallResult(
+            response,
+            "Error report document was not sent",
+            "Unable to send error report",
+        ) { message ->
+            log.info("Error report document {} has been successfully sent", message.messageId)
+        }
+    }
+
+    private fun getPredictionButtons(userId: Long?): List<List<KeyboardButton>> {
+        val buttons = ArrayList<List<KeyboardButton>>()
+        userService.getUser(userId!!).competitions.forEach { competition ->
+            if (competition.seasons.any(SeasonEntity::isActive)) {
+                val competitionName = competition.name!!
+                buttons.add(
+                    listOf(
+                        KeyboardButton(
+                            text = competitionName,
+                            webApp = WebAppInfo(buildGeneralUrl(userId, competition.id, null, "predictions")),
+                        ),
+                        KeyboardButton(
+                            text = "\uD83C\uDFC6",
+                            webApp = WebAppInfo(buildGeneralUrl(userId, competition.id, null, "results")),
+                        ),
+                    ),
+                )
+            }
+        }
+
+        return buttons
+    }
+
+    private fun getCompetitionButtonsMatrix(userId: Long): List<List<InlineKeyboardButton>> {
+        val inlineKeyboardButtons = ArrayList<InlineKeyboardButton>()
+        userService.getUser(userId).competitions.forEach { competition ->
+            inlineKeyboardButtons.add(
+                InlineKeyboardButton.CallbackData(competition.name!!, "/seasons ${competition.id}"),
+            )
+        }
+
+        return convertToMatrix(inlineKeyboardButtons, 2)
+    }
+
+    private fun getCompetitions(user: User): List<List<InlineKeyboardButton>> {
+        val userEntity = userService.getUser(user.id)
+        val competitions = competitionService.getCompetitions()
+        val competitionList = ArrayList<InlineKeyboardButton>()
+        competitions.forEach { competition ->
+            val activated = userEntity.competitions.any { competitionEntity -> competitionEntity.id == competition.id }
+            competitionList.add(
+                InlineKeyboardButton.CallbackData(
+                    (if (activated) "✅ " else "") + competition.name!!,
+                    "/competitions ${competition.id}",
+                ),
+            )
+        }
+        return convertToMatrix(competitionList, 2)
+    }
+
+    private fun buildGreetingMessage(user: User, username: String?): String =
+        messageResolver.getMessage("start.greeting", arrayOf<Any>(username!!), getLocale(user))
+
+    private fun locationKeyboard(user: User): KeyboardReplyMarkup =
+        KeyboardReplyMarkup(
+            KeyboardButton(
+                text = messageResolver.getMessage("buttons.location", null, getLocale(user)),
+                requestLocation = true,
+            ),
+            resizeKeyboard = true,
+        )
+
+    private fun getLocale(user: User): Locale {
+        val userEntity = userService.getUser(user.id)
+        return userEntity.language ?: Locale.forLanguageTag(user.languageCode ?: "ru")
+    }
+
+    private fun getLocale(userEntity: UserEntity): Locale = userEntity.language ?: userEntity.initialLanguage!!
+
+    private fun sendTelegramMessage(
+        userId: Long,
+        text: String,
+        parseMode: ParseMode? = null,
+        replyMarkup: ReplyMarkup? = null,
+    ) {
+        val response = telegramBot.sendMessage(
+            chatId = ChatId.fromId(userId),
+            text = text,
+            parseMode = parseMode,
+            replyMarkup = replyMarkup,
+        )
+        handleTelegramResult(response, userId, "Message was not sent", "Unable to send message") { message ->
+            log.info("Message {} has been successfully sent", message.messageId)
+        }
+    }
+
+    private fun editTelegramMessage(
+        userId: Long,
+        messageId: Int,
+        text: String,
+        parseMode: ParseMode? = null,
+        replyMarkup: ReplyMarkup? = null,
+    ) {
+        val response = telegramBot.editMessageText(
+            chatId = ChatId.fromId(userId),
+            messageId = messageId.toLong(),
+            text = text,
+            parseMode = parseMode,
+            replyMarkup = replyMarkup,
+        )
+        handleTelegramCallResult(response, userId, "Message was not updated", "Unable to send message") {
+            log.info("Message has been successfully updated")
         }
     }
 
@@ -448,24 +523,26 @@ open class TelegramService(
             return
         }
         val reportUser = userService.getUser(reportUserId.toLong())
-        val reportMessage = SendMessage(
+        sendTelegramMessage(
             reportUser.id!!,
-            messageResolver.getMessage(reportCode, arrayOf<Any>(user.id().toString()), getLocale(reportUser)),
+            messageResolver.getMessage(reportCode, arrayOf<Any>(user.id.toString()), getLocale(reportUser)),
         )
-        sendMessage(reportMessage, reportUser.id)
     }
 
-    private fun convertToMatrix(buttons: ArrayList<InlineKeyboardButton>, maxColumns: Int): Array<Array<InlineKeyboardButton>> {
+    private fun inlineKeyboard(rows: List<List<InlineKeyboardButton>>): InlineKeyboardMarkup =
+        InlineKeyboardMarkup.create(*rows.toTypedArray())
+
+    private fun convertToMatrix(buttons: List<InlineKeyboardButton>, maxColumns: Int): List<List<InlineKeyboardButton>> {
         val rows = (buttons.size + maxColumns - 1) / maxColumns
         val iterator = buttons.iterator()
-        return Array(rows) {
+        return List(rows) {
             val columns = ArrayList<InlineKeyboardButton>()
             for (j in 0 until maxColumns) {
                 if (iterator.hasNext()) {
                     columns.add(iterator.next())
                 }
             }
-            columns.toTypedArray()
+            columns
         }
     }
 
@@ -480,7 +557,150 @@ open class TelegramService(
         return url
     }
 
+    private fun <T : Any> handleTelegramResult(
+        response: TelegramBotResult<T>,
+        userId: Long,
+        errorLogMessage: String,
+        exceptionMessage: String,
+        onSuccess: (T) -> Unit,
+    ) {
+        response.fold(
+            ifSuccess = onSuccess,
+            ifError = { error ->
+                log.error("{}: {}", errorLogMessage, describeTelegramError(error))
+                if (isForbidden(error)) {
+                    userService.deactivate(userId)
+                } else {
+                    throw IllegalStateException("$exceptionMessage: ${describeTelegramError(error)}")
+                }
+            },
+        )
+    }
+
+    private fun <T : Any> handleTelegramCallResult(
+        response: Pair<RetrofitResponse<TelegramApiResponse<T>?>?, Exception?>,
+        userId: Long,
+        errorLogMessage: String,
+        exceptionMessage: String,
+        onSuccess: (T) -> Unit,
+    ) {
+        val result = extractTelegramCallResult(response, errorLogMessage)
+        if (result.value != null) {
+            onSuccess(result.value)
+            return
+        }
+
+        if (result.errorCode == 403) {
+            userService.deactivate(userId)
+        } else {
+            throw IllegalStateException("$exceptionMessage: ${result.description}")
+        }
+    }
+
+    private fun <T : Any> handleRequiredTelegramCallResult(
+        response: Pair<RetrofitResponse<TelegramApiResponse<T>?>?, Exception?>,
+        errorLogMessage: String,
+        exceptionMessage: String,
+        onSuccess: (T) -> Unit,
+    ) {
+        val result = extractTelegramCallResult(response, errorLogMessage)
+        if (result.value != null) {
+            onSuccess(result.value)
+            return
+        }
+
+        throw IllegalStateException("$exceptionMessage: ${result.description}")
+    }
+
+    private fun <T : Any> extractTelegramCallResult(
+        response: Pair<RetrofitResponse<TelegramApiResponse<T>?>?, Exception?>,
+        errorLogMessage: String,
+    ): TelegramCallResult<T> {
+        val httpResponse = response.first
+        val body = httpResponse?.body()
+        if (httpResponse?.isSuccessful == true && body?.ok == true && body.result != null) {
+            return TelegramCallResult(body.result, null, "")
+        }
+
+        val error = describeTelegramCallError(httpResponse, response.second)
+        log.error("{}: {}", errorLogMessage, error.description)
+        return TelegramCallResult(null, error.errorCode, error.description)
+    }
+
+    private fun describeTelegramCallError(
+        response: RetrofitResponse<*>?,
+        exception: Exception?,
+    ): TelegramCallError {
+        val body = response?.body()
+        if (body is TelegramApiResponse<*> && body.errorCode != null) {
+            return TelegramCallError(body.errorCode, "[${body.errorCode}] ${body.errorDescription}")
+        }
+
+        val parsedError = parseTelegramErrorBody(response)
+        if (parsedError != null) {
+            return parsedError
+        }
+
+        val statusCode = response?.code()
+        val statusMessage = response?.message()
+        val description = when {
+            exception != null -> exception.message ?: exception.javaClass.simpleName
+            statusCode != null -> "[$statusCode] $statusMessage"
+            else -> "Unknown Telegram API error"
+        }
+        return TelegramCallError(null, description)
+    }
+
+    private fun parseTelegramErrorBody(response: RetrofitResponse<*>?): TelegramCallError? {
+        val errorBody = response?.errorBody()?.string() ?: return null
+        return try {
+            val node = errorObjectMapper.readTree(errorBody)
+            val errorCode = node.get("error_code")?.asInt()
+            val description = node.get("description")?.asText()
+            if (errorCode == null && description == null) {
+                null
+            } else {
+                TelegramCallError(errorCode, "[${errorCode ?: response.code()}] ${description ?: response.message()}")
+            }
+        } catch (exception: Exception) {
+            TelegramCallError(response.code(), "[${response.code()}] ${response.message()}")
+        }
+    }
+
+    private fun isForbidden(error: TelegramBotResult.Error): Boolean =
+        error is TelegramBotResult.Error.TelegramApi && error.errorCode == 403
+
+    private fun describeTelegramError(error: TelegramBotResult.Error): String =
+        when (error) {
+            is TelegramBotResult.Error.TelegramApi -> "[${error.errorCode}] ${error.description}"
+            is TelegramBotResult.Error.HttpError -> "[${error.httpCode}] ${error.description}"
+            is TelegramBotResult.Error.InvalidResponse -> "[${error.httpCode}] ${error.httpStatusMessage}"
+            is TelegramBotResult.Error.Unknown -> error.exception.message ?: error.exception.javaClass.simpleName
+        }
+
+    private class TelegramUpdateHandler(
+        private val updatesListener: TelegramUpdateListener,
+    ) : Handler {
+        override fun checkUpdate(update: Update): Boolean = true
+
+        override suspend fun handleUpdate(bot: Bot, update: Update) {
+            updatesListener.process(listOf(update))
+        }
+    }
+
+    private data class TelegramCallResult<T : Any>(
+        val value: T?,
+        val errorCode: Int?,
+        val description: String,
+    )
+
+    private data class TelegramCallError(
+        val errorCode: Int?,
+        val description: String,
+    )
+
     private companion object {
         val log = LoggerFactory.getLogger(TelegramService::class.java)
+        val errorObjectMapper = ObjectMapper()
     }
 }

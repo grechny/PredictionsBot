@@ -11,11 +11,11 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
-import com.pengrad.telegrambot.UpdatesListener
-import com.pengrad.telegrambot.model.CallbackQuery
-import com.pengrad.telegrambot.model.Message
-import com.pengrad.telegrambot.model.Update
-import com.pengrad.telegrambot.model.User
+import com.github.kotlintelegrambot.entities.CallbackQuery
+import com.github.kotlintelegrambot.entities.Message
+import com.github.kotlintelegrambot.entities.Update
+import com.github.kotlintelegrambot.entities.User
+import io.micronaut.context.annotation.Context
 import jakarta.annotation.PostConstruct
 import jakarta.inject.Singleton
 import java.util.UUID
@@ -23,16 +23,18 @@ import org.apache.commons.lang3.StringUtils
 import org.slf4j.LoggerFactory
 
 @Singleton
+@Context
 open class MessageListener(
     private val telegramService: TelegramService,
     private val predictionService: PredictionService,
     private val userService: UserService,
-) : UpdatesListener {
+) : TelegramUpdateListener {
     private lateinit var objectMapper: ObjectMapper
 
     @PostConstruct
     fun init() {
         initObjectMapper()
+        log.info("Starting Telegram message listener")
         telegramService.setUpListener(this)
     }
 
@@ -40,38 +42,40 @@ open class MessageListener(
         log.debug("Processing Bot updates: {}", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(updates))
         for (updateMessage in updates) {
             try {
-                if (updateMessage.callbackQuery() != null) {
-                    processCallbackQuery(updateMessage.callbackQuery())
+                val callbackQuery = updateMessage.callbackQuery
+                if (callbackQuery != null) {
+                    processCallbackQuery(callbackQuery)
                     continue
                 }
 
-                val message = updateMessage.message() ?: updateMessage.editedMessage()
+                val message = updateMessage.message ?: updateMessage.editedMessage
                 if (message == null) {
                     continue
                 }
 
-                if (message.location() != null) {
+                if (message.location != null) {
                     updateLocation(message)
-                } else if (message.webAppData() != null) {
+                } else if (message.webAppData != null) {
                     savePredictions(message)
-                } else if (message.text() != null) {
+                } else if (message.text != null) {
                     processMessageText(message)
                 } else {
-                    log.warn("Got unexpected update: {}", updateMessage.updateId())
+                    log.warn("Got unexpected update: {}", updateMessage.updateId)
                 }
             } catch (exception: Exception) {
-                log.error("Unable to process an update {}", updateMessage.updateId(), exception)
+                log.error("Unable to process an update {}", updateMessage.updateId, exception)
                 telegramService.sendErrorReport(exception)
             }
         }
 
-        return UpdatesListener.CONFIRMED_UPDATES_ALL
+        return TelegramUpdateListener.CONFIRMED_UPDATES_ALL
     }
 
     private fun processMessageText(message: Message) {
-        val user = message.from()
+        val user = message.from ?: return
+        val text = message.text ?: return
         try {
-            when (message.text()) {
+            when (text) {
                 "/start" -> telegramService.startBot(user)
                 "/predictions" -> telegramService.sendPredictions(user)
                 "/results" -> telegramService.sendResults(user)
@@ -82,59 +86,59 @@ open class MessageListener(
                 "/help" -> telegramService.sendHelp(user)
                 "/stop" -> stopBot(user)
                 else -> {
-                    if (message.text().startsWith("/username ")) {
-                        updateUsername(user, message.text().substring(10))
-                    } else if (message.text().startsWith("/language ")) {
-                        updateLanguage(user, message.text().substring(10))
+                    if (text.startsWith("/username ")) {
+                        updateUsername(user, text.substring(10))
+                    } else if (text.startsWith("/language ")) {
+                        updateLanguage(user, text.substring(10))
                     } else {
-                        log.warn("Got the message which won't be processed: {}", message.text())
+                        log.warn("Got the message which won't be processed: {}", text)
                     }
                 }
             }
         } catch (notFoundException: NotFoundException) {
-            log.warn("Active user {} is not found. Trying to send a message", user.id())
+            log.warn("Active user {} is not found. Trying to send a message", user.id)
             telegramService.sendActivateMessage(user)
         }
     }
 
     private fun processCallbackQuery(callbackQuery: CallbackQuery) {
-        val messageId = callbackQuery.maybeInaccessibleMessage().messageId()
-        val data = callbackQuery.data()
+        val messageId = callbackQuery.message?.messageId?.toInt() ?: return
+        val data = callbackQuery.data
         if (data.startsWith("/language ")) {
-            updateLanguage(callbackQuery.from(), data.substring(10))
+            updateLanguage(callbackQuery.from, data.substring(10))
         } else if (data.startsWith("/results")) {
-            telegramService.sendResults(callbackQuery.from(), messageId)
+            telegramService.sendResults(callbackQuery.from, messageId)
         } else if (data.startsWith("/seasons ")) {
             val competitionId = UUID.fromString(data.substring(9))
-            telegramService.sendResultsBySeasons(callbackQuery.from(), competitionId, messageId)
+            telegramService.sendResultsBySeasons(callbackQuery.from, competitionId, messageId)
         } else if (data.startsWith("/season ")) {
             val seasonId = UUID.fromString(data.substring(8))
-            telegramService.sendResults(callbackQuery.from(), seasonId, messageId)
+            telegramService.sendResults(callbackQuery.from, seasonId, messageId)
         } else if (data.startsWith("/competition ")) {
             val competitionId = UUID.fromString(data.substring(13))
-            userService.updateCompetitions(callbackQuery.from().id(), competitionId)
-            telegramService.sendCompetition(callbackQuery.from(), messageId, competitionId)
+            userService.updateCompetitions(callbackQuery.from.id, competitionId)
+            telegramService.sendCompetition(callbackQuery.from, messageId, competitionId)
         } else if (data.startsWith("/competitions ")) {
             val competitionId = UUID.fromString(data.substring(14))
-            userService.updateCompetitions(callbackQuery.from().id(), competitionId)
-            telegramService.sendCompetitions(callbackQuery.from(), messageId, competitionId)
+            userService.updateCompetitions(callbackQuery.from.id, competitionId)
+            telegramService.sendCompetitions(callbackQuery.from, messageId, competitionId)
         }
     }
 
     private fun savePredictions(message: Message) {
         val predictions = objectMapper.readValue(
-            message.webAppData().data(),
+            message.webAppData!!.data,
             object : TypeReference<List<Prediction>>() {},
         )
-        predictionService.savePredictions(message.from().id(), predictions)
+        predictionService.savePredictions(message.from!!.id, predictions)
     }
 
     private fun updateLocation(message: Message) {
-        val user = message.from()
-        val location = message.location()
-        val zoneId = TimeZoneUtils.getTimeZone(location.latitude(), location.longitude())
+        val user = message.from!!
+        val location = message.location!!
+        val zoneId = TimeZoneUtils.getTimeZone(location.latitude, location.longitude)
         if (zoneId != null) {
-            userService.updateTimeZone(user.id(), zoneId)
+            userService.updateTimeZone(user.id, zoneId)
         }
 
         telegramService.sendUpdateLocationConfirmation(user, zoneId)
@@ -143,7 +147,7 @@ open class MessageListener(
     private fun updateUsername(user: User, rawUsername: String) {
         var username: String? = StringUtils.normalizeSpace(rawUsername)
         if (username!!.length >= 3 && username.length <= 20) {
-            userService.updateUsername(user.id(), username)
+            userService.updateUsername(user.id, username)
         } else {
             log.warn("Username has not meet length criteria")
             username = null
@@ -158,13 +162,13 @@ open class MessageListener(
             language = null
         }
 
-        userService.updateLanguage(user.id(), language)
+        userService.updateLanguage(user.id, language)
         telegramService.sendLanguageConfirmation(user)
     }
 
     private fun stopBot(user: User) {
         telegramService.stopBot(user)
-        userService.deactivate(user.id())
+        userService.deactivate(user.id)
     }
 
     private fun initObjectMapper() {

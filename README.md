@@ -15,14 +15,14 @@ Viewing the results is possible both for the season and for each round separatel
 Result table contains the results of all players together with the predictions
 for each individual match that has begun or ended.
 
-## Prerequisites
+## Run Requirements
 
-Service is written in **Java 17** and prepared to be built and deployed as a docker image.
+The service runs on **Java 25** with **Kotlin** and **Micronaut**.
 
-Current setup requires the next environment:
+Required services:
 
-- **Vault** with Token authentication as a config server to store properties and passwords.
-- **Postgres** as a database to store matches, players and predictions.
+- **Vault** with token authentication.
+- **Postgres** for matches, players and predictions.
 
 Since the service uses [API Football](https://www.api-football.com/) provider to get information
 about Football Leagues, matches and results, the account should be created there and set in configuration.
@@ -33,13 +33,24 @@ requires valid **https** connection to the bot endpoints with valid and properly
 
 ## Properties
 
-### Environment properties
+### Environment Properties
+
+Set these as environment variables:
+
 | Property    | Description                 | Example               |
 |-------------|-----------------------------|-----------------------|
-| VAULT_URI   | Vault URL                   | http://localhost:8200 |
+| MICRONAUT_ENVIRONMENTS | Active Micronaut environments | vault                 |
+| VAULT_HOST  | Vault host without protocol | localhost             |
 | VAULT_TOKEN | Authorization service token | `<vault-token>`       |
 
-### Application properties
+Vault port is configured as `8200` in `application-vault.yaml`.
+Datasource URL, username and password are not stored in `application.yaml`; they must be loaded from Vault or supplied as Micronaut datasource properties.
+
+### Vault Properties
+
+Store these application properties in Vault as JSON:
+Use the `secret/PredictionsBot` KV v2 path.
+
 | Property                            | Description                                                    | Example                                         |
 |-------------------------------------|----------------------------------------------------------------|-------------------------------------------------|
 | application.url                     | URL of application                                             | https://predictionsbot.example.com              |
@@ -47,9 +58,9 @@ requires valid **https** connection to the bot endpoints with valid and properly
 | secrets.telegramKey                 | UUID key for application endpoints                             | 12345678-1234-1234-1234-1234567890ab            |
 | telegram.token                      | Telegram Bot authentication token                              | `<telegram-bot-token>`                          |
 | telegram.reportTo                   | Telegram User ID to whom the error reports will be sent        | 12345678                                        |
-| spring.datasource.url               | DB url                                                         | jdbc:postgresql://127.0.0.1:5432/predictionsbot |
-| spring.datasource.username          | DB username                                                    | postgres                                        |
-| spring.datasource.password          | DB password                                                    | postgres                                        |
+| datasources.default.url             | DB URL                                                         | jdbc:postgresql://127.0.0.1:5432/predictionsbot |
+| datasources.default.username        | DB username                                                    | postgres                                        |
+| datasources.default.password        | DB password                                                    | postgres                                        |
 | connectors.api-football.url         | Api-Football api URL                                           | https://v3.football.api-sports.io/              |
 | connectors.api-football.apiKey      | Api-Football api key                                           | `<api-football-key>`                            |
 | connectors.api-football.dayStarts   | Time in UTC to start billing day                               | 22:00                                           |

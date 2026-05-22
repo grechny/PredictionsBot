@@ -24,6 +24,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneOffset
 import org.apache.commons.collections4.CollectionUtils
+import org.apache.commons.lang3.StringUtils
 import org.apache.http.HttpHost
 import org.apache.http.client.fluent.Executor
 import org.apache.http.client.fluent.Request
@@ -40,13 +41,13 @@ open class ApiFootballConnector(
     private val maxAttempts: Int,
     @param:Value("\${connectors.api-football.dayStarts}")
     private val dayStarts: String,
-    @param:Value("\${connectors.proxy.host}")
+    @param:Value("\${connectors.proxy.host:}")
     private val proxyHost: String,
-    @param:Value("\${connectors.proxy.port}")
-    private val proxyPort: String,
-    @param:Value("\${connectors.proxy.username}")
+    @param:Value("\${connectors.proxy.port:0}")
+    private val proxyPort: Int,
+    @param:Value("\${connectors.proxy.username:}")
     private val proxyUsername: String,
-    @param:Value("\${connectors.proxy.password}")
+    @param:Value("\${connectors.proxy.password:}")
     private val proxyPassword: String,
 ) {
     open fun getRounds(competitionId: Long, seasonYear: String): List<String> {
@@ -84,14 +85,21 @@ open class ApiFootballConnector(
         }
 
         try {
-            val proxy = HttpHost(proxyHost, proxyPort.toInt())
             val request = Request.Get(uri.toString())
                 .addHeader("X-RapidAPI-Key", apiKey)
                 .addHeader("X-RapidAPI-Host", "api-football-v1.p.rapidapi.com")
-                .viaProxy(proxy)
+            val executor = Executor.newInstance()
 
-            val responseString = Executor.newInstance()
-                .auth(proxy, proxyUsername, proxyPassword)
+            if (StringUtils.isNotBlank(proxyHost)) {
+                val proxy = HttpHost(proxyHost, proxyPort)
+                request.viaProxy(proxy)
+
+                if (StringUtils.isNotBlank(proxyUsername)) {
+                    executor.auth(proxy, proxyUsername, proxyPassword)
+                }
+            }
+
+            val responseString = executor
                 .execute(request)
                 .returnContent()
                 .asString()

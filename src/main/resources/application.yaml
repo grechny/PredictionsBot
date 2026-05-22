@@ -5,7 +5,7 @@ micronaut:
     static-resources:
       default:
         enabled: true
-        mapping: /**
+        mapping: "/**"
         paths:
           - classpath:static
   views:
@@ -17,9 +17,7 @@ micronaut:
 
 datasources:
   default:
-    url: ${DATASOURCES_DEFAULT_URL:${SPRING_DATASOURCE_URL:}}
-    username: ${DATASOURCES_DEFAULT_USERNAME:${SPRING_DATASOURCE_USERNAME:}}
-    password: ${DATASOURCES_DEFAULT_PASSWORD:${SPRING_DATASOURCE_PASSWORD:}}
+    # Runtime credentials come from Vault or environment as datasources.default.*.
     driver-class-name: org.postgresql.Driver
 
 jpa:
@@ -45,32 +43,32 @@ flyway:
 
 caches:
   api-football:
-    expire-after-write: ${CONNECTORS_API_FOOTBALL_MIN_INTERVAL:60}s
+    expire-after-write: ${connectors.api-football.minInterval:60}s
 
 connectors:
   api-football:
-    url: ${CONNECTORS_API_FOOTBALL_URL:}
-    apiKey: ${CONNECTORS_API_FOOTBALL_API_KEY:}
-    minInterval: ${CONNECTORS_API_FOOTBALL_MIN_INTERVAL:60}
-    maxAttempts: ${CONNECTORS_API_FOOTBALL_MAX_ATTEMPTS:0}
-    dayStarts: ${CONNECTORS_API_FOOTBALL_DAY_STARTS:22:00}
+    url: ${connectors.api-football.url}
+    apiKey: ${connectors.api-football.apiKey}
+    minInterval: ${connectors.api-football.minInterval:60}
+    maxAttempts: ${connectors.api-football.maxAttempts}
+    dayStarts: ${connectors.api-football.dayStarts}
   proxy:
-    host: ${CONNECTORS_PROXY_HOST:}
-    port: ${CONNECTORS_PROXY_PORT:0}
-    username: ${CONNECTORS_PROXY_USERNAME:}
-    password: ${CONNECTORS_PROXY_PASSWORD:}
+    host: ${connectors.proxy.host:}
+    port: ${connectors.proxy.port:0}
+    username: ${connectors.proxy.username:}
+    password: ${connectors.proxy.password:}
 
 secrets:
-  adminKey: ${SECRETS_ADMIN_KEY:}
-  telegramKey: ${SECRETS_TELEGRAM_KEY:}
+  adminKey: ${secrets.adminKey}
+  telegramKey: ${secrets.telegramKey}
 
 telegram:
-  token: ${TELEGRAM_TOKEN:}
-  reportTo: ${TELEGRAM_REPORT_TO:}
+  token: ${telegram.token}
+  reportTo: ${telegram.reportTo:}
 
 application:
-  url: ${APPLICATION_URL:}
+  url: ${application.url}
 
-logging:
+logger:
   levels:
-    at.hrechny.predictionsbot: ${LOGGING_LEVEL:INFO}
+    at.hrechny.predictionsbot: ${logging.level:INFO}

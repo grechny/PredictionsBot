@@ -11,14 +11,10 @@ import static org.mockito.Mockito.when;
 import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
-import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.pengrad.telegrambot.UpdatesListener;
-import com.pengrad.telegrambot.model.Update;
-import com.pengrad.telegrambot.model.User;
+import com.github.kotlintelegrambot.entities.Update;
+import com.github.kotlintelegrambot.entities.User;
+import com.google.gson.Gson;
+import io.micronaut.context.annotation.Context;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings({"unchecked", "deprecation"})
+@SuppressWarnings("unchecked")
 class MessageListenerTest {
 
   private static final Long USER_ID = 42L;
@@ -44,11 +40,11 @@ class MessageListenerTest {
   private UserService userService;
 
   private MessageListener messageListener;
-  private ObjectMapper objectMapper;
+  private Gson gson;
 
   @BeforeEach
   void setUp() {
-    objectMapper = objectMapper();
+    gson = new Gson();
     messageListener = new MessageListener(telegramService, predictionService, userService);
     messageListener.init();
     verify(telegramService).setUpListener(messageListener);
@@ -56,11 +52,16 @@ class MessageListenerTest {
   }
 
   @Test
+  void listenerIsEagerlyCreatedByMicronaut() {
+    assertThat(MessageListener.class).hasAnnotation(Context.class);
+  }
+
+  @Test
   void processRoutesKnownTextCommandsToTelegramService() {
     var user = user();
 
     assertThat(messageListener.process(List.of(updateWithText(user, "/predictions"))))
-        .isEqualTo(UpdatesListener.CONFIRMED_UPDATES_ALL);
+        .isEqualTo(TelegramUpdateListener.CONFIRMED_UPDATES_ALL);
 
     verify(telegramService).sendPredictions(telegramUser());
   }
@@ -133,7 +134,7 @@ class MessageListenerTest {
     org.mockito.Mockito.doThrow(exception).when(telegramService).sendHelp(telegramUser());
 
     assertThat(messageListener.process(List.of(updateWithText(user, "/help"))))
-        .isEqualTo(UpdatesListener.CONFIRMED_UPDATES_ALL);
+        .isEqualTo(TelegramUpdateListener.CONFIRMED_UPDATES_ALL);
 
     verify(telegramService).sendErrorReport(exception);
   }
@@ -208,7 +209,7 @@ class MessageListenerTest {
             "text": "%s"
           }
         }
-        """.formatted(user.id(), text));
+        """.formatted(user.getId(), text));
   }
 
   private Update updateWithWebAppData(User user, String data) {
@@ -224,7 +225,7 @@ class MessageListenerTest {
             }
           }
         }
-        """.formatted(user.id(), objectToJson(data)));
+        """.formatted(user.getId(), objectToJson(data)));
   }
 
   private Update updateWithCallback(User user, Integer messageId, String data) {
@@ -242,7 +243,7 @@ class MessageListenerTest {
             "data": "%s"
           }
         }
-        """.formatted(user.id(), messageId, user.id(), data));
+        """.formatted(user.getId(), messageId, user.getId(), data));
   }
 
   private Update emptyUpdate() {
@@ -254,36 +255,18 @@ class MessageListenerTest {
   }
 
   private Update updateFromJson(String json) {
-    try {
-      return objectMapper.readValue(json, Update.class);
-    } catch (Exception exception) {
-      throw new IllegalStateException(exception);
-    }
+    return gson.fromJson(json, Update.class);
   }
 
   private String objectToJson(String value) {
-    try {
-      return objectMapper.writeValueAsString(value);
-    } catch (Exception exception) {
-      throw new IllegalStateException(exception);
-    }
+    return gson.toJson(value);
   }
 
   private User user() {
-    return new User(USER_ID);
+    return new User(USER_ID, false, "Test", null, "test", "en", null, null, null, null);
   }
 
   private User telegramUser() {
-    return argThat(user -> user != null && USER_ID.equals(user.id()));
-  }
-
-  private ObjectMapper objectMapper() {
-    var mapper = new ObjectMapper();
-    mapper.setVisibility(PropertyAccessor.ALL, Visibility.NONE);
-    mapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
-    mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-    mapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false);
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    return mapper;
+    return argThat(user -> user != null && USER_ID.equals(user.getId()));
   }
 }

@@ -26,7 +26,7 @@ kotlin {
     jvmToolchain(25)
 }
 
-tasks.withType(KotlinCompile).configureEach { KotlinCompile task ->
+tasks.withType(KotlinCompile.class).configureEach { KotlinCompile task ->
     task.compilerOptions.jvmTarget.set(JvmTarget.JVM_25)
     task.compilerOptions.javaParameters.set(true)
 }
@@ -50,6 +50,7 @@ ksp {
 
 repositories {
     mavenCentral()
+    maven { url = uri('https://jitpack.io') }
 }
 
 jar {
@@ -65,37 +66,36 @@ dependencies {
     testImplementation platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
 
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib'
+    implementation 'io.micronaut:micronaut-http-client'
     implementation 'io.micronaut:micronaut-http-server-netty'
     implementation 'io.micronaut:micronaut-jackson-databind'
     implementation 'io.micronaut:micronaut-runtime'
     implementation 'io.micronaut.cache:micronaut-cache-caffeine'
     implementation 'io.micronaut.data:micronaut-data-hibernate-jpa'
+    implementation 'io.micronaut.discovery:micronaut-discovery-client'
     implementation 'io.micronaut.flyway:micronaut-flyway'
     implementation 'io.micronaut.kotlin:micronaut-kotlin-runtime'
     implementation 'io.micronaut.sql:micronaut-jdbc-hikari'
     implementation 'io.micronaut.validation:micronaut-validation'
     implementation 'io.micronaut.views:micronaut-views-freemarker'
-    implementation 'io.netty:netty-codec-compression'
 
     // Tools
-    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.2'
-    implementation 'com.github.pengrad:java-telegram-bot-api:9.2.0'
+    implementation 'com.github.kotlin-telegram-bot.kotlin-telegram-bot:telegram:10.0.0'
+    implementation 'com.squareup.retrofit2:retrofit:3.0.0'
+    implementation 'com.squareup.retrofit2:converter-gson:3.0.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
-    implementation 'org.apache.commons:commons-collections4:4.4'
-    implementation 'org.apache.commons:commons-lang3:3.14.0'
+    implementation 'org.apache.commons:commons-collections4:4.5.0'
+    implementation 'org.apache.commons:commons-lang3:3.20.0'
     implementation 'org.apache.httpcomponents:fluent-hc:4.5.14'
-    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
-    implementation 'org.apache.pdfbox:pdfbox:2.0.28'
-    implementation 'org.apache.pdfbox:pdfbox-tools:2.0.28'
-    implementation 'org.jetbrains:annotations:24.1.0'
+    implementation 'org.apache.pdfbox:pdfbox:3.0.7'
+    implementation 'org.apache.pdfbox:pdfbox-tools:3.0.7'
     implementation 'us.dustinj.timezonemap:timezonemap:4.5'
 
     runtimeOnly 'ch.qos.logback:logback-classic'
     runtimeOnly 'com.github.luben:zstd-jni:1.5.7-9'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
-    runtimeOnly 'org.postgresql:postgresql:42.7.6'
+    runtimeOnly 'org.postgresql:postgresql:42.7.11'
     runtimeOnly 'org.yaml:snakeyaml'
 
     ksp 'io.micronaut:micronaut-inject-kotlin'
@@ -104,12 +104,12 @@ dependencies {
     kspTest 'io.micronaut.validation:micronaut-validation-processor'
 
     // Tests and test tools
-    testImplementation 'io.micronaut:micronaut-http-client'
     testImplementation 'io.micronaut.test:micronaut-test-junit5'
-    testImplementation 'org.assertj:assertj-core:3.27.3'
-    testImplementation 'com.h2database:h2:2.2.220'
+    testImplementation 'org.assertj:assertj-core:3.27.7'
+    testImplementation 'com.h2database:h2:2.4.240'
+    testImplementation 'com.google.code.gson:gson:2.14.0'
     testImplementation 'org.junit.jupiter:junit-jupiter'
-    testImplementation 'org.mockito:mockito-junit-jupiter:5.20.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.23.0'
     testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testcontainersVersion}"
     testImplementation "org.testcontainers:testcontainers-postgresql:${testcontainersVersion}"
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

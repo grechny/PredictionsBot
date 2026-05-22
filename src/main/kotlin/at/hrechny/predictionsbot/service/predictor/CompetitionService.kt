@@ -126,12 +126,16 @@ open class CompetitionService(
     }
 
     open fun refreshFixtures(seasonEntity: SeasonEntity) {
-        log.info("Start refreshing fixtures data for the season {}", seasonEntity.id)
+        val managedSeasonEntity = getSeason(seasonEntity.id!!)
+        log.info("Start refreshing fixtures data for the season {}", managedSeasonEntity.id)
         try {
-            val fixtures = apiFootballConnector!!.getFixtures(seasonEntity.competition!!.apiFootballId!!, seasonEntity.year!!)
-            refreshFixtures(fixtures, seasonEntity)
+            val fixtures = apiFootballConnector!!.getFixtures(
+                managedSeasonEntity.competition!!.apiFootballId!!,
+                managedSeasonEntity.year!!,
+            )
+            refreshFixtures(fixtures, managedSeasonEntity)
         } catch (exception: ApiFootballConnectorException) {
-            log.error("Failed to refresh fixtures for {}: {}", seasonEntity.competition!!.name, exception.message)
+            log.error("Failed to refresh fixtures for {}: {}", managedSeasonEntity.competition!!.name, exception.message)
         }
     }
 
