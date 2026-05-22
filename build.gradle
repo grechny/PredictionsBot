@@ -1,3 +1,6 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     id 'application'
     id 'java'
@@ -23,11 +26,9 @@ kotlin {
     jvmToolchain(25)
 }
 
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
-        javaParameters.set(true)
-    }
+tasks.withType(KotlinCompile).configureEach { KotlinCompile task ->
+    task.compilerOptions.jvmTarget.set(JvmTarget.JVM_25)
+    task.compilerOptions.javaParameters.set(true)
 }
 
 allOpen {
