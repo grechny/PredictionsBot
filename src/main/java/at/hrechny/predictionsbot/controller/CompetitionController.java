@@ -9,60 +9,63 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import io.micronaut.http.MediaType;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.annotation.Get;
+import io.micronaut.http.annotation.PathVariable;
+import io.micronaut.http.annotation.Post;
+import io.micronaut.http.annotation.Put;
+import io.micronaut.http.annotation.Body;
+import io.micronaut.http.annotation.Controller;
 
-@RestController
-@RequiredArgsConstructor
+@Controller
 public class CompetitionController {
 
   private final CompetitionService competitionService;
   private final TelegramService telegramService;
 
-  @PostMapping(value = "/${secrets.adminKey}/competitions", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<Map<String, UUID>> addCompetition(@Valid @RequestBody Competition competition) {
+  public CompetitionController(CompetitionService competitionService, TelegramService telegramService) {
+    this.competitionService = competitionService;
+    this.telegramService = telegramService;
+  }
+
+  @Post(value = "/${secrets.adminKey}/competitions", consumes = MediaType.APPLICATION_JSON, produces = MediaType.APPLICATION_JSON)
+  public HttpResponse<Map<String, UUID>> addCompetition(@Valid @Body Competition competition) {
     if (competition.getId() != null) {
       throw new RequestValidationException("Setting of competition id is not allowed");
     }
 
     var id = competitionService.addCompetition(competition);
     telegramService.sendCompetition(id);
-    return ResponseEntity.ok(Map.of("id", id));
+    return HttpResponse.ok(Map.of("id", id));
   }
 
-  @GetMapping(value = "/${secrets.adminKey}/competitions", produces = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<List<Competition>> getCompetitions() {
-    return ResponseEntity.ok(competitionService.getCompetitions());
+  @Get(value = "/${secrets.adminKey}/competitions", produces = MediaType.APPLICATION_JSON)
+  public HttpResponse<List<Competition>> getCompetitions() {
+    return HttpResponse.ok(competitionService.getCompetitions());
   }
 
-  @PostMapping(value = "/${secrets.adminKey}/competitions/{competitionId}/seasons", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<Map<String, UUID>> addSeason(@PathVariable("competitionId") UUID competitionId, @Valid @RequestBody Season season) {
+  @Post(value = "/${secrets.adminKey}/competitions/{competitionId}/seasons", consumes = MediaType.APPLICATION_JSON, produces = MediaType.APPLICATION_JSON)
+  public HttpResponse<Map<String, UUID>> addSeason(@PathVariable("competitionId") UUID competitionId, @Valid @Body Season season) {
     if (season.getId() != null) {
       throw new RequestValidationException("Setting of season id is not allowed");
     }
 
     var id = competitionService.addSeason(competitionId, season);
     telegramService.pushUpdate(competitionId);
-    return ResponseEntity.ok(Map.of("id", id));
+    return HttpResponse.ok(Map.of("id", id));
   }
 
-  @GetMapping(value = "/${secrets.adminKey}/competitions/{competitionId}/seasons", produces = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<List<Season>> getSeasons(@PathVariable("competitionId") UUID competitionId) {
-    return ResponseEntity.ok(competitionService.getSeasons(competitionId));
+  @Get(value = "/${secrets.adminKey}/competitions/{competitionId}/seasons", produces = MediaType.APPLICATION_JSON)
+  public HttpResponse<List<Season>> getSeasons(@PathVariable("competitionId") UUID competitionId) {
+    return HttpResponse.ok(competitionService.getSeasons(competitionId));
   }
 
-  @PutMapping(value = "/${secrets.adminKey}/competitions/{competitionId}/seasons/{seasonId}", consumes = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<Void> updateSeason(
+  @Put(value = "/${secrets.adminKey}/competitions/{competitionId}/seasons/{seasonId}", consumes = MediaType.APPLICATION_JSON)
+  public HttpResponse<Void> updateSeason(
       @PathVariable("competitionId") UUID competitionId,
       @PathVariable("seasonId") UUID seasonId,
-      @Valid @RequestBody Season season) {
+      @Valid @Body Season season) {
 
     if (season.getId() != null && !season.getId().equals(seasonId)) {
       throw new RequestValidationException("Season ID cannot be updated");
@@ -71,19 +74,19 @@ public class CompetitionController {
     season.setId(seasonId);
     competitionService.updateSeason(competitionId, season);
     telegramService.pushUpdate(competitionId);
-    return ResponseEntity.ok().build();
+    return HttpResponse.ok();
   }
 
-  @PostMapping(value = "/${secrets.adminKey}/fixtures")
-  public ResponseEntity<Void> refreshFixtures() {
+  @Post(value = "/${secrets.adminKey}/fixtures")
+  public HttpResponse<Void> refreshFixtures() {
     competitionService.getActiveSeasons().forEach(competitionService::refreshFixtures);
-    return ResponseEntity.ok().build();
+    return HttpResponse.ok();
   }
 
-  @PostMapping(value = "/${secrets.adminKey}/fixtures/{competitionId}")
-  public ResponseEntity<Void> refreshFixtures(@PathVariable("competitionId") UUID competitionId) {
+  @Post(value = "/${secrets.adminKey}/fixtures/{competitionId}")
+  public HttpResponse<Void> refreshFixtures(@PathVariable("competitionId") UUID competitionId) {
     var season = competitionService.getCurrentSeason(competitionId);
     competitionService.refreshFixtures(season);
-    return ResponseEntity.ok().build();
+    return HttpResponse.ok();
   }
 }

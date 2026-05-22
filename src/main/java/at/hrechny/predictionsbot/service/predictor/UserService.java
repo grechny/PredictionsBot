@@ -11,18 +11,20 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import jakarta.inject.Singleton;
+import jakarta.transaction.Transactional;
 
 @Slf4j
-@Service
-@RequiredArgsConstructor
+@Singleton
 public class UserService {
 
   private final UserRepository userRepository;
+
+  public UserService(UserRepository userRepository) {
+    this.userRepository = userRepository;
+  }
 
   @Transactional
   public void createUser(Long userId, String username, String language) {

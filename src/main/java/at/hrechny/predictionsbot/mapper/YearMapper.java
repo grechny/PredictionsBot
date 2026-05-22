@@ -2,9 +2,9 @@ package at.hrechny.predictionsbot.mapper;
 
 import java.time.Year;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Service;
+import jakarta.inject.Singleton;
 
-@Service
+@Singleton
 public class YearMapper {
 
   public String asString(Year year) {

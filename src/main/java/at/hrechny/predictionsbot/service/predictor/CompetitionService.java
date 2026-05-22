@@ -32,14 +32,12 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import jakarta.inject.Singleton;
 
 @Slf4j
-@Service
+@Singleton
 @Transactional
-@RequiredArgsConstructor
 public class CompetitionService {
 
   private final SeasonMapper seasonMapper;
@@ -49,6 +47,24 @@ public class CompetitionService {
   private final TeamRepository teamRepository;
   private final MatchRepository matchRepository;
   private final ApiFootballConnector apiFootballConnector;
+
+  public CompetitionService(
+      SeasonMapper seasonMapper,
+      SeasonRepository seasonRepository,
+      CompetitionMapper competitionMapper,
+      CompetitionRepository competitionRepository,
+      TeamRepository teamRepository,
+      MatchRepository matchRepository,
+      ApiFootballConnector apiFootballConnector) {
+
+    this.seasonMapper = seasonMapper;
+    this.seasonRepository = seasonRepository;
+    this.competitionMapper = competitionMapper;
+    this.competitionRepository = competitionRepository;
+    this.teamRepository = teamRepository;
+    this.matchRepository = matchRepository;
+    this.apiFootballConnector = apiFootballConnector;
+  }
 
   public UUID addCompetition(Competition competition) {
     log.info("Adding the new competition: {}", competition);

@@ -1,6 +1,5 @@
 plugins {
-    id 'io.spring.dependency-management' version '1.1.2'
-    id 'org.springframework.boot' version '3.1.2'
+    id 'application'
     id 'java'
     id 'org.jetbrains.kotlin.jvm' version '2.3.21'
     id 'org.jetbrains.kotlin.plugin.allopen' version '2.3.21'
@@ -11,35 +10,13 @@ group 'at.hrechny'
 version '1.2'
 
 ext {
-    set('springCloudVersion', "2022.0.3")
-    set('hikariVersion', "6.3.3")
     set('lombokVersion', "1.18.32")
-    set('micronautCoreVersion', "4.10.23")
-    set('micronautKotlinVersion', "4.7.0")
-    set('micronautSqlVersion', "6.3.4")
-    set('micronautValidationVersion', "4.12.0")
-    set('micronautTestVersion', "4.10.3")
-    set('nettyVersion', "4.2.13.Final")
+    set('mapstructVersion', "1.6.3")
+    set('micronautPlatformVersion', "4.10.14")
     set('testcontainersVersion', "2.0.5")
 }
 
-dependencyManagement {
-    imports {
-        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
-        mavenBom "io.netty:netty-bom:${nettyVersion}"
-    }
-    dependencies {
-        dependency "com.zaxxer:HikariCP:${hikariVersion}"
-    }
-}
-
-sourceSets {
-    main {
-        java.srcDirs += "build/generated/src/main/java"
-    }
-}
-
-springBoot {
+application {
     mainClass = 'at.hrechny.predictionsbot.Application'
 }
 
@@ -58,35 +35,47 @@ allOpen {
     annotation("io.micronaut.aop.Around")
     annotation("io.micronaut.context.annotation.ConfigurationProperties")
     annotation("io.micronaut.http.annotation.Controller")
+    annotation("io.micronaut.data.annotation.MappedEntity")
     annotation("jakarta.inject.Singleton")
 }
 
 ksp {
     arg("micronaut.processing.incremental", "true")
-    arg("micronaut.processing.annotations", "at.hrechny.predictionsbot.*")
+    arg(
+        "micronaut.processing.annotations",
+        "at.hrechny.predictionsbot.foundation.*,at.hrechny.predictionsbot.service.predictor.LeagueRules,at.hrechny.predictionsbot.service.predictor.PredictionResultsCalculator"
+    )
 }
 
 repositories {
     mavenCentral()
 }
 
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-aop'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-freemarker'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
+jar {
+    manifest {
+        attributes('Main-Class': application.mainClass.get())
+    }
+}
 
-    implementation 'org.springframework.cloud:spring-cloud-starter-vault-config'
-    implementation 'org.flywaydb:flyway-core'
+dependencies {
+    implementation platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
+    ksp platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
+    kspTest platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
+    testImplementation platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
 
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib'
-    implementation "io.micronaut:micronaut-http-server-netty:${micronautCoreVersion}"
-    implementation "io.micronaut:micronaut-jackson-databind:${micronautCoreVersion}"
-    implementation "io.micronaut:micronaut-runtime:${micronautCoreVersion}"
-    implementation "io.micronaut.kotlin:micronaut-kotlin-runtime:${micronautKotlinVersion}"
-    implementation "io.micronaut.validation:micronaut-validation:${micronautValidationVersion}"
+    implementation 'io.micronaut:micronaut-http-server-netty'
+    implementation 'io.micronaut:micronaut-jackson-databind'
+    implementation 'io.micronaut:micronaut-runtime'
+    implementation 'io.micronaut.cache:micronaut-cache-caffeine'
+    implementation 'io.micronaut.data:micronaut-data-hibernate-jpa'
+    implementation 'io.micronaut.flyway:micronaut-flyway'
+    implementation 'io.micronaut.kotlin:micronaut-kotlin-runtime'
+    implementation 'io.micronaut.sql:micronaut-jdbc-hikari'
+    implementation 'io.micronaut.validation:micronaut-validation'
+    implementation 'io.micronaut.views:micronaut-views-freemarker'
+    implementation 'io.netty:netty-codec-compression'
 
     // Tools
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.2'
@@ -97,31 +86,31 @@ dependencies {
     implementation 'org.apache.httpcomponents:httpclient:4.5.14'
     implementation 'org.apache.pdfbox:pdfbox:2.0.28'
     implementation 'org.apache.pdfbox:pdfbox-tools:2.0.28'
-    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
-    implementation 'org.mapstruct.extensions.spring:mapstruct-spring-annotations:1.0.1'
+    implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+    implementation 'org.jetbrains:annotations:24.1.0'
     implementation 'us.dustinj.timezonemap:timezonemap:4.5'
 
     runtimeOnly 'com.github.luben:zstd-jni:1.5.7-9'
-    runtimeOnly "io.micronaut.sql:micronaut-jdbc-hikari:${micronautSqlVersion}"
     runtimeOnly 'org.postgresql:postgresql:42.7.6'
+    runtimeOnly 'org.yaml:snakeyaml'
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
 
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok-mapstruct-binding:0.2.0"
-    annotationProcessor "org.mapstruct:mapstruct-processor:1.5.5.Final"
-    annotationProcessor 'org.mapstruct.extensions.spring:mapstruct-spring-extensions:1.0.1'
-    annotationProcessor "org.mapstruct:mapstruct-processor:1.5.5.Final"
+    annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
 
-    ksp "io.micronaut:micronaut-inject-kotlin:${micronautCoreVersion}"
-    ksp "io.micronaut.validation:micronaut-validation-processor:${micronautValidationVersion}"
-    kspTest "io.micronaut:micronaut-inject-kotlin:${micronautCoreVersion}"
-    kspTest "io.micronaut.validation:micronaut-validation-processor:${micronautValidationVersion}"
+    ksp 'io.micronaut:micronaut-inject-kotlin'
+    ksp 'io.micronaut.validation:micronaut-validation-processor'
+    kspTest 'io.micronaut:micronaut-inject-kotlin'
+    kspTest 'io.micronaut.validation:micronaut-validation-processor'
 
     // Tests and test tools
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation "io.micronaut:micronaut-http-client:${micronautCoreVersion}"
-    testImplementation "io.micronaut.test:micronaut-test-junit5:${micronautTestVersion}"
+    testImplementation 'io.micronaut:micronaut-http-client'
+    testImplementation 'io.micronaut.test:micronaut-test-junit5'
+    testImplementation 'org.assertj:assertj-core:3.27.3'
     testImplementation 'com.h2database:h2:2.2.220'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.20.0'
     testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testcontainersVersion}"
     testImplementation "org.testcontainers:testcontainers-postgresql:${testcontainersVersion}"
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -131,7 +120,5 @@ dependencies {
 
 test {
     useJUnitPlatform()
-    systemProperty 'SPRING_CLOUD_VAULT_ENABLED', 'false'
-    systemProperty 'SPRING_CONFIG_IMPORT', 'optional:file:./does-not-exist.properties'
     systemProperty 'logging.level', 'INFO'
 }

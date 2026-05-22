@@ -3,7 +3,6 @@ package at.hrechny.predictionsbot.service.predictor
 import at.hrechny.predictionsbot.database.entity.UserEntity
 import at.hrechny.predictionsbot.database.model.MatchStatus
 import jakarta.inject.Singleton
-import org.springframework.stereotype.Component
 
 data class PredictionResultInput(
     val user: UserEntity,
@@ -28,7 +27,6 @@ data class PredictionUserResult(
         get() = sum + (liveSum ?: 0)
 }
 
-@Component
 @Singleton
 class PredictionResultsCalculator {
 

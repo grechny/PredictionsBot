@@ -5,25 +5,28 @@ import at.hrechny.predictionsbot.model.PushUpdate;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import io.micronaut.http.MediaType;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.annotation.Post;
+import io.micronaut.http.annotation.Body;
+import io.micronaut.http.annotation.Controller;
 
-@RestController
+@Controller
 @EnableErrorReport
-@RequiredArgsConstructor
 public class ServiceController {
 
   private final UserService userService;
   private final TelegramService telegramService;
 
-  @PostMapping(value = "/${secrets.adminKey}", consumes = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<Void> pushUpdate(@Valid @RequestBody PushUpdate pushUpdate) {
+  public ServiceController(UserService userService, TelegramService telegramService) {
+    this.userService = userService;
+    this.telegramService = telegramService;
+  }
+
+  @Post(value = "/${secrets.adminKey}", consumes = MediaType.APPLICATION_JSON)
+  public HttpResponse<Void> pushUpdate(@Valid @Body PushUpdate pushUpdate) {
     userService.getUsers().forEach(user -> telegramService.pushUpdate(user.getId(), pushUpdate.getMessage(), pushUpdate.isUpdateCompetitionList()));
-    return ResponseEntity.ok().build();
+    return HttpResponse.ok();
   }
 
 }

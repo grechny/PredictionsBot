@@ -3,10 +3,10 @@ package at.hrechny.predictionsbot.util;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import lombok.SneakyThrows;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import io.micronaut.context.annotation.Value;
+import jakarta.inject.Singleton;
 
-@Service
+@Singleton
 public class HashUtils {
 
   @Value("${secrets.telegramKey}")

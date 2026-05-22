@@ -13,32 +13,36 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.http.HttpHost;
 import org.apache.http.client.fluent.Executor;
 import org.apache.http.client.fluent.Request;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.stereotype.Service;
-import org.springframework.web.util.UriComponentsBuilder;
+import io.micronaut.context.annotation.Value;
+import io.micronaut.cache.annotation.Cacheable;
+import jakarta.inject.Singleton;
 
 @Slf4j
-@Service
+@Singleton
 @EnableErrorReport
-@RequiredArgsConstructor
 public class ApiFootballConnector {
 
   private final AuditRepository auditRepository;
+
+  public ApiFootballConnector(AuditRepository auditRepository) {
+    this.auditRepository = auditRepository;
+  }
 
   @Value("${connectors.api-football.url}")
   private String baseUrl;
@@ -65,19 +69,13 @@ public class ApiFootballConnector {
   private String proxyPassword;
 
   public List<String> getRounds(Long competitionId, String seasonYear) {
-    URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures/rounds")
-        .queryParam("league", competitionId)
-        .queryParam("season", seasonYear)
-        .build().toUri();
+    URI uri = buildUri("/fixtures/rounds", Map.of("league", competitionId, "season", seasonYear));
 
     return sendRequest(uri, RoundsResponse.class).getResponse();
   }
 
   public List<Fixture> getFixtures(Long competitionId, String seasonYear) throws ApiFootballConnectorException {
-    URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures")
-        .queryParam("league", competitionId)
-        .queryParam("season", seasonYear)
-        .build().toUri();
+    URI uri = buildUri("/fixtures", Map.of("league", competitionId, "season", seasonYear));
 
     return sendRequest(uri, FixturesResponse.class).getResponse();
   }
@@ -85,9 +83,7 @@ public class ApiFootballConnector {
   @Cacheable(value = "api-football")
   public List<Fixture> getFixtures(List<Long> fixtureIds) throws ApiFootballConnectorException {
     var fixtureIdsString = fixtureIds.stream().limit(20).map(Object::toString).toList();
-    URI uri = UriComponentsBuilder.fromUriString(baseUrl + "/fixtures")
-        .queryParam("ids", String.join("-", fixtureIdsString))
-        .build().toUri();
+    URI uri = buildUri("/fixtures", Map.of("ids", String.join("-", fixtureIdsString)));
 
     try {
       return sendRequest(uri, FixturesResponse.class).getResponse();
@@ -171,6 +167,17 @@ public class ApiFootballConnector {
     if (count >= maxAttempts) {
       throw new ApiFootballConnectorException(Reason.QUOTA_EXCEEDED);
     }
+  }
+
+  private URI buildUri(String path, Map<String, ?> queryParams) {
+    var query = queryParams.entrySet().stream()
+        .map(entry -> encode(entry.getKey()) + "=" + encode(String.valueOf(entry.getValue())))
+        .toList();
+    return URI.create(baseUrl + path + "?" + String.join("&", query));
+  }
+
+  private String encode(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8);
   }
 
 }

@@ -1,5 +1,7 @@
 package at.hrechny.predictionsbot.foundation
 
+import at.hrechny.predictionsbot.database.repository.UserRepository
+import at.hrechny.predictionsbot.mapper.CompetitionMapper
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest
 import jakarta.inject.Inject
 import org.assertj.core.api.Assertions.assertThat
@@ -11,8 +13,17 @@ class FoundationPersistenceSmokeTest {
     @Inject
     lateinit var dataSource: DataSource
 
+    @Inject
+    lateinit var userRepository: UserRepository
+
+    @Inject
+    lateinit var competitionMapper: CompetitionMapper
+
     @Test
     fun datasourceRunsJdbcRoundTripAgainstH2() {
+        assertThat(userRepository).isNotNull()
+        assertThat(competitionMapper).isNotNull()
+
         dataSource.connection.use { connection ->
             assertThat(connection.metaData.url).contains("jdbc:h2:mem:predictions_micronaut")
 

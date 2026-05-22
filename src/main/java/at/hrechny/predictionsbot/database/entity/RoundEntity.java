@@ -1,5 +1,7 @@
 package at.hrechny.predictionsbot.database.entity;
 
+import io.micronaut.core.annotation.Introspected;
+
 import at.hrechny.predictionsbot.database.model.RoundType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -15,6 +17,7 @@ import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
+@Introspected(accessKind = Introspected.AccessKind.FIELD)
 @Getter
 @Setter
 @Entity

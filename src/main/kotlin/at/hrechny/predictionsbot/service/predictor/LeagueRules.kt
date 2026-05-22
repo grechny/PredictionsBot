@@ -5,9 +5,7 @@ import at.hrechny.predictionsbot.exception.LimitExceededException
 import at.hrechny.predictionsbot.util.NameUtils
 import jakarta.inject.Singleton
 import org.apache.commons.lang3.StringUtils
-import org.springframework.stereotype.Component
 
-@Component
 @Singleton
 class LeagueRules {
 

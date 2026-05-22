@@ -18,30 +18,42 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
-import org.springframework.context.MessageSource;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import at.hrechny.predictionsbot.config.MessageResolver;
+import io.micronaut.scheduling.annotation.Scheduled;
+import jakarta.inject.Singleton;
+import jakarta.transaction.Transactional;
 
 @Slf4j
-@Service
+@Singleton
 @EnableErrorReport
-@RequiredArgsConstructor
 public class ReminderScheduler {
 
   private final UserService userService;
   private final TelegramService telegramService;
   private final CompetitionService competitionService;
-  private final MessageSource messageSource;
+  private final MessageResolver messageResolver;
   private final Clock clock;
 
-  @Transactional(readOnly = true)
-  @Scheduled(cron = "0 0 * * * *", zone = "UTC")
+  public ReminderScheduler(
+      UserService userService,
+      TelegramService telegramService,
+      CompetitionService competitionService,
+      MessageResolver messageResolver,
+      Clock clock) {
+
+    this.userService = userService;
+    this.telegramService = telegramService;
+    this.competitionService = competitionService;
+    this.messageResolver = messageResolver;
+    this.clock = clock;
+  }
+
+  @Transactional
+  @Scheduled(cron = "0 0 * * * *", zoneId = "UTC")
   public void sendReminders() {
     var now = Instant.now(clock);
     var todayFixtures = competitionService.getFixtures(
@@ -162,7 +174,7 @@ public class ReminderScheduler {
   }
 
   private void sendReminder(UserEntity user, String messageCode, String matches) {
-    var message = messageSource.getMessage(messageCode, List.of(matches).toArray(), getLocale(user));
+    var message = messageResolver.getMessage(messageCode, List.of(matches).toArray(), getLocale(user));
     telegramService.sendMessage(user.getId(), message);
     log.info("Reminder has been successfully sent to the user {}", user.getId());
   }
@@ -171,7 +183,7 @@ public class ReminderScheduler {
     var locale = getLocale(user);
     var roundEntity = match.getRound();
     return "$round".equals(roundEntity.getType().getName())
-        ? messageSource.getMessage("round", null, locale).toLowerCase(locale) + roundEntity.getOrderNumber()
+        ? messageResolver.getMessage("round", null, locale).toLowerCase(locale) + roundEntity.getOrderNumber()
         : roundEntity.getType().getName();
   }
 

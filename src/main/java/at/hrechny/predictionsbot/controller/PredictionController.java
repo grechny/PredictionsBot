@@ -5,25 +5,27 @@ import at.hrechny.predictionsbot.model.Prediction;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import jakarta.validation.Valid;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import io.micronaut.http.MediaType;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.annotation.PathVariable;
+import io.micronaut.http.annotation.Post;
+import io.micronaut.http.annotation.Body;
+import io.micronaut.http.annotation.Controller;
 
-@RestController
+@Controller
 @EnableErrorReport
-@RequiredArgsConstructor
 public class PredictionController {
 
   private final PredictionService predictionService;
 
-  @PostMapping(value = "/${secrets.adminKey}/users/{userId}/predictions", consumes = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<Void> addPredictions(@PathVariable("userId") Long userId, @Valid @RequestBody List<Prediction> predictions) {
+  public PredictionController(PredictionService predictionService) {
+    this.predictionService = predictionService;
+  }
+
+  @Post(value = "/${secrets.adminKey}/users/{userId}/predictions", consumes = MediaType.APPLICATION_JSON)
+  public HttpResponse<Void> addPredictions(@PathVariable("userId") Long userId, @Valid @Body List<Prediction> predictions) {
     predictionService.savePredictions(userId, predictions);
-    return ResponseEntity.ok().build();
+    return HttpResponse.ok();
   }
 
 }

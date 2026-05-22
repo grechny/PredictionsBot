@@ -11,19 +11,29 @@ import at.hrechny.predictionsbot.model.LeagueResponse;
 import jakarta.transaction.Transactional;
 import java.util.Set;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import jakarta.inject.Singleton;
 
 @Slf4j
-@Service
-@RequiredArgsConstructor
+@Singleton
 public class LeagueService {
 
   private final LeagueRepository leagueRepository;
   private final UserRepository userRepository;
   private final CompetitionRepository competitionRepository;
   private final LeagueRules leagueRules;
+
+  public LeagueService(
+      LeagueRepository leagueRepository,
+      UserRepository userRepository,
+      CompetitionRepository competitionRepository,
+      LeagueRules leagueRules) {
+
+    this.leagueRepository = leagueRepository;
+    this.userRepository = userRepository;
+    this.competitionRepository = competitionRepository;
+    this.leagueRules = leagueRules;
+  }
 
   @Transactional
   public LeagueResponse create(Long userId, LeagueRequest leagueRequest) {

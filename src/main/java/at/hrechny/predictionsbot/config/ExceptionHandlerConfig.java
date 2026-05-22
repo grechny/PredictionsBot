@@ -2,53 +2,39 @@ package at.hrechny.predictionsbot.config;
 
 import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.exception.RequestValidationException;
+import io.micronaut.core.convert.exceptions.ConversionErrorException;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.exceptions.HttpStatusException;
+import io.micronaut.http.server.exceptions.ExceptionHandler;
+import jakarta.inject.Singleton;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.ConversionNotSupportedException;
-import org.springframework.beans.TypeMismatchException;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.http.converter.HttpMessageNotWritableException;
-import org.springframework.web.HttpMediaTypeNotAcceptableException;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
-import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.MissingPathVariableException;
-import org.springframework.web.bind.MissingServletRequestParameterException;
-import org.springframework.web.bind.ServletRequestBindingException;
-import org.springframework.web.bind.annotation.ControllerAdvice;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @Slf4j
-@ControllerAdvice
-public class ExceptionHandlerConfig {
+@Singleton
+public class ExceptionHandlerConfig implements ExceptionHandler<Exception, HttpResponse<Object>> {
 
-  @ExceptionHandler({
-      HttpRequestMethodNotSupportedException.class,
-      HttpMediaTypeNotSupportedException.class,
-      HttpMediaTypeNotAcceptableException.class,
-      MissingPathVariableException.class,
-      MissingServletRequestParameterException.class,
-      ServletRequestBindingException.class,
-      ConversionNotSupportedException.class,
-      TypeMismatchException.class,
-      HttpMessageNotReadableException.class,
-      HttpMessageNotWritableException.class,
-      MethodArgumentNotValidException.class,
-      jakarta.validation.ConstraintViolationException.class,
-      org.hibernate.exception.ConstraintViolationException.class,
-      RequestValidationException.class,
-      NotFoundException.class
-  })
-  public ResponseEntity<Object> handleBadRequestException(Exception ex) {
-    log.error("Bad request: ", ex);
-    return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+  @Override
+  public HttpResponse<Object> handle(io.micronaut.http.HttpRequest request, Exception ex) {
+    if (ex instanceof HttpStatusException httpStatusException) {
+      log.error("Request failed: ", ex);
+      return HttpResponse.status(httpStatusException.getStatus());
+    }
+    if (isBadRequest(ex)) {
+      log.error("Bad request: ", ex);
+      return HttpResponse.status(HttpStatus.BAD_REQUEST);
+    }
+    log.error("An unhandled exception was caught: ", ex);
+    return HttpResponse.status(HttpStatus.INTERNAL_SERVER_ERROR);
   }
 
-  @ExceptionHandler(value = {Exception.class})
-  public ResponseEntity<Object> handleAnyException(Exception ex) {
-    log.error("An unhandled exception was caught: ", ex);
-    return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+  private boolean isBadRequest(Exception ex) {
+    return ex instanceof ConversionErrorException
+        || ex instanceof ConstraintViolationException
+        || ex instanceof org.hibernate.exception.ConstraintViolationException
+        || ex instanceof RequestValidationException
+        || ex instanceof NotFoundException;
   }
 
 }

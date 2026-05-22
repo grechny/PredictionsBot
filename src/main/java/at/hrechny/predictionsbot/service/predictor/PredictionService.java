@@ -18,15 +18,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.springframework.stereotype.Service;
+import jakarta.inject.Singleton;
 
 @Slf4j
-@Service
+@Singleton
 @Transactional
-@RequiredArgsConstructor
 public class PredictionService {
 
   private final UserMapper userMapper;
@@ -34,6 +32,20 @@ public class PredictionService {
   private final CompetitionService competitionService;
   private final UserService userService;
   private final PredictionResultsCalculator predictionResultsCalculator;
+
+  public PredictionService(
+      UserMapper userMapper,
+      MatchRepository matchRepository,
+      CompetitionService competitionService,
+      UserService userService,
+      PredictionResultsCalculator predictionResultsCalculator) {
+
+    this.userMapper = userMapper;
+    this.matchRepository = matchRepository;
+    this.competitionService = competitionService;
+    this.userService = userService;
+    this.predictionResultsCalculator = predictionResultsCalculator;
+  }
 
   public void savePredictions(Long userId, List<Prediction> predictions) {
     log.info("Saving predictions for the user {}", userId);

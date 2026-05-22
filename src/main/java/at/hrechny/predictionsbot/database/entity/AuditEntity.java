@@ -1,5 +1,7 @@
 package at.hrechny.predictionsbot.database.entity;
 
+import io.micronaut.core.annotation.Introspected;
+
 import at.hrechny.predictionsbot.database.model.ApiProvider;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,6 +13,7 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 
+@Introspected(accessKind = Introspected.AccessKind.FIELD)
 @Getter
 @Setter
 @Entity

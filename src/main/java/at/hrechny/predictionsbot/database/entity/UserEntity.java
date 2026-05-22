@@ -1,5 +1,8 @@
 package at.hrechny.predictionsbot.database.entity;
 
+import io.micronaut.core.annotation.Introspected;
+import io.micronaut.data.annotation.MappedEntity;
+
 import at.hrechny.predictionsbot.database.converter.ZoneIdConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -16,17 +19,28 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+@Introspected(accessKind = Introspected.AccessKind.FIELD)
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode(exclude = {"leagues", "competitions"})
+@MappedEntity("users")
 @Entity
 @Table(name = "users")
 public class UserEntity {
 
+  @io.micronaut.data.annotation.Id
   @Id
   private Long id;
+
+  public Long getId() {
+    return id;
+  }
+
+  public void setId(Long id) {
+    this.id = id;
+  }
 
   @Column
   private boolean active = true;

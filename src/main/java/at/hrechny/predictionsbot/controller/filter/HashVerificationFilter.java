@@ -1,39 +1,38 @@
 package at.hrechny.predictionsbot.controller.filter;
 
 import at.hrechny.predictionsbot.util.HashUtils;
-import jakarta.servlet.Filter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import io.micronaut.core.async.publisher.Publishers;
+import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.http.annotation.Filter;
+import io.micronaut.http.filter.HttpServerFilter;
+import io.micronaut.http.filter.ServerFilterChain;
+import jakarta.inject.Singleton;
+import org.reactivestreams.Publisher;
 
-@Service
-@RequiredArgsConstructor
-public class HashVerificationFilter implements Filter {
+@Singleton
+@Filter("/webapp/**")
+public class HashVerificationFilter implements HttpServerFilter {
 
   private final HashUtils hashUtils;
 
-  @Override
-  public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain chain) throws IOException, ServletException {
-    HttpServletRequest request = (HttpServletRequest) servletRequest;
-    HttpServletResponse response = (HttpServletResponse) servletResponse;
+  public HashVerificationFilter(HashUtils hashUtils) {
+    this.hashUtils = hashUtils;
+  }
 
-    var uri = request.getRequestURI();
+  @Override
+  public Publisher<MutableHttpResponse<?>> doFilter(HttpRequest<?> request, ServerFilterChain chain) {
+    var uri = request.getPath();
     var uriParts = uri.split("/");
 
     var hash = uriParts[2];
     var userId = uriParts[4];
 
     if (!hashUtils.getHash(userId).equals(hash)) {
-      response.sendError(HttpServletResponse.SC_BAD_REQUEST, "User not found");
-      return;
+      return Publishers.just(HttpResponse.badRequest("User not found"));
     }
 
-    chain.doFilter(servletRequest, servletResponse);
+    return chain.proceed(request);
   }
 }

@@ -3,29 +3,87 @@ package at.hrechny.predictionsbot.database.repository;
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
+import jakarta.inject.Singleton;
+import jakarta.persistence.EntityManager;
+import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.data.repository.CrudRepository;
-import org.springframework.stereotype.Repository;
 
-@Repository
-public interface MatchRepository extends CrudRepository<MatchEntity, UUID> {
+@Singleton
+public class MatchRepository {
 
-  Optional<MatchEntity> findFirstByRoundSeasonAndStartTimeAfterOrderByStartTimeAsc(SeasonEntity seasonEntity, Instant instant);
+  private final EntityManager entityManager;
 
-  List<MatchEntity> findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(Instant from, Instant until);
+  public MatchRepository(EntityManager entityManager) {
+    this.entityManager = entityManager;
+  }
 
-  List<MatchEntity> findAllByRoundSeasonAndStatusInAndStartTimeBefore(SeasonEntity seasonEntity, List<MatchStatus> statuses, Instant time);
+  @Transactional
+  public MatchEntity save(MatchEntity entity) {
+    return entityManager.merge(entity);
+  }
 
-  default List<MatchEntity> findAllActive(SeasonEntity seasonEntity) {
+  public Optional<MatchEntity> findById(UUID id) {
+    return Optional.ofNullable(entityManager.find(MatchEntity.class, id));
+  }
+
+  public Optional<MatchEntity> findFirstByRoundSeasonAndStartTimeAfterOrderByStartTimeAsc(SeasonEntity seasonEntity, Instant instant) {
+    return entityManager
+        .createQuery("""
+            select m
+            from MatchEntity m
+            where m.round.season = :seasonEntity
+              and m.startTime > :instant
+            order by m.startTime asc
+            """, MatchEntity.class)
+        .setParameter("seasonEntity", seasonEntity)
+        .setParameter("instant", instant)
+        .setMaxResults(1)
+        .getResultStream()
+        .findFirst();
+  }
+
+  public List<MatchEntity> findAllByStartTimeAfterAndStartTimeBeforeOrderByStartTimeAsc(Instant from, Instant until) {
+    return entityManager
+        .createQuery("""
+            select m
+            from MatchEntity m
+            where m.startTime > :from
+              and m.startTime < :until
+            order by m.startTime asc
+            """, MatchEntity.class)
+        .setParameter("from", from)
+        .setParameter("until", until)
+        .getResultList();
+  }
+
+  public List<MatchEntity> findAllByRoundSeasonAndStatusInAndStartTimeBefore(
+      SeasonEntity seasonEntity,
+      List<MatchStatus> statuses,
+      Instant time) {
+
+    return entityManager
+        .createQuery("""
+            select m
+            from MatchEntity m
+            where m.round.season = :seasonEntity
+              and m.status in :statuses
+              and m.startTime < :time
+            """, MatchEntity.class)
+        .setParameter("seasonEntity", seasonEntity)
+        .setParameter("statuses", statuses)
+        .setParameter("time", time)
+        .getResultList();
+  }
+
+  public List<MatchEntity> findAllActive(SeasonEntity seasonEntity) {
     return findAllByRoundSeasonAndStatusInAndStartTimeBefore(seasonEntity, Arrays.asList(MatchStatus.PLANNED, MatchStatus.STARTED), Instant.now());
   }
 
-  default Optional<MatchEntity> findUpcoming(SeasonEntity seasonEntity) {
+  public Optional<MatchEntity> findUpcoming(SeasonEntity seasonEntity) {
     return findFirstByRoundSeasonAndStartTimeAfterOrderByStartTimeAsc(seasonEntity, Instant.now());
   }
-
 }

@@ -20,15 +20,13 @@ import com.pengrad.telegrambot.model.User;
 import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Service;
+import jakarta.inject.Singleton;
 
 @Slf4j
-@Service
-@RequiredArgsConstructor
+@Singleton
 public class MessageListener implements UpdatesListener {
 
   private ObjectMapper objectMapper;
@@ -36,6 +34,12 @@ public class MessageListener implements UpdatesListener {
   private final TelegramService telegramService;
   private final PredictionService predictionService;
   private final UserService userService;
+
+  public MessageListener(TelegramService telegramService, PredictionService predictionService, UserService userService) {
+    this.telegramService = telegramService;
+    this.predictionService = predictionService;
+    this.userService = userService;
+  }
 
   @PostConstruct
   public void init() {

@@ -1,20 +1,26 @@
 package at.hrechny.predictionsbot.exception.interceptor;
 
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
-import lombok.RequiredArgsConstructor;
-import org.aspectj.lang.annotation.AfterThrowing;
-import org.aspectj.lang.annotation.Aspect;
-import org.springframework.stereotype.Service;
+import io.micronaut.aop.MethodInterceptor;
+import io.micronaut.aop.MethodInvocationContext;
+import jakarta.inject.Singleton;
 
-@Aspect
-@Service
-@RequiredArgsConstructor
-public class ExceptionInterceptor {
+@Singleton
+public class ExceptionInterceptor implements MethodInterceptor<Object, Object> {
 
   private final TelegramService telegramService;
 
-  @AfterThrowing(pointcut = "@within(EnableErrorReport) || @annotation(EnableErrorReport)", throwing = "exception")
-  public void errorInterceptor(Exception exception) {
-    telegramService.sendErrorReport(exception);
+  public ExceptionInterceptor(TelegramService telegramService) {
+    this.telegramService = telegramService;
+  }
+
+  @Override
+  public Object intercept(MethodInvocationContext<Object, Object> context) {
+    try {
+      return context.proceed();
+    } catch (RuntimeException exception) {
+      telegramService.sendErrorReport(exception);
+      throw exception;
+    }
   }
 }
