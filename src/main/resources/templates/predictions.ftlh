@@ -67,7 +67,7 @@
 </#function>
 
 <#function activeRound round>
-  <#if round == fixtures[0].round >
+  <#if round.id?string == fixtures[0].round.id?string >
     <#return 'active'>
   </#if>
 </#function>

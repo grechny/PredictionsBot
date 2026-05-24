@@ -6,7 +6,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import at.hrechny.predictionsbot.util.HashUtils;
-import jakarta.servlet.FilterChain;
+import io.micronaut.core.async.publisher.Publishers;
+import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MutableHttpResponse;
+import io.micronaut.http.filter.ServerFilterChain;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,8 +20,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 @ExtendWith(MockitoExtension.class)
 class HashVerificationFilterTest {
@@ -27,7 +34,7 @@ class HashVerificationFilterTest {
   private HashUtils hashUtils;
 
   @Mock
-  private FilterChain filterChain;
+  private ServerFilterChain filterChain;
 
   private HashVerificationFilter filter;
 
@@ -43,48 +50,66 @@ class HashVerificationFilterTest {
       "/webapp/%s/users/%s/leagues",
       "/webapp/%s/users/%s/leagues/747654fa-25d6-4e27-beb2-331ec865a803"
   })
-  void doFilterContinuesWhenHashMatchesUserIdFromWebappPath(String uriTemplate) throws Exception {
-    var request = request(uriTemplate.formatted(HASH, USER_ID));
-    var response = new MockHttpServletResponse();
+  void doFilterContinuesWhenHashMatchesUserIdFromWebappPath(String uriTemplate) {
+    var request = HttpRequest.GET(uriTemplate.formatted(HASH, USER_ID));
+    var expectedResponse = HttpResponse.ok();
     when(hashUtils.getHash(USER_ID)).thenReturn(HASH);
+    when(filterChain.proceed(request)).thenReturn(Publishers.just(expectedResponse));
 
-    filter.doFilter(request, response, filterChain);
+    var response = response(filter.doFilter(request, filterChain));
 
-    assertThat(response.getStatus()).isEqualTo(200);
-    verify(filterChain).doFilter(request, response);
+    assertThat(response).isSameAs(expectedResponse);
+    verify(filterChain).proceed(request);
   }
 
   @Test
-  void doFilterRejectsRequestWhenHashDoesNotMatchUserIdFromWebappPath() throws Exception {
-    var request = request("/webapp/wrong-hash/users/%s/results".formatted(USER_ID));
-    var response = new MockHttpServletResponse();
+  void doFilterRejectsRequestWhenHashDoesNotMatchUserIdFromWebappPath() {
+    var request = HttpRequest.GET("/webapp/wrong-hash/users/%s/results".formatted(USER_ID));
     when(hashUtils.getHash(USER_ID)).thenReturn(HASH);
 
-    filter.doFilter(request, response, filterChain);
+    var response = response(filter.doFilter(request, filterChain));
 
-    assertThat(response.getStatus()).isEqualTo(400);
-    assertThat(response.getErrorMessage()).isEqualTo("User not found");
-    verify(filterChain, never()).doFilter(request, response);
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.BAD_REQUEST.getCode());
+    assertThat(response.body()).isEqualTo("User not found");
+    verify(filterChain, never()).proceed(request);
   }
 
   @Test
-  void doFilterRejectsRequestWhenHashBelongsToDifferentPathUserId() throws Exception {
+  void doFilterRejectsRequestWhenHashBelongsToDifferentPathUserId() {
     var otherUserId = "43";
-    var request = request("/webapp/%s/users/%s/predictions".formatted(HASH, otherUserId));
-    var response = new MockHttpServletResponse();
+    var request = HttpRequest.GET("/webapp/%s/users/%s/predictions".formatted(HASH, otherUserId));
     when(hashUtils.getHash(otherUserId)).thenReturn("other-user-hash");
 
-    filter.doFilter(request, response, filterChain);
+    var response = response(filter.doFilter(request, filterChain));
 
-    assertThat(response.getStatus()).isEqualTo(400);
-    assertThat(response.getErrorMessage()).isEqualTo("User not found");
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.BAD_REQUEST.getCode());
+    assertThat(response.body()).isEqualTo("User not found");
     verify(hashUtils).getHash(otherUserId);
-    verify(filterChain, never()).doFilter(request, response);
+    verify(filterChain, never()).proceed(request);
   }
 
-  private MockHttpServletRequest request(String uri) {
-    var request = new MockHttpServletRequest();
-    request.setRequestURI(uri);
-    return request;
+  private MutableHttpResponse<?> response(Publisher<MutableHttpResponse<?>> publisher) {
+    var response = new AtomicReference<MutableHttpResponse<?>>();
+    publisher.subscribe(new Subscriber<>() {
+      @Override
+      public void onSubscribe(Subscription subscription) {
+        subscription.request(1);
+      }
+
+      @Override
+      public void onNext(MutableHttpResponse<?> mutableHttpResponse) {
+        response.set(mutableHttpResponse);
+      }
+
+      @Override
+      public void onError(Throwable throwable) {
+        throw new AssertionError(throwable);
+      }
+
+      @Override
+      public void onComplete() {
+      }
+    });
+    return response.get();
   }
 }

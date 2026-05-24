@@ -1,6 +1,7 @@
 # Project exclude paths
 .idea/
-/.gradle/
+.kotlin/
+.gradle/
 /build/
 /build/classes/java/main/
 
@@ -11,6 +12,7 @@ AGENTS.md
 
 # Local runtime data and credentials
 local/
+secrets/
 data/
 docs/
 scripts/

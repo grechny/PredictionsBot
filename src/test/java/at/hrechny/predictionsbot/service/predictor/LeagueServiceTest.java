@@ -47,7 +47,7 @@ class LeagueServiceTest {
 
   @BeforeEach
   void setUp() {
-    leagueService = new LeagueService(leagueRepository, userRepository, competitionRepository);
+    leagueService = new LeagueService(leagueRepository, userRepository, competitionRepository, new LeagueRules());
   }
 
   @Test

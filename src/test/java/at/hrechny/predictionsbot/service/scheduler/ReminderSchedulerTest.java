@@ -16,6 +16,7 @@ import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.database.entity.TeamEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.model.RoundType;
+import at.hrechny.predictionsbot.config.MessageResolver;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
@@ -32,7 +33,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.MessageSource;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("unchecked")
@@ -51,7 +51,7 @@ class ReminderSchedulerTest {
   private CompetitionService competitionService;
 
   @Mock
-  private MessageSource messageSource;
+  private MessageResolver messageResolver;
 
   private ReminderScheduler reminderScheduler;
 
@@ -61,7 +61,7 @@ class ReminderSchedulerTest {
         userService,
         telegramService,
         competitionService,
-        messageSource,
+        messageResolver,
         Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
   }
 
@@ -73,7 +73,7 @@ class ReminderSchedulerTest {
 
     reminderScheduler.sendReminders();
 
-    verifyNoInteractions(telegramService, messageSource);
+    verifyNoInteractions(telegramService, messageResolver);
   }
 
   @Test
@@ -84,8 +84,8 @@ class ReminderSchedulerTest {
     when(userService.getUsers()).thenReturn(List.of(user));
     when(competitionService.getFixtures(any(Instant.class), any(Instant.class)))
         .thenReturn(List.of(match), List.<MatchEntity>of());
-    when(messageSource.getMessage(eq("round"), isNull(), eq(Locale.ENGLISH))).thenReturn("Round");
-    when(messageSource.getMessage(eq("reminders.today"), any(Object[].class), eq(Locale.ENGLISH)))
+    when(messageResolver.getMessage(eq("round"), isNull(), eq(Locale.ENGLISH))).thenReturn("Round");
+    when(messageResolver.getMessage(eq("reminders.today"), any(Object[].class), eq(Locale.ENGLISH)))
         .thenReturn("today reminder");
 
     reminderScheduler.sendReminders();
@@ -93,7 +93,7 @@ class ReminderSchedulerTest {
     verify(telegramService).sendMessage(USER_ID, "today reminder");
 
     var matchesArgument = ArgumentCaptor.forClass(Object[].class);
-    verify(messageSource).getMessage(eq("reminders.today"), matchesArgument.capture(), eq(Locale.ENGLISH));
+    verify(messageResolver).getMessage(eq("reminders.today"), matchesArgument.capture(), eq(Locale.ENGLISH));
     assertThat(matchesArgument.getValue()).hasSize(1);
     assertThat(matchesArgument.getValue()[0].toString())
         .contains("Premier League")
@@ -111,7 +111,7 @@ class ReminderSchedulerTest {
 
     reminderScheduler.sendReminders();
 
-    verifyNoInteractions(telegramService, messageSource);
+    verifyNoInteractions(telegramService, messageResolver);
   }
 
   @Test
@@ -122,8 +122,8 @@ class ReminderSchedulerTest {
     when(userService.getUsers()).thenReturn(List.of(user));
     when(competitionService.getFixtures(any(Instant.class), any(Instant.class)))
         .thenReturn(List.<MatchEntity>of(), List.of(match));
-    when(messageSource.getMessage(eq("round"), isNull(), eq(Locale.ENGLISH))).thenReturn("Round");
-    when(messageSource.getMessage(eq("reminders.tomorrow"), any(Object[].class), eq(Locale.ENGLISH)))
+    when(messageResolver.getMessage(eq("round"), isNull(), eq(Locale.ENGLISH))).thenReturn("Round");
+    when(messageResolver.getMessage(eq("reminders.tomorrow"), any(Object[].class), eq(Locale.ENGLISH)))
         .thenReturn("tomorrow reminder");
 
     reminderScheduler.sendReminders();
@@ -131,7 +131,7 @@ class ReminderSchedulerTest {
     verify(telegramService).sendMessage(USER_ID, "tomorrow reminder");
 
     var matchesArgument = ArgumentCaptor.forClass(Object[].class);
-    verify(messageSource).getMessage(eq("reminders.tomorrow"), matchesArgument.capture(), eq(Locale.ENGLISH));
+    verify(messageResolver).getMessage(eq("reminders.tomorrow"), matchesArgument.capture(), eq(Locale.ENGLISH));
     assertThat(matchesArgument.getValue()).hasSize(1);
     assertThat(matchesArgument.getValue()[0].toString())
         .contains("Premier League")
@@ -148,8 +148,8 @@ class ReminderSchedulerTest {
     when(userService.getUsers()).thenReturn(List.of(user));
     when(competitionService.getFixtures(any(Instant.class), any(Instant.class)))
         .thenReturn(List.<MatchEntity>of(), List.of(match));
-    when(messageSource.getMessage(eq("round"), isNull(), eq(Locale.ENGLISH))).thenReturn("Round");
-    when(messageSource.getMessage(eq("reminders.recheck"), any(Object[].class), eq(Locale.ENGLISH)))
+    when(messageResolver.getMessage(eq("round"), isNull(), eq(Locale.ENGLISH))).thenReturn("Round");
+    when(messageResolver.getMessage(eq("reminders.recheck"), any(Object[].class), eq(Locale.ENGLISH)))
         .thenReturn("recheck reminder");
 
     reminderScheduler.sendReminders();
@@ -157,7 +157,7 @@ class ReminderSchedulerTest {
     verify(telegramService).sendMessage(USER_ID, "recheck reminder");
 
     var matchesArgument = ArgumentCaptor.forClass(Object[].class);
-    verify(messageSource).getMessage(eq("reminders.recheck"), matchesArgument.capture(), eq(Locale.ENGLISH));
+    verify(messageResolver).getMessage(eq("reminders.recheck"), matchesArgument.capture(), eq(Locale.ENGLISH));
     assertThat(matchesArgument.getValue()).hasSize(1);
     assertThat(matchesArgument.getValue()[0].toString())
         .contains("Premier League")

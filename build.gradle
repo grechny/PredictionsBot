@@ -1,74 +1,122 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
-    id 'io.spring.dependency-management' version '1.1.2'
-    id 'org.springframework.boot' version '3.1.2'
+    id 'application'
     id 'java'
+    id 'org.jetbrains.kotlin.jvm' version '2.3.21'
+    id 'org.jetbrains.kotlin.plugin.allopen' version '2.3.21'
+    id 'com.google.devtools.ksp' version '2.3.8'
 }
 
-group 'at.hrechny'
-version '1.2'
+group = 'at.hrechny'
+version = '2.0.0'
 
 ext {
-    set('springCloudVersion', "2022.0.3")
-    set('lombokVersion', "1.18.32")
+    set('micronautPlatformVersion', "5.0.0")
+    set('testcontainersVersion', "2.0.5")
 }
 
-dependencyManagement {
-    imports {
-        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
-    }
+application {
+    mainClass = 'at.hrechny.predictionsbot.Application'
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
 }
 
-sourceSets {
-    main {
-        java.srcDirs += "build/generated/src/main/java"
-    }
+kotlin {
+    jvmToolchain(25)
+}
+
+tasks.withType(KotlinCompile.class).configureEach { KotlinCompile task ->
+    task.compilerOptions.jvmTarget.set(JvmTarget.JVM_25)
+    task.compilerOptions.javaParameters.set(true)
+}
+
+allOpen {
+    annotation("io.micronaut.aop.Around")
+    annotation("io.micronaut.context.annotation.ConfigurationProperties")
+    annotation("io.micronaut.http.annotation.Controller")
+    annotation("io.micronaut.transaction.annotation.Transactional")
+    annotation("io.micronaut.data.annotation.MappedEntity")
+    annotation("jakarta.persistence.Converter")
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.MappedSuperclass")
+    annotation("jakarta.inject.Singleton")
+}
+
+ksp {
+    arg("micronaut.processing.incremental", "true")
+    arg("micronaut.processing.annotations", "at.hrechny.predictionsbot.*")
 }
 
 repositories {
     mavenCentral()
+    maven { url = uri('https://jitpack.io') }
+}
+
+jar {
+    manifest {
+        attributes('Main-Class': application.mainClass.get())
+    }
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-aop'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-freemarker'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
+    ksp platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
+    kspTest platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
+    testImplementation platform("io.micronaut.platform:micronaut-platform:${micronautPlatformVersion}")
 
-    implementation 'org.springframework.cloud:spring-cloud-starter-vault-config'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect'
+    implementation 'io.micronaut:micronaut-http-client'
+    implementation 'io.micronaut:micronaut-http-server-netty'
+    implementation 'io.micronaut:micronaut-jackson-databind'
+    implementation 'io.micronaut:micronaut-runtime'
+    implementation 'io.micronaut.cache:micronaut-cache-caffeine'
+    implementation 'io.micronaut.data:micronaut-data-hibernate-jpa'
+    implementation 'io.micronaut.discovery:micronaut-discovery-client'
+    implementation 'io.micronaut.flyway:micronaut-flyway'
+    implementation 'io.micronaut.kotlin:micronaut-kotlin-runtime'
+    implementation 'io.micronaut.sql:micronaut-jdbc-hikari'
+    implementation 'io.micronaut.validation:micronaut-validation'
+    implementation 'io.micronaut.views:micronaut-views-freemarker'
 
     // Tools
-    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.2'
-    implementation 'com.github.pengrad:java-telegram-bot-api:9.2.0'
-    implementation 'org.apache.commons:commons-collections4:4.4'
-    implementation 'org.apache.commons:commons-lang3:3.14.0'
+    implementation 'com.github.kotlin-telegram-bot.kotlin-telegram-bot:telegram:10.0.0'
+    implementation 'com.squareup.retrofit2:retrofit:3.0.0'
+    implementation 'com.squareup.retrofit2:converter-gson:3.0.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    implementation 'org.apache.commons:commons-collections4:4.5.0'
+    implementation 'org.apache.commons:commons-lang3:3.20.0'
     implementation 'org.apache.httpcomponents:fluent-hc:4.5.14'
-    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
-    implementation 'org.apache.pdfbox:pdfbox:2.0.28'
-    implementation 'org.apache.pdfbox:pdfbox-tools:2.0.28'
-    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
-    implementation 'org.mapstruct.extensions.spring:mapstruct-spring-annotations:1.0.1'
+    implementation 'org.apache.pdfbox:pdfbox:3.0.7'
+    implementation 'org.apache.pdfbox:pdfbox-tools:3.0.7'
     implementation 'us.dustinj.timezonemap:timezonemap:4.5'
 
-    runtimeOnly 'org.postgresql:postgresql:42.7.6'
-    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    runtimeOnly 'ch.qos.logback:logback-classic'
+    runtimeOnly 'com.github.luben:zstd-jni:1.5.7-9'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql:42.7.11'
+    runtimeOnly 'org.yaml:snakeyaml'
 
-    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
-    annotationProcessor "org.projectlombok:lombok-mapstruct-binding:0.2.0"
-    annotationProcessor "org.mapstruct:mapstruct-processor:1.5.5.Final"
-    annotationProcessor 'org.mapstruct.extensions.spring:mapstruct-spring-extensions:1.0.1'
-    annotationProcessor "org.mapstruct:mapstruct-processor:1.5.5.Final"
+    ksp 'io.micronaut:micronaut-inject-kotlin'
+    ksp 'io.micronaut.validation:micronaut-validation-processor'
+    kspTest 'io.micronaut:micronaut-inject-kotlin'
+    kspTest 'io.micronaut.validation:micronaut-validation-processor'
 
     // Tests and test tools
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'com.h2database:h2:2.2.220'
-    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
-    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+    testImplementation 'io.micronaut.test:micronaut-test-junit5'
+    testImplementation 'org.assertj:assertj-core:3.27.7'
+    testImplementation 'com.h2database:h2:2.4.240'
+    testImplementation 'com.google.code.gson:gson:2.14.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.23.0'
+    testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testcontainersVersion}"
+    testImplementation "org.testcontainers:testcontainers-postgresql:${testcontainersVersion}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 test {
     useJUnitPlatform()
-    systemProperty 'SPRING_CLOUD_VAULT_ENABLED', 'false'
-    systemProperty 'SPRING_CONFIG_IMPORT', 'optional:file:./does-not-exist.properties'
+    jvmArgs '-Xshare:off'
     systemProperty 'logging.level', 'INFO'
 }

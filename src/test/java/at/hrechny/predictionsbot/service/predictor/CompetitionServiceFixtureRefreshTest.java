@@ -153,6 +153,7 @@ class CompetitionServiceFixtureRefreshTest {
         null);
 
     when(apiFootballConnector.getFixtures(39L, "2026")).thenReturn(List.of(fixture));
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(teamRepository.findFirstByApiFootballId(1L)).thenReturn(Optional.empty());
     when(teamRepository.findFirstByApiFootballId(2L)).thenReturn(Optional.empty());
     when(teamRepository.save(any(TeamEntity.class))).thenAnswer(invocation -> {

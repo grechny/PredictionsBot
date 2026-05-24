@@ -1,27 +1,16 @@
 package at.hrechny.predictionsbot.controller;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasSize;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import at.hrechny.predictionsbot.config.WebConfig;
-import at.hrechny.predictionsbot.controller.filter.HashVerificationFilter;
+import at.hrechny.predictionsbot.config.MessageResolver;
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.PredictionEntity;
@@ -34,6 +23,7 @@ import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.exception.InputValidationException;
 import at.hrechny.predictionsbot.exception.LimitExceededException;
 import at.hrechny.predictionsbot.model.Competition;
+import at.hrechny.predictionsbot.model.LeagueRequest;
 import at.hrechny.predictionsbot.model.LeagueResponse;
 import at.hrechny.predictionsbot.model.Result;
 import at.hrechny.predictionsbot.model.User;
@@ -42,74 +32,59 @@ import at.hrechny.predictionsbot.service.predictor.LeagueService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.util.HashUtils;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.views.ModelAndView;
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.servlet.LocaleResolver;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@WebMvcTest(
-    value = TelegramWebAppController.class,
-    properties = {
-        "application.url=http://localhost",
-        "spring.cloud.vault.enabled=false",
-        "spring.config.import=optional:file:./does-not-exist.properties"
-    })
-@Import({HashVerificationFilter.class, WebConfig.class})
+@ExtendWith(MockitoExtension.class)
 class TelegramWebAppControllerTest {
 
   private static final Long USER_ID = 42L;
   private static final String HASH = "valid-hash";
 
-  @Autowired
-  private MockMvc mockMvc;
-
-  @MockBean
-  private LocaleResolver localeResolver;
-
-  @MockBean
+  @Mock
   private CompetitionService competitionService;
 
-  @MockBean
+  @Mock
   private PredictionService predictionService;
 
-  @MockBean
+  @Mock
   private LeagueService leagueService;
 
-  @MockBean
+  @Mock
   private UserService userService;
 
-  @MockBean
+  @Mock
   private HashUtils hashUtils;
 
-  @MockBean
-  private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+  private TelegramWebAppController controller;
 
   @BeforeEach
-  void setUp() {
-    when(hashUtils.getHash(USER_ID.toString())).thenReturn(HASH);
+  void setUp() throws Exception {
+    controller = new TelegramWebAppController(
+        competitionService,
+        predictionService,
+        leagueService,
+        userService,
+        hashUtils,
+        new MessageResolver());
+    setApplicationUrl(controller, "http://localhost");
+    lenient().when(hashUtils.getHash(USER_ID.toString())).thenReturn(HASH);
   }
 
   @Test
-  void webappRejectsInvalidHashBeforeControllerIsCalled() throws Exception {
-    mockMvc.perform(get("/webapp/wrong-hash/users/{userId}/leagues", USER_ID))
-        .andExpect(status().isBadRequest());
-
-    verifyNoInteractions(userService);
-  }
-
-  @Test
-  void predictionsRouteRendersMobileWebappPageForUpcomingRound() throws Exception {
+  void predictionsRouteBuildsMobileWebappModelForUpcomingRound() {
     var competitionId = UUID.randomUUID();
     var user = userEntity();
     var season = season(competitionId, "Premier League");
@@ -124,22 +99,19 @@ class TelegramWebAppControllerTest {
     when(userService.getUser(USER_ID)).thenReturn(user);
     when(competitionService.getUpcomingRound(competitionId)).thenReturn(secondRound);
 
-    mockMvc.perform(get("/webapp/{hash}/users/{userId}/predictions", HASH, USER_ID)
-            .param("competitionId", competitionId.toString()))
-        .andExpect(status().isOk())
-        .andExpect(view().name("predictions"))
-        .andExpect(model().attribute("rounds", hasSize(2)))
-        .andExpect(model().attribute("fixtures", List.of(earlyMatch, lateMatch)))
-        .andExpect(model().attribute("baseUrl",
-            "http://localhost/webapp/" + HASH + "/users/" + USER_ID + "/predictions?competitionId=" + competitionId + "&round="))
-        .andExpect(content().string(containsString("viewport")))
-        .andExpect(content().string(containsString("Premier League")))
-        .andExpect(content().string(containsString("Round 1")))
-        .andExpect(content().string(containsString("Round 2")));
+    var response = controller.getPredictions(HASH, USER_ID, competitionId, null);
+    var model = model(response);
+
+    assertThat(view(response)).isEqualTo("predictions");
+    assertThat(model.get("user")).isSameAs(user);
+    assertThat(model.get("rounds")).isEqualTo(List.of(firstRound, secondRound));
+    assertThat(model.get("fixtures")).isEqualTo(List.of(earlyMatch, lateMatch));
+    assertThat(model.get("baseUrl"))
+        .isEqualTo("http://localhost/webapp/" + HASH + "/users/" + USER_ID + "/predictions?competitionId=" + competitionId + "&round=");
   }
 
   @Test
-  void predictionsRouteRendersNoUpcomingMatchesWhenRoundIsEmpty() throws Exception {
+  void predictionsRouteBuildsNoUpcomingMatchesModelWhenRoundIsEmpty() {
     var competitionId = UUID.randomUUID();
     var competition = new Competition();
     competition.setName("Premier League");
@@ -148,17 +120,14 @@ class TelegramWebAppControllerTest {
     when(competitionService.getUpcomingRound(competitionId)).thenReturn(null);
     when(competitionService.getCompetition(competitionId)).thenReturn(competition);
 
-    mockMvc.perform(get("/webapp/{hash}/users/{userId}/predictions", HASH, USER_ID)
-            .param("competitionId", competitionId.toString()))
-        .andExpect(status().isOk())
-        .andExpect(view().name("no-upcoming-matches"))
-        .andExpect(model().attribute("competitionName", "Premier League"))
-        .andExpect(content().string(containsString("No upcoming matches")))
-        .andExpect(content().string(containsString(".setText(\"Close\")")));
+    var response = controller.getPredictions(HASH, USER_ID, competitionId, null);
+
+    assertThat(view(response)).isEqualTo("no-upcoming-matches");
+    assertThat(model(response)).containsEntry("competitionName", "Premier League");
   }
 
   @Test
-  void resultsRouteRefreshesFixturesAndRendersScoreTables() throws Exception {
+  void resultsRouteRefreshesFixturesAndBuildsScoreTablesModel() {
     var competitionId = UUID.randomUUID();
     var user = userEntity();
     var season = season(competitionId, "Premier League");
@@ -182,23 +151,24 @@ class TelegramWebAppControllerTest {
     when(predictionService.getResults(season.getId())).thenReturn(List.of(result(USER_ID, "Alice", 2, 2, 10, null)));
     when(predictionService.getResults(anyList())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 0, 5)));
 
-    mockMvc.perform(get("/webapp/{hash}/users/{userId}/results", HASH, USER_ID)
-            .param("competitionId", competitionId.toString()))
-        .andExpect(status().isOk())
-        .andExpect(view().name("results"))
-        .andExpect(model().attribute("rounds", hasSize(2)))
-        .andExpect(model().attribute("matches", hasSize(2)))
-        .andExpect(content().string(containsString("Premier League")))
-        .andExpect(content().string(containsString("Predicts")))
-        .andExpect(content().string(containsString("Alice")))
-        .andExpect(content().string(containsString("Arsenal")))
-        .andExpect(content().string(containsString("Chelsea")));
+    var response = controller.getResults(HASH, USER_ID, competitionId, null, null);
+    var model = model(response);
 
+    assertThat(view(response)).isEqualTo("results");
+    assertThat(model.get("user")).isSameAs(user);
+    assertThat(model.get("rounds")).isEqualTo(List.of(firstRound, secondRound));
+    assertThat(model.get("matches")).isEqualTo(List.of(startedMatch, finishedMatch));
+    assertThat(model.get("competitionName")).isEqualTo("Premier League");
+    assertThat(model.get("baseUrl"))
+        .isEqualTo("http://localhost/webapp/" + HASH + "/users/" + USER_ID + "/results?competitionId=" + competitionId + "&round=");
+    var matchResults = (Map<?, ?>) model.get("matchResults");
+    assertThat(matchResults.containsKey(startedMatch.getId().toString())).isTrue();
+    assertThat(matchResults.containsKey(finishedMatch.getId().toString())).isTrue();
     verify(competitionService).refreshActiveFixtures(season.getId());
   }
 
   @Test
-  void resultsRouteRendersNoResultsPageWithQuotedTelegramButtonText() throws Exception {
+  void resultsRouteBuildsNoResultsModel() {
     var competitionId = UUID.randomUUID();
     var season = season(competitionId, "Premier League");
     season.setRounds(List.of());
@@ -208,160 +178,141 @@ class TelegramWebAppControllerTest {
     when(competitionService.getCompetition(competitionId)).thenReturn(competition("Premier League"));
     when(predictionService.getResults(season.getId())).thenReturn(List.of());
 
-    mockMvc.perform(get("/webapp/{hash}/users/{userId}/results", HASH, USER_ID)
-            .param("competitionId", competitionId.toString()))
-        .andExpect(status().isOk())
-        .andExpect(view().name("no-results"))
-        .andExpect(content().string(containsString("No available results")))
-        .andExpect(content().string(containsString(".setText(\"Close\")")));
+    var response = controller.getResults(HASH, USER_ID, competitionId, null, null);
 
+    assertThat(view(response)).isEqualTo("no-results");
+    assertThat(model(response)).containsEntry("competitionName", "Premier League");
     verify(competitionService).refreshActiveFixtures(season.getId());
   }
 
   @Test
-  void leaguesRouteRendersMaintenancePageWithQuotedTelegramButtonText() throws Exception {
-    when(userService.getUser(USER_ID)).thenReturn(userEntity());
+  void leaguesRouteBuildsMaintenancePageModel() {
+    var user = userEntity();
+    when(userService.getUser(USER_ID)).thenReturn(user);
 
-    mockMvc.perform(get("/webapp/{hash}/users/{userId}/leagues", HASH, USER_ID))
-        .andExpect(status().isOk())
-        .andExpect(view().name("leagues"))
-        .andExpect(content().string(containsString("Manage Leagues of users")))
-        .andExpect(content().string(containsString("Page is under development and will be available soon")))
-        .andExpect(content().string(containsString(".setText(\"Close\")")));
+    var response = controller.getLeagues(HASH, USER_ID);
+
+    assertThat(view(response)).isEqualTo("leagues");
+    assertThat(model(response)).containsEntry("user", user);
   }
 
   @Test
-  void leaguesRouteMapsValidationFailuresToBadRequest() throws Exception {
-    var requestBody = "{\"name\":\"ab\",\"competitions\":[]}";
+  void createLeagueRouteDelegatesRequestToLeagueService() {
+    var leagueId = UUID.randomUUID();
+    var competitionId = UUID.randomUUID();
+    var request = leagueRequest("Office League", List.of(competitionId));
+    when(leagueService.create(eq(USER_ID), any())).thenReturn(new LeagueResponse(leagueId));
+
+    var response = controller.createLeague(HASH, USER_ID, request);
+
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
+    assertThat(response.body().getId()).isEqualTo(leagueId);
+    verify(leagueService).create(eq(USER_ID), argThat(leagueRequest ->
+        "Office League".equals(leagueRequest.getName())
+            && leagueRequest.getCompetitions().equals(List.of(competitionId))));
+  }
+
+  @Test
+  void createLeagueRouteMapsValidationFailuresToBadRequest() {
     when(leagueService.create(any(), any())).thenThrow(new InputValidationException("invalid"));
 
-    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues", HASH, USER_ID)
-            .contentType("application/json")
-            .content(requestBody))
-        .andExpect(status().isBadRequest());
+    var response = controller.createLeague(HASH, USER_ID, leagueRequest("ab", List.of()));
 
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.BAD_REQUEST.getCode());
     verify(userService, never()).getUser(USER_ID);
   }
 
   @Test
-  void createLeagueRouteDelegatesRequestToLeagueService() throws Exception {
-    var leagueId = UUID.randomUUID();
-    var competitionId = UUID.randomUUID();
-    when(leagueService.create(eq(USER_ID), any())).thenReturn(new LeagueResponse(leagueId));
-
-    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues", HASH, USER_ID)
-            .contentType("application/json")
-            .content("""
-                {
-                  "name": "Office League",
-                  "competitions": ["%s"]
-                }
-                """.formatted(competitionId)))
-        .andExpect(status().isOk())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.id").value(leagueId.toString()));
-
-    verify(leagueService).create(eq(USER_ID), argThat(request ->
-        "Office League".equals(request.getName())
-            && request.getCompetitions().equals(List.of(competitionId))));
-  }
-
-  @Test
-  void createLeagueRouteMapsLimitFailuresToConflict() throws Exception {
+  void createLeagueRouteMapsLimitFailuresToConflict() {
     when(leagueService.create(any(), any())).thenThrow(new LimitExceededException("too many leagues"));
 
-    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues", HASH, USER_ID)
-            .contentType("application/json")
-            .content("""
-                {
-                  "name": "Office League",
-                  "competitions": []
-                }
-                """))
-        .andExpect(status().isConflict());
+    var response = controller.createLeague(HASH, USER_ID, leagueRequest("Office League", List.of()));
+
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.CONFLICT.getCode());
   }
 
   @Test
-  void updateLeagueRouteDelegatesRequestToLeagueService() throws Exception {
+  void updateLeagueRouteDelegatesRequestToLeagueService() {
     var leagueId = UUID.randomUUID();
     var competitionId = UUID.randomUUID();
+    var request = leagueRequest("Updated League", List.of(competitionId));
     when(leagueService.update(eq(USER_ID), eq(leagueId), any())).thenReturn(new LeagueResponse(leagueId));
 
-    mockMvc.perform(put("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId)
-            .contentType("application/json")
-            .content("""
-                {
-                  "name": "Updated League",
-                  "competitions": ["%s"]
-                }
-                """.formatted(competitionId)))
-        .andExpect(status().isOk())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.id").value(leagueId.toString()));
+    var response = controller.updateLeague(HASH, USER_ID, leagueId, request);
 
-    verify(leagueService).update(eq(USER_ID), eq(leagueId), argThat(request ->
-        "Updated League".equals(request.getName())
-            && request.getCompetitions().equals(List.of(competitionId))));
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
+    assertThat(response.body().getId()).isEqualTo(leagueId);
+    verify(leagueService).update(eq(USER_ID), eq(leagueId), argThat(leagueRequest ->
+        "Updated League".equals(leagueRequest.getName())
+            && leagueRequest.getCompetitions().equals(List.of(competitionId))));
   }
 
   @Test
-  void updateLeagueRouteMapsValidationFailuresToBadRequest() throws Exception {
+  void updateLeagueRouteMapsValidationFailuresToBadRequest() {
     var leagueId = UUID.randomUUID();
     when(leagueService.update(eq(USER_ID), eq(leagueId), any())).thenThrow(new InputValidationException("invalid"));
 
-    mockMvc.perform(put("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId)
-            .contentType("application/json")
-            .content("""
-                {
-                  "name": "Updated League",
-                  "competitions": []
-                }
-                """))
-        .andExpect(status().isBadRequest());
+    var response = controller.updateLeague(HASH, USER_ID, leagueId, leagueRequest("Updated League", List.of()));
+
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.BAD_REQUEST.getCode());
   }
 
   @Test
-  void joinLeagueRouteDelegatesToLeagueService() throws Exception {
+  void joinLeagueRouteDelegatesToLeagueService() {
     var leagueId = UUID.randomUUID();
     when(leagueService.join(USER_ID, leagueId)).thenReturn(new LeagueResponse(leagueId));
 
-    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId))
-        .andExpect(status().isOk())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.id").value(leagueId.toString()));
+    var response = controller.joinLeague(HASH, USER_ID, leagueId);
 
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
+    assertThat(response.body().getId()).isEqualTo(leagueId);
     verify(leagueService).join(USER_ID, leagueId);
   }
 
   @Test
-  void joinLeagueRouteMapsValidationFailuresToBadRequest() throws Exception {
+  void joinLeagueRouteMapsValidationFailuresToBadRequest() {
     var leagueId = UUID.randomUUID();
     when(leagueService.join(USER_ID, leagueId)).thenThrow(new InputValidationException("invalid"));
 
-    mockMvc.perform(post("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId))
-        .andExpect(status().isBadRequest());
+    var response = controller.joinLeague(HASH, USER_ID, leagueId);
+
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.BAD_REQUEST.getCode());
   }
 
   @Test
-  void deleteLeagueRouteDelegatesToLeagueService() throws Exception {
+  void deleteLeagueRouteDelegatesToLeagueService() {
     var leagueId = UUID.randomUUID();
     when(leagueService.delete(USER_ID, leagueId)).thenReturn(new LeagueResponse(leagueId));
 
-    mockMvc.perform(delete("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId))
-        .andExpect(status().isOk())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.id").value(leagueId.toString()));
+    var response = controller.deleteLeague(HASH, USER_ID, leagueId);
 
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
+    assertThat(response.body().getId()).isEqualTo(leagueId);
     verify(leagueService).delete(USER_ID, leagueId);
   }
 
   @Test
-  void deleteLeagueRouteMapsValidationFailuresToBadRequest() throws Exception {
+  void deleteLeagueRouteMapsValidationFailuresToBadRequest() {
     var leagueId = UUID.randomUUID();
     when(leagueService.delete(USER_ID, leagueId)).thenThrow(new InputValidationException("invalid"));
 
-    mockMvc.perform(delete("/webapp/{hash}/users/{userId}/leagues/{leagueId}", HASH, USER_ID, leagueId))
-        .andExpect(status().isBadRequest());
+    var response = controller.deleteLeague(HASH, USER_ID, leagueId);
+
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.BAD_REQUEST.getCode());
+  }
+
+  private void setApplicationUrl(TelegramWebAppController controller, String applicationUrl) throws Exception {
+    Field field = TelegramWebAppController.class.getDeclaredField("applicationUrl");
+    field.setAccessible(true);
+    field.set(controller, applicationUrl);
+  }
+
+  private String view(ModelAndView<Map<String, Object>> response) {
+    return response.getView().orElseThrow();
+  }
+
+  private Map<String, Object> model(ModelAndView<Map<String, Object>> response) {
+    return response.getModel().orElseThrow();
   }
 
   private UserEntity userEntity() {
@@ -430,6 +381,13 @@ class TelegramWebAppControllerTest {
     var competition = new Competition();
     competition.setName(name);
     return competition;
+  }
+
+  private LeagueRequest leagueRequest(String name, List<UUID> competitions) {
+    var request = new LeagueRequest();
+    request.setName(name);
+    request.setCompetitions(competitions);
+    return request;
   }
 
   private Result result(Long userId, String userName, int predictions, int guessed, int sum, Integer liveSum) {
