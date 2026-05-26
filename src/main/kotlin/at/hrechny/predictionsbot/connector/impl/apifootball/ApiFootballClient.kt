@@ -21,6 +21,7 @@ open class ApiFootballClient(
     private val apiFootballHttpClient: ApiFootballHttpClient,
     private val apiFootballResponseParser: ApiFootballResponseParser,
     private val apiConnectorRequestAuditService: ApiConnectorRequestAuditService,
+    private val apiFootballQuotaGuard: ApiFootballQuotaGuard,
     @param:Value("\${connectors.api-football.apiKey}")
     private val apiKey: String,
 ) {
@@ -62,19 +63,31 @@ open class ApiFootballClient(
         requestUri: String,
         clazz: Class<G>,
         httpRequest: () -> HttpResponse<String>,
-    ): G =
+    ): G {
         try {
-            parseAndAudit(requestUri, httpRequest(), clazz)
+            apiFootballQuotaGuard.checkRequestAllowed(requestUri)
+        } catch (exception: ApiConnectorException) {
+            recordFailedRequest(requestUri, exception.message, apiFootballQuotaGuard.snapshot())
+            throw exception
+        }
+
+        return try {
+            val httpResponse = httpRequest()
+            apiFootballQuotaGuard.markRequestAttempted()
+            parseAndAudit(requestUri, httpResponse, clazz)
         } catch (exception: HttpClientResponseException) {
+            apiFootballQuotaGuard.markRequestAttempted()
             parseAndAudit(requestUri, exception.response, clazz)
         } catch (exception: ApiConnectorException) {
             throw exception
         } catch (exception: Exception) {
+            apiFootballQuotaGuard.markRequestAttempted()
             log.error("Request to API-Football failed", exception)
             val connectorException = ApiConnectorException(CONNECTOR_CODE, Reason.REQUEST_ERROR, exception.message, exception)
-            recordFailedRequest(requestUri, connectorException.message, null)
+            recordFailedRequest(requestUri, connectorException.message, apiFootballQuotaGuard.snapshot())
             throw connectorException
         }
+    }
 
     private fun <T, G : ApiFootballResponse<T>> parseAndAudit(
         requestUri: String,
@@ -82,6 +95,8 @@ open class ApiFootballClient(
         clazz: Class<G>,
     ): G {
         val headers = safeRateLimitHeaders(httpResponse)
+        apiFootballQuotaGuard.updateFromHeaders(headers)
+        val quotaSnapshot = apiFootballQuotaGuard.snapshot(headers)
         return try {
             val response = apiFootballResponseParser.parse(
                 CONNECTOR_CODE,
@@ -97,11 +112,11 @@ open class ApiFootballClient(
                 requestUri,
                 true,
                 null,
-                quotaSnapshot(headers),
+                quotaSnapshot,
             )
             response
         } catch (exception: ApiConnectorException) {
-            recordFailedRequest(requestUri, exception.message, quotaSnapshot(headers))
+            recordFailedRequest(requestUri, exception.message, quotaSnapshot)
             throw exception
         }
     }
@@ -121,15 +136,6 @@ open class ApiFootballClient(
             .map { name -> name.lowercase() to (httpResponse.headers.get(name) ?: "") }
             .filter { (name, _) -> SAFE_RESPONSE_HEADERS.contains(name) || name.startsWith("x-ratelimit-") }
             .toMap()
-
-    private fun quotaSnapshot(headers: Map<String, String>): String? =
-        if (headers.isEmpty()) {
-            null
-        } else {
-            headers.entries
-                .sortedBy { (name, _) -> name }
-                .joinToString(",") { (name, value) -> "$name=$value" }
-        }
 
     private fun buildRequestUri(path: String, queryParams: Map<String, Any>): String {
         val query = queryParams.entries.map { entry -> "${encode(entry.key)}=${encode(entry.value.toString())}" }

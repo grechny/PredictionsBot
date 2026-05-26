@@ -15,6 +15,9 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,11 +41,18 @@ class ApiFootballClientTest {
 
   @BeforeEach
   void setUp() {
+    when(auditService.countRequestsSince(eq("api-football"), org.mockito.ArgumentMatchers.any(Instant.class))).thenReturn(0);
     client = new ApiFootballClient(
         httpClient,
         new ApiFootballResponseParser(API_KEY),
         auditService,
+        new ApiFootballQuotaGuard(
+            auditService,
+            Clock.fixed(Instant.parse("2026-05-26T23:30:00Z"), ZoneOffset.UTC),
+            100,
+            "22:00"),
         API_KEY);
+    org.mockito.Mockito.clearInvocations(auditService);
   }
 
   @Test
@@ -53,6 +63,12 @@ class ApiFootballClientTest {
 
     assertThat(client.getFixtures(39L, "2025")).isEmpty();
 
+    verify(auditService).recordRequest(
+        eq("api-football"),
+        eq("/fixtures?league=39&season=2025"),
+        eq(true),
+        isNull(),
+        contains("dailyCount=1"));
     verify(auditService).recordRequest(
         eq("api-football"),
         eq("/fixtures?league=39&season=2025"),
@@ -120,7 +136,7 @@ class ApiFootballClientTest {
         eq("/fixtures?league=39&season=2025"),
         eq(false),
         contains("Failed to parse API-Football response"),
-        isNull());
+        contains("dailyCount=1"));
   }
 
   @Test
@@ -150,6 +166,49 @@ class ApiFootballClientTest {
     assertThat(client.getFixtures(List.of())).isEmpty();
 
     verifyNoInteractions(httpClient, auditService);
+  }
+
+  @Test
+  void quotaBlockedRequestDoesNotCallProviderAndRecordsAudit() {
+    when(auditService.countRequestsSince(eq("api-football"), org.mockito.ArgumentMatchers.any(Instant.class))).thenReturn(100);
+    var quotaBlockedClient = new ApiFootballClient(
+        httpClient,
+        new ApiFootballResponseParser(API_KEY),
+        auditService,
+        new ApiFootballQuotaGuard(
+            auditService,
+            Clock.fixed(Instant.parse("2026-05-26T23:30:00Z"), ZoneOffset.UTC),
+            100,
+            "22:00"),
+        API_KEY);
+    org.mockito.Mockito.clearInvocations(auditService);
+
+    assertThatThrownBy(() -> quotaBlockedClient.getFixtures(39L, "2025"))
+        .isInstanceOfSatisfying(ApiConnectorException.class, exception ->
+            assertThat(exception.getReason()).isEqualTo(ApiConnectorException.Reason.QUOTA_EXCEEDED));
+
+    verifyNoInteractions(httpClient);
+    verify(auditService).recordRequest(
+        eq("api-football"),
+        eq("/fixtures?league=39&season=2025"),
+        eq(false),
+        contains("QUOTA_EXCEEDED"),
+        contains("dailyCount=100"));
+  }
+
+  @Test
+  void headerDrivenExhaustionBlocksFollowingRequest() {
+    when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025"))
+        .thenReturn(ok("{\"errors\":[],\"response\":[]}")
+            .header("x-ratelimit-requests-remaining", "0")
+            .header("x-ratelimit-requests-reset", "60"));
+
+    assertThat(client.getFixtures(39L, "2025")).isEmpty();
+
+    assertThatThrownBy(() -> client.getFixtures(39L, "2025"))
+        .isInstanceOfSatisfying(ApiConnectorException.class, exception ->
+            assertThat(exception.getReason()).isEqualTo(ApiConnectorException.Reason.QUOTA_EXCEEDED));
+    verify(httpClient).getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025");
   }
 
   private MutableHttpResponse<String> ok(String body) {
