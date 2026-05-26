@@ -14,6 +14,10 @@ micronaut:
       enabled: true
       default-extension: ftlh
       recognize-standard-file-extensions: true
+  http:
+    services:
+      api-football:
+        url: ${connectors.api-football.url}
 
 datasources:
   default:
