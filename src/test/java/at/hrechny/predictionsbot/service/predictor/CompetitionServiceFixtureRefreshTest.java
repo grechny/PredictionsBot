@@ -32,6 +32,7 @@ import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.database.repository.TeamRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -124,7 +125,8 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
-    when(apiFootballConnector.getFixtures(anyList())).thenThrow(new ApiFootballConnectorException(Reason.QUOTA_EXCEEDED));
+    when(apiFootballConnector.getFixtures(anyList())).thenThrow(
+        new ApiFootballConnectorException(Reason.QUOTA_EXCEEDED, null, null));
 
     competitionService.refreshActiveFixtures(season.getId());
 
@@ -132,6 +134,29 @@ class CompetitionServiceFixtureRefreshTest {
     assertThat(match.getHomeTeamScore()).isNull();
     assertThat(match.getAwayTeamScore()).isNull();
     verify(seasonRepository, never()).save(season);
+  }
+
+  @Test
+  void refreshActiveFixturesEmptyProviderResponseLeavesExistingDataAndSavesSeason() {
+    var season = season();
+    var round = round(season, "Regular Season - 1");
+    var match = existingMatch(round, 100L, "Arsenal", "Chelsea");
+    match.setHomeTeamScore(1);
+    match.setAwayTeamScore(0);
+    match.setStatus(MatchStatus.STARTED);
+    round.setMatches(new ArrayList<>(List.of(match)));
+    season.setRounds(new ArrayList<>(List.of(round)));
+
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
+    when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
+    when(apiFootballConnector.getFixtures(List.of(100L))).thenReturn(List.of());
+
+    competitionService.refreshActiveFixtures(season.getId());
+
+    assertThat(match.getStatus()).isEqualTo(MatchStatus.STARTED);
+    assertThat(match.getHomeTeamScore()).isEqualTo(1);
+    assertThat(match.getAwayTeamScore()).isEqualTo(0);
+    verify(seasonRepository).save(season);
   }
 
   @Test
@@ -173,6 +198,113 @@ class CompetitionServiceFixtureRefreshTest {
     assertThat(createdMatch.getAwayTeam().getName()).isEqualTo("Chelsea");
     assertThat(createdMatch.getStatus()).isEqualTo(MatchStatus.PLANNED);
     assertThat(createdMatch.getStartTime()).isNotNull();
+    verify(seasonRepository).save(season);
+  }
+
+  @Test
+  void refreshFixturesCreatesMissingRoundWhenProviderReturnsUnknownRound() {
+    var season = season();
+    var existingRound = round(season, "Regular Season - 1");
+    existingRound.setMatches(new ArrayList<>());
+    season.setRounds(new ArrayList<>(List.of(existingRound)));
+
+    var homeTeam = team(1L, "Arsenal", "arsenal.png");
+    var awayTeam = team(2L, "Chelsea", "chelsea.png");
+    var fixture = fixture(
+        100L,
+        "Regular Season - 2",
+        OffsetDateTime.of(2026, 5, 28, 18, 30, 0, 0, ZoneOffset.UTC),
+        FixtureStatusEnum.NS,
+        homeTeam,
+        awayTeam,
+        null,
+        null);
+
+    when(apiFootballConnector.getFixtures(39L, "2026")).thenReturn(List.of(fixture));
+    when(apiFootballConnector.getRounds(39L, "2026")).thenReturn(List.of("Regular Season - 1", "Regular Season - 2"));
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
+    when(teamRepository.findFirstByApiFootballId(1L)).thenReturn(Optional.empty());
+    when(teamRepository.findFirstByApiFootballId(2L)).thenReturn(Optional.empty());
+    when(teamRepository.save(any(TeamEntity.class))).thenAnswer(invocation -> {
+      var team = invocation.getArgument(0, TeamEntity.class);
+      team.setId(UUID.randomUUID());
+      return team;
+    });
+
+    competitionService.refreshFixtures(season);
+
+    assertThat(season.getRounds()).hasSize(2);
+    var createdRound = season.getRounds().stream()
+        .filter(round -> "Regular Season - 2".equals(round.getApiFootballId()))
+        .findFirst()
+        .orElseThrow();
+    assertThat(createdRound.getOrderNumber()).isEqualTo(2);
+    assertThat(createdRound.getMatches()).hasSize(1);
+    assertThat(createdRound.getMatches().get(0).getApiFootballId()).isEqualTo(100L);
+    verify(apiFootballConnector).getRounds(39L, "2026");
+    verify(seasonRepository).save(season);
+  }
+
+  @Test
+  void refreshFixturesMovesExistingMatchToProviderRoundWithoutDuplicatingIt() {
+    var season = season();
+    var firstRound = round(season, "Regular Season - 1");
+    var secondRound = round(season, "Regular Season - 2");
+    secondRound.setOrderNumber(2);
+    var match = existingMatch(firstRound, 100L, "Arsenal", "Chelsea");
+    firstRound.setMatches(new ArrayList<>(List.of(match)));
+    secondRound.setMatches(new ArrayList<>());
+    season.setRounds(new ArrayList<>(List.of(firstRound, secondRound)));
+
+    var fixture = fixture(
+        100L,
+        "Regular Season - 2",
+        OffsetDateTime.of(2026, 5, 28, 18, 30, 0, 0, ZoneOffset.UTC),
+        FixtureStatusEnum.NS,
+        team(1L, "Arsenal", "arsenal.png"),
+        team(2L, "Chelsea", "chelsea.png"),
+        null,
+        null);
+
+    when(apiFootballConnector.getFixtures(39L, "2026")).thenReturn(List.of(fixture));
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
+
+    competitionService.refreshFixtures(season);
+
+    assertThat(firstRound.getMatches()).isEmpty();
+    assertThat(secondRound.getMatches()).containsExactly(match);
+    assertThat(secondRound.getMatches().get(0).getApiFootballId()).isEqualTo(100L);
+    assertThat(season.getRounds().stream().flatMap(round -> round.getMatches().stream()).toList()).hasSize(1);
+    verify(seasonRepository).save(season);
+  }
+
+  @Test
+  void refreshFixturesMapsProviderStatusesToMatchStatuses() {
+    var season = season();
+    var round = round(season, "Regular Season - 1");
+    var planned = existingMatch(round, 100L, "Arsenal", "Chelsea");
+    var started = existingMatch(round, 101L, "Liverpool", "Everton");
+    var finished = existingMatch(round, 102L, "Brighton", "Fulham");
+    var notDefined = existingMatch(round, 103L, "Leeds", "Burnley");
+    round.setMatches(new ArrayList<>(List.of(planned, started, finished, notDefined)));
+    season.setRounds(new ArrayList<>(List.of(round)));
+
+    var kickoff = OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC);
+    when(apiFootballConnector.getFixtures(39L, "2026")).thenReturn(List.of(
+        fixture(100L, "Regular Season - 1", kickoff, FixtureStatusEnum.NS, team(1L, "Arsenal", null), team(2L, "Chelsea", null), null, null),
+        fixture(101L, "Regular Season - 1", kickoff, FixtureStatusEnum.LIVE, team(3L, "Liverpool", null), team(4L, "Everton", null), 1, 0),
+        fixture(102L, "Regular Season - 1", kickoff, FixtureStatusEnum.FT, team(5L, "Brighton", null), team(6L, "Fulham", null), 2, 1),
+        fixture(103L, "Regular Season - 1", kickoff, FixtureStatusEnum.TBD, team(7L, "Leeds", null), team(8L, "Burnley", null), null, null)));
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
+
+    competitionService.refreshFixtures(season);
+
+    assertThat(planned.getStatus()).isEqualTo(MatchStatus.PLANNED);
+    assertThat(planned.getStartTime()).isEqualTo(kickoff.toInstant());
+    assertThat(started.getStatus()).isEqualTo(MatchStatus.STARTED);
+    assertThat(finished.getStatus()).isEqualTo(MatchStatus.FINISHED);
+    assertThat(notDefined.getStatus()).isEqualTo(MatchStatus.NOT_DEFINED);
+    assertThat(notDefined.getStartTime()).isNull();
     verify(seasonRepository).save(season);
   }
 
