@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.football.provider.config
+package at.hrechny.predictionsbot.connector.config
 
 import io.micronaut.context.annotation.ConfigurationProperties
 import io.micronaut.core.annotation.Introspected

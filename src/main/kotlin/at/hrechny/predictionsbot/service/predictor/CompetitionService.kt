@@ -1,10 +1,10 @@
 package at.hrechny.predictionsbot.service.predictor
 
-import at.hrechny.predictionsbot.football.provider.FootballDataProvider
-import at.hrechny.predictionsbot.football.provider.FootballDataProviderException
-import at.hrechny.predictionsbot.football.provider.model.FootballFixtureStatus
-import at.hrechny.predictionsbot.football.provider.model.FootballFixtureSyncDto
-import at.hrechny.predictionsbot.football.provider.model.FootballTeamSyncDto
+import at.hrechny.predictionsbot.connector.FootballDataProvider
+import at.hrechny.predictionsbot.connector.FootballDataProviderException
+import at.hrechny.predictionsbot.model.FootballFixtureStatus
+import at.hrechny.predictionsbot.model.FootballFixtureSyncDto
+import at.hrechny.predictionsbot.model.FootballTeamSyncDto
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity
 import at.hrechny.predictionsbot.database.entity.MatchEntity
 import at.hrechny.predictionsbot.database.entity.RoundEntity
@@ -23,7 +23,7 @@ import at.hrechny.predictionsbot.exception.RequestValidationException
 import at.hrechny.predictionsbot.mapper.CompetitionMapper
 import at.hrechny.predictionsbot.mapper.SeasonMapper
 import at.hrechny.predictionsbot.model.Competition
-import at.hrechny.predictionsbot.model.ExternalApiProviderId
+import at.hrechny.predictionsbot.model.FootballDataProviderId
 import at.hrechny.predictionsbot.model.Season
 import jakarta.inject.Singleton
 import io.micronaut.transaction.annotation.Transactional
@@ -336,7 +336,7 @@ open class CompetitionService(
 
     private fun providerCode(): String {
         val providerCode: String? = footballDataProvider!!.providerId.value
-        return providerCode?.takeIf(String::isNotBlank) ?: ExternalApiProviderId.API_FOOTBALL.value
+        return providerCode?.takeIf(String::isNotBlank) ?: FootballDataProviderId.API_FOOTBALL.value
     }
 
     private fun scopeGlobal(mappingService: ProviderExternalIdService): String {

@@ -9,14 +9,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import at.hrechny.predictionsbot.football.provider.FootballDataProvider;
-import at.hrechny.predictionsbot.football.provider.FootballDataProviderException;
-import at.hrechny.predictionsbot.football.provider.FootballDataProviderException.Reason;
-import at.hrechny.predictionsbot.football.provider.model.FootballFixtureStatus;
-import at.hrechny.predictionsbot.football.provider.model.FootballFixtureSyncDto;
-import at.hrechny.predictionsbot.football.provider.model.FootballRoundSyncDto;
-import at.hrechny.predictionsbot.football.provider.model.FootballScoreSyncDto;
-import at.hrechny.predictionsbot.football.provider.model.FootballTeamSyncDto;
+import at.hrechny.predictionsbot.connector.FootballDataProvider;
+import at.hrechny.predictionsbot.connector.FootballDataProviderException;
+import at.hrechny.predictionsbot.connector.FootballDataProviderException.Reason;
+import at.hrechny.predictionsbot.model.FootballFixtureStatus;
+import at.hrechny.predictionsbot.model.FootballFixtureSyncDto;
+import at.hrechny.predictionsbot.model.FootballRoundSyncDto;
+import at.hrechny.predictionsbot.model.FootballScoreSyncDto;
+import at.hrechny.predictionsbot.model.FootballTeamSyncDto;
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.RoundEntity;
@@ -27,7 +27,7 @@ import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.database.repository.TeamRepository;
-import at.hrechny.predictionsbot.model.ExternalApiProviderId;
+import at.hrechny.predictionsbot.model.FootballDataProviderId;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -63,7 +63,7 @@ class CompetitionServiceFixtureRefreshTest {
   @BeforeEach
   void setUp() {
     lenient().when(footballDataProvider.getProviderId())
-        .thenReturn(new ExternalApiProviderId("api-football"));
+        .thenReturn(new FootballDataProviderId("api-football"));
     competitionService = new CompetitionService(
         null,
         seasonRepository,

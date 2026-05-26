@@ -1,12 +1,10 @@
-package at.hrechny.predictionsbot.football.provider.model
-
-import at.hrechny.predictionsbot.model.ExternalApiProviderId
+package at.hrechny.predictionsbot.model
 
 data class FootballRoutingPolicy(
-    val fieldPriority: Map<FootballDataType, List<ExternalApiProviderId>> = emptyMap(),
-    val fallbackOrder: List<ExternalApiProviderId> = emptyList(),
-    val quotaWindows: Map<ExternalApiProviderId, List<FootballQuotaWindowDefinition>> = emptyMap(),
-    val health: Map<ExternalApiProviderId, FootballProviderHealthSnapshot> = emptyMap(),
+    val fieldPriority: Map<FootballDataType, List<FootballDataProviderId>> = emptyMap(),
+    val fallbackOrder: List<FootballDataProviderId> = emptyList(),
+    val quotaWindows: Map<FootballDataProviderId, List<FootballQuotaWindowDefinition>> = emptyMap(),
+    val health: Map<FootballDataProviderId, FootballProviderHealthSnapshot> = emptyMap(),
     val mergePolicy: FootballMergePolicy = FootballMergePolicy(),
 )
 
@@ -18,7 +16,7 @@ data class FootballProviderHealthSnapshot(
 
 data class FootballMergePolicy(
     val strategy: FootballMergeStrategy = FootballMergeStrategy.FALLBACK_THEN_FIELD_PRIORITY,
-    val fieldOwners: Map<FootballDataType, ExternalApiProviderId> = emptyMap(),
+    val fieldOwners: Map<FootballDataType, FootballDataProviderId> = emptyMap(),
 )
 
 enum class FootballProviderHealthStatus {

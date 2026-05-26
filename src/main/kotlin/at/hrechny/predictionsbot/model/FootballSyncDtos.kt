@@ -1,10 +1,9 @@
-package at.hrechny.predictionsbot.football.provider.model
+package at.hrechny.predictionsbot.model
 
-import at.hrechny.predictionsbot.model.ExternalApiProviderId
 import java.time.Instant
 
 data class FootballCompetitionSeasonRef(
-    val providerId: ExternalApiProviderId,
+    val providerId: FootballDataProviderId,
     val competitionExternalId: String,
     val seasonYear: String,
 )

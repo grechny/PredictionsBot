@@ -1,9 +1,7 @@
-package at.hrechny.predictionsbot.football.provider.model
-
-import at.hrechny.predictionsbot.model.ExternalApiProviderId
+package at.hrechny.predictionsbot.model
 
 data class FootballProviderCapabilities(
-    val providerId: ExternalApiProviderId,
+    val providerId: FootballDataProviderId,
     val dataTypes: Set<FootballDataType>,
     val competitions: Set<String> = emptySet(),
     val freshness: FootballFreshness = FootballFreshness.UNKNOWN,

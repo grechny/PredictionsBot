@@ -1,9 +1,9 @@
-package at.hrechny.predictionsbot.football.provider
+package at.hrechny.predictionsbot.connector
 
-import at.hrechny.predictionsbot.model.ExternalApiProviderId
+import at.hrechny.predictionsbot.model.FootballDataProviderId
 
 class FootballDataProviderException(
-    val providerId: ExternalApiProviderId,
+    val providerId: FootballDataProviderId,
     val reason: Reason,
     details: String? = null,
     cause: Throwable? = null,
@@ -13,7 +13,7 @@ class FootballDataProviderException(
         reason: Reason,
         details: String? = null,
         cause: Throwable? = null,
-    ) : this(ExternalApiProviderId(providerCode), reason, details, cause)
+    ) : this(FootballDataProviderId(providerCode), reason, details, cause)
 
     enum class Reason {
         REQUEST_ERROR,

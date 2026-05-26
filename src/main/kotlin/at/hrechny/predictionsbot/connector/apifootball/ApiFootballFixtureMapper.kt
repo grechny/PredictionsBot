@@ -5,11 +5,11 @@ import at.hrechny.predictionsbot.connector.apifootball.model.FixtureStatusEnum
 import at.hrechny.predictionsbot.connector.apifootball.model.Score
 import at.hrechny.predictionsbot.connector.apifootball.model.Status
 import at.hrechny.predictionsbot.connector.apifootball.model.Team
-import at.hrechny.predictionsbot.football.provider.model.FootballFixtureStatus
-import at.hrechny.predictionsbot.football.provider.model.FootballFixtureSyncDto
-import at.hrechny.predictionsbot.football.provider.model.FootballRoundSyncDto
-import at.hrechny.predictionsbot.football.provider.model.FootballScoreSyncDto
-import at.hrechny.predictionsbot.football.provider.model.FootballTeamSyncDto
+import at.hrechny.predictionsbot.model.FootballFixtureStatus
+import at.hrechny.predictionsbot.model.FootballFixtureSyncDto
+import at.hrechny.predictionsbot.model.FootballRoundSyncDto
+import at.hrechny.predictionsbot.model.FootballScoreSyncDto
+import at.hrechny.predictionsbot.model.FootballTeamSyncDto
 import jakarta.inject.Singleton
 
 @Singleton
