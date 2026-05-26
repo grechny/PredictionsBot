@@ -32,6 +32,7 @@ import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.LeagueService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
+import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import at.hrechny.predictionsbot.util.HashUtils;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.views.ModelAndView;
@@ -69,6 +70,9 @@ class TelegramWebAppControllerTest {
   @Mock
   private HashUtils hashUtils;
 
+  @Mock
+  private TelegramService telegramService;
+
   private TelegramWebAppController controller;
 
   @BeforeEach
@@ -78,6 +82,7 @@ class TelegramWebAppControllerTest {
         predictionService,
         leagueService,
         userService,
+        telegramService,
         hashUtils,
         new MessageResolver());
     setApplicationUrl(controller, "http://localhost");
@@ -148,6 +153,7 @@ class TelegramWebAppControllerTest {
 
     when(userService.getUser(USER_ID)).thenReturn(user);
     when(competitionService.getCurrentSeason(competitionId)).thenReturn(season);
+    when(competitionService.hasNonFinishedMatches(season)).thenReturn(true);
     when(competitionService.getCompetition(competitionId)).thenReturn(competition("Premier League"));
     when(predictionService.getResults(season.getId())).thenReturn(List.of(result(USER_ID, "Alice", 2, 2, 10, null)));
     when(predictionService.getResults(anyList())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 0, 5)));
@@ -169,6 +175,57 @@ class TelegramWebAppControllerTest {
   }
 
   @Test
+  void resultsRouteDoesNotRefreshWhenSeasonOnlyHasFinishedMatches() {
+    var competitionId = UUID.randomUUID();
+    var user = userEntity();
+    var season = season(competitionId, "Premier League");
+    var round = round(season, 1);
+    var finishedMatch = match(round, "Arsenal", "Chelsea", Instant.parse("2026-05-20T17:00:00Z"), MatchStatus.FINISHED);
+    finishedMatch.getPredictions().add(prediction(finishedMatch, user, 2, 1, false));
+    round.setMatches(List.of(finishedMatch));
+    season.setRounds(List.of(round));
+
+    when(userService.getUser(USER_ID)).thenReturn(user);
+    when(competitionService.getCurrentSeason(competitionId)).thenReturn(season);
+    when(competitionService.hasNonFinishedMatches(season)).thenReturn(false);
+    when(competitionService.getCompetition(competitionId)).thenReturn(competition("Premier League"));
+    when(predictionService.getResults(season.getId())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
+    when(predictionService.getResults(anyList())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
+
+    var response = controller.getResults(HASH, USER_ID, competitionId, null, null);
+
+    assertThat(view(response)).isEqualTo("results");
+    verify(competitionService, never()).refreshActiveFixtures(season.getId());
+    verify(telegramService, never()).sendErrorReport(any(Exception.class));
+  }
+
+  @Test
+  void resultsRouteRendersStoredDataAndReportsRefreshFailure() {
+    var competitionId = UUID.randomUUID();
+    var user = userEntity();
+    var season = season(competitionId, "Premier League");
+    var round = round(season, 1);
+    var startedMatch = match(round, "Liverpool", "Everton", Instant.parse("2026-05-21T17:00:00Z"), MatchStatus.STARTED);
+    startedMatch.getPredictions().add(prediction(startedMatch, user, 1, 1, false));
+    round.setMatches(List.of(startedMatch));
+    season.setRounds(List.of(round));
+
+    when(userService.getUser(USER_ID)).thenReturn(user);
+    when(competitionService.getCurrentSeason(competitionId)).thenReturn(season);
+    when(competitionService.hasNonFinishedMatches(season)).thenReturn(true);
+    when(competitionService.refreshActiveFixtures(season.getId())).thenReturn(false);
+    when(competitionService.getCompetition(competitionId)).thenReturn(competition("Premier League"));
+    when(predictionService.getResults(season.getId())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
+    when(predictionService.getResults(anyList())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
+
+    var response = controller.getResults(HASH, USER_ID, competitionId, null, null);
+
+    assertThat(view(response)).isEqualTo("results");
+    assertThat(model(response)).doesNotContainKey("warning");
+    verify(telegramService).sendErrorReport(any(Exception.class));
+  }
+
+  @Test
   void resultsRouteBuildsNoResultsModel() {
     var competitionId = UUID.randomUUID();
     var season = season(competitionId, "Premier League");
@@ -183,7 +240,7 @@ class TelegramWebAppControllerTest {
 
     assertThat(view(response)).isEqualTo("no-results");
     assertThat(model(response)).containsEntry("competitionName", "Premier League");
-    verify(competitionService).refreshActiveFixtures(season.getId());
+    verify(competitionService, never()).refreshActiveFixtures(season.getId());
   }
 
   @Test

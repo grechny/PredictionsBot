@@ -12,10 +12,14 @@ import at.hrechny.predictionsbot.controller.model.league.LeagueCreateRequestDto
 import at.hrechny.predictionsbot.controller.model.league.LeagueResponseDto
 import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto
 import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto
+import at.hrechny.predictionsbot.database.entity.SeasonEntity
+import at.hrechny.predictionsbot.exception.ApiConnectorException
+import at.hrechny.predictionsbot.exception.FixturesSynchronizationException
 import at.hrechny.predictionsbot.service.predictor.CompetitionService
 import at.hrechny.predictionsbot.service.predictor.LeagueService
 import at.hrechny.predictionsbot.service.predictor.PredictionService
 import at.hrechny.predictionsbot.service.predictor.UserService
+import at.hrechny.predictionsbot.service.telegram.TelegramService
 import at.hrechny.predictionsbot.util.HashUtils
 import io.micronaut.context.annotation.Value
 import io.micronaut.core.annotation.Nullable
@@ -44,6 +48,7 @@ open class TelegramWebAppController(
     private val predictionService: PredictionService,
     private val leagueService: LeagueService,
     private val userService: UserService,
+    private val telegramService: TelegramService,
     private val hashUtils: HashUtils,
     private val messageResolver: MessageResolver,
 ) {
@@ -108,7 +113,7 @@ open class TelegramWebAppController(
         } else {
             competitionService.getCurrentSeason(competitionId)
         }
-        competitionService.refreshActiveFixtures(season.id!!)
+        refreshResultsFixtures(season)
 
         val results: List<ResultResponseDto>
         val matches: List<MatchEntity>
@@ -164,6 +169,31 @@ open class TelegramWebAppController(
         model["baseUrl"] = buildBaseUrl("results", userId, competitionId, seasonId)
 
         return ModelAndView("results", model)
+    }
+
+    private fun refreshResultsFixtures(season: SeasonEntity) {
+        if (!competitionService.hasNonFinishedMatches(season)) {
+            return
+        }
+
+        try {
+            val refreshed = competitionService.refreshActiveFixtures(season.id!!)
+            if (!refreshed) {
+                telegramService.sendErrorReport(
+                    FixturesSynchronizationException("Failed to refresh active fixtures for results season ${season.id}"),
+                )
+            }
+        } catch (exception: ApiConnectorException) {
+            telegramService.sendErrorReport(exception)
+        } catch (exception: FixturesSynchronizationException) {
+            telegramService.sendErrorReport(exception)
+        } catch (exception: RuntimeException) {
+            telegramService.sendErrorReport(
+                FixturesSynchronizationException(
+                    "Failed to refresh active fixtures for results season ${season.id}: ${exception.message}",
+                ),
+            )
+        }
     }
 
     @Get(value = "/webapp/{hash}/users/{userId}/leagues", produces = [MediaType.TEXT_HTML])
