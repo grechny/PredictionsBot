@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import at.hrechny.predictionsbot.exception.NotFoundException;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
@@ -103,6 +102,16 @@ class MessageListenerTest {
 
     verify(userService, never()).updateUsername(eq(USER_ID), org.mockito.ArgumentMatchers.anyString());
     verify(telegramService).sendUsernameConfirmation(telegramUser(), eq(null));
+  }
+
+  @Test
+  void processUsernameCommandWithoutValueSendsUsernameInfo() {
+    var user = user();
+
+    messageListener.process(List.of(updateWithText(user, "/username")));
+
+    verify(userService, never()).updateUsername(eq(USER_ID), org.mockito.ArgumentMatchers.anyString());
+    verify(telegramService).sendUsernameInfo(telegramUser());
   }
 
   @Test
