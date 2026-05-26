@@ -7,8 +7,8 @@ import at.hrechny.predictionsbot.connector.football.model.FootballDataType
 import at.hrechny.predictionsbot.connector.football.model.FootballFixtureSyncDto
 import at.hrechny.predictionsbot.connector.football.model.FootballFreshness
 import at.hrechny.predictionsbot.connector.football.model.FootballProviderCapabilities
-import at.hrechny.predictionsbot.connector.football.model.FootballProviderId
 import at.hrechny.predictionsbot.connector.football.model.FootballRoundSyncDto
+import at.hrechny.predictionsbot.model.ExternalApiProviderId
 import jakarta.inject.Singleton
 
 @Singleton
@@ -16,7 +16,7 @@ open class ApiFootballDataProvider(
     private val apiFootballConnector: ApiFootballConnector,
     private val apiFootballFixtureMapper: ApiFootballFixtureMapper,
 ) : FootballDataProvider {
-    override val providerId: FootballProviderId = FootballProviderId.API_FOOTBALL
+    override val providerId: ExternalApiProviderId = ExternalApiProviderId.API_FOOTBALL
 
     override val capabilities = FootballProviderCapabilities(
         providerId = providerId,

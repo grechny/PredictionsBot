@@ -4,7 +4,6 @@ import at.hrechny.predictionsbot.connector.football.FootballDataProvider
 import at.hrechny.predictionsbot.connector.football.FootballDataProviderException
 import at.hrechny.predictionsbot.connector.football.model.FootballFixtureStatus
 import at.hrechny.predictionsbot.connector.football.model.FootballFixtureSyncDto
-import at.hrechny.predictionsbot.connector.football.model.FootballProviderId
 import at.hrechny.predictionsbot.connector.football.model.FootballTeamSyncDto
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity
 import at.hrechny.predictionsbot.database.entity.MatchEntity
@@ -24,6 +23,7 @@ import at.hrechny.predictionsbot.exception.RequestValidationException
 import at.hrechny.predictionsbot.mapper.CompetitionMapper
 import at.hrechny.predictionsbot.mapper.SeasonMapper
 import at.hrechny.predictionsbot.model.Competition
+import at.hrechny.predictionsbot.model.ExternalApiProviderId
 import at.hrechny.predictionsbot.model.Season
 import jakarta.inject.Singleton
 import io.micronaut.transaction.annotation.Transactional
@@ -150,7 +150,7 @@ open class CompetitionService(
                 roundList = getRound(rounds, fixture.roundExternalId)
             }
 
-            val matchEntity = matches.firstOrNull { match -> match.apiFootballId?.toString() == fixture.externalId }
+            val matchEntity = findMatchByLegacyApiFootballId(matches, fixture.externalId)
                 ?: MatchEntity().apply {
                     apiFootballId = fixture.externalId.toLongOrNull()
                     homeTeam = getTeamEntity(fixture.homeTeam)
@@ -263,6 +263,13 @@ open class CompetitionService(
     private fun getRound(rounds: List<RoundEntity>, apiFootballId: String): List<RoundEntity> =
         rounds.filter { roundEntity -> roundEntity.apiFootballId == apiFootballId }
 
+    // Phase 1 still merges existing records through legacy API-Football columns while provider mappings are backfilled.
+    private fun findMatchByLegacyApiFootballId(
+        matches: List<MatchEntity>,
+        externalId: String,
+    ): MatchEntity? =
+        matches.firstOrNull { match -> match.apiFootballId?.toString() == externalId }
+
     private fun recordProviderMappings(seasonEntity: SeasonEntity) {
         val mappingService = providerExternalIdService ?: return
         val providerCode = providerCode()
@@ -329,7 +336,7 @@ open class CompetitionService(
 
     private fun providerCode(): String {
         val providerCode: String? = footballDataProvider!!.providerId.value
-        return providerCode?.takeIf(String::isNotBlank) ?: FootballProviderId.API_FOOTBALL.value
+        return providerCode?.takeIf(String::isNotBlank) ?: ExternalApiProviderId.API_FOOTBALL.value
     }
 
     private fun scopeGlobal(mappingService: ProviderExternalIdService): String {

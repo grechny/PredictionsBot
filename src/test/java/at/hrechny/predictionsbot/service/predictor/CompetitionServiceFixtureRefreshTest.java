@@ -14,7 +14,6 @@ import at.hrechny.predictionsbot.connector.football.FootballDataProviderExceptio
 import at.hrechny.predictionsbot.connector.football.FootballDataProviderException.Reason;
 import at.hrechny.predictionsbot.connector.football.model.FootballFixtureStatus;
 import at.hrechny.predictionsbot.connector.football.model.FootballFixtureSyncDto;
-import at.hrechny.predictionsbot.connector.football.model.FootballProviderId;
 import at.hrechny.predictionsbot.connector.football.model.FootballRoundSyncDto;
 import at.hrechny.predictionsbot.connector.football.model.FootballScoreSyncDto;
 import at.hrechny.predictionsbot.connector.football.model.FootballTeamSyncDto;
@@ -28,6 +27,7 @@ import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.database.repository.TeamRepository;
+import at.hrechny.predictionsbot.model.ExternalApiProviderId;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -63,7 +63,7 @@ class CompetitionServiceFixtureRefreshTest {
   @BeforeEach
   void setUp() {
     lenient().when(footballDataProvider.getProviderId())
-        .thenReturn(new FootballProviderId(FootballProviderId.apiFootballCode()));
+        .thenReturn(new ExternalApiProviderId("api-football"));
     competitionService = new CompetitionService(
         null,
         seasonRepository,
@@ -130,7 +130,7 @@ class CompetitionServiceFixtureRefreshTest {
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
     when(footballDataProvider.getFixturesByExternalIds(anyList())).thenThrow(
-        new FootballDataProviderException(FootballProviderId.apiFootballCode(), Reason.QUOTA_EXCEEDED, null, null));
+        new FootballDataProviderException("api-football", Reason.QUOTA_EXCEEDED, null, null));
 
     competitionService.refreshActiveFixtures(season.getId());
 
