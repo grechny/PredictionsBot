@@ -44,13 +44,13 @@ Remote smoke must use the test system only. Do not use production hosts, product
 
 | Check | Expected Result | Result |
 |-------|-----------------|--------|
-| Deploy or select current phase branch on the test system | Test system runs the current backend code and test configuration. | pending |
-| Trigger `POST /{secrets.adminKey}/fixtures` on the test system | The current API-Football refresh path completes without touching production. | pending |
-| Open an existing test-system results page after refresh | Results still render and scores remain consistent with current behavior. | pending |
-| Record timestamp and operator | Smoke outcome is traceable before provider abstraction work continues. | pending |
+| Deploy or select current phase branch on the test system | Test system runs the current backend code and test configuration. | MCP environment check passed for the test environment on 2026-05-26. |
+| Trigger `POST /{secrets.adminKey}/fixtures` on the test system | The current API-Football refresh path completes without touching production. | Scheduled test-system refresh reached `CompetitionService.refreshFixtures` on 2026-05-26T00:00:00Z, but API-Football returned HTTP 429. Prior successful test-system API-Football refresh was recorded on 2026-05-25T00:00:01Z. |
+| Open an existing test-system results page after refresh | Results still render and scores remain consistent with current behavior. | Read-only test DB check: 5169 matches, 5163 with finished/started results; active Premier League 2025 has 380/380 matches with results and active Champions League 2025 has 280/281. |
+| Record timestamp and operator | Smoke outcome is traceable before provider abstraction work continues. | Recorded by Codex via predictionsbot MCP on 2026-05-26. |
 
-Remote smoke timestamp: pending
-Remote smoke outcome: pending
+Remote smoke timestamp: 2026-05-26T00:00:00Z scheduled refresh; recorded on 2026-05-26.
+Remote smoke outcome: quota-limited. The test system reached the current provider refresh path and did not use production, but the latest provider call failed with HTTP 429. Previous successful test-system provider refreshes are present in audit history.
 
 ## Inserted-Phase Candidates
 
