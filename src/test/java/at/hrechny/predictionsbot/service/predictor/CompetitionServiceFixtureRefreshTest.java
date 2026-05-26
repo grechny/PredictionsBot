@@ -3,23 +3,21 @@ package at.hrechny.predictionsbot.service.predictor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import at.hrechny.predictionsbot.connector.apifootball.ApiFootballConnector;
-import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConnectorException;
-import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConnectorException.Reason;
-import at.hrechny.predictionsbot.connector.apifootball.model.Fixture;
-import at.hrechny.predictionsbot.connector.apifootball.model.FixtureData;
-import at.hrechny.predictionsbot.connector.apifootball.model.FixtureStatusEnum;
-import at.hrechny.predictionsbot.connector.apifootball.model.LeagueData;
-import at.hrechny.predictionsbot.connector.apifootball.model.Score;
-import at.hrechny.predictionsbot.connector.apifootball.model.ScoreDetail;
-import at.hrechny.predictionsbot.connector.apifootball.model.Status;
-import at.hrechny.predictionsbot.connector.apifootball.model.Team;
-import at.hrechny.predictionsbot.connector.apifootball.model.TeamsData;
+import at.hrechny.predictionsbot.connector.football.FootballDataProvider;
+import at.hrechny.predictionsbot.connector.football.FootballDataProviderException;
+import at.hrechny.predictionsbot.connector.football.FootballDataProviderException.Reason;
+import at.hrechny.predictionsbot.connector.football.model.FootballFixtureStatus;
+import at.hrechny.predictionsbot.connector.football.model.FootballFixtureSyncDto;
+import at.hrechny.predictionsbot.connector.football.model.FootballProviderId;
+import at.hrechny.predictionsbot.connector.football.model.FootballRoundSyncDto;
+import at.hrechny.predictionsbot.connector.football.model.FootballScoreSyncDto;
+import at.hrechny.predictionsbot.connector.football.model.FootballTeamSyncDto;
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.RoundEntity;
@@ -55,12 +53,17 @@ class CompetitionServiceFixtureRefreshTest {
   private MatchRepository matchRepository;
 
   @Mock
-  private ApiFootballConnector apiFootballConnector;
+  private FootballDataProvider footballDataProvider;
+
+  @Mock
+  private ProviderExternalIdService providerExternalIdService;
 
   private CompetitionService competitionService;
 
   @BeforeEach
   void setUp() {
+    lenient().when(footballDataProvider.getProviderId())
+        .thenReturn(new FootballProviderId(FootballProviderId.apiFootballCode()));
     competitionService = new CompetitionService(
         null,
         seasonRepository,
@@ -68,7 +71,8 @@ class CompetitionServiceFixtureRefreshTest {
         null,
         teamRepository,
         matchRepository,
-        apiFootballConnector);
+        footballDataProvider,
+        providerExternalIdService);
   }
 
   @Test
@@ -79,7 +83,7 @@ class CompetitionServiceFixtureRefreshTest {
 
     competitionService.refreshActiveFixtures(season.getId());
 
-    verifyNoInteractions(apiFootballConnector);
+    verifyNoInteractions(footballDataProvider);
     verify(seasonRepository, never()).save(season);
   }
 
@@ -96,7 +100,7 @@ class CompetitionServiceFixtureRefreshTest {
         100L,
         "Regular Season - 1",
         kickoff,
-        FixtureStatusEnum.FT,
+        FootballFixtureStatus.FINISHED,
         team(1L, "Arsenal", "arsenal-new.png"),
         team(2L, "Chelsea", "chelsea-new.png"),
         2,
@@ -104,7 +108,7 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
-    when(apiFootballConnector.getFixtures(List.of(100L))).thenReturn(List.of(fixture));
+    when(footballDataProvider.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of(fixture));
 
     competitionService.refreshActiveFixtures(season.getId());
 
@@ -125,8 +129,8 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
-    when(apiFootballConnector.getFixtures(anyList())).thenThrow(
-        new ApiFootballConnectorException(Reason.QUOTA_EXCEEDED, null, null));
+    when(footballDataProvider.getFixturesByExternalIds(anyList())).thenThrow(
+        new FootballDataProviderException(FootballProviderId.apiFootballCode(), Reason.QUOTA_EXCEEDED, null, null));
 
     competitionService.refreshActiveFixtures(season.getId());
 
@@ -149,7 +153,7 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
-    when(apiFootballConnector.getFixtures(List.of(100L))).thenReturn(List.of());
+    when(footballDataProvider.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of());
 
     competitionService.refreshActiveFixtures(season.getId());
 
@@ -171,13 +175,13 @@ class CompetitionServiceFixtureRefreshTest {
         100L,
         "Regular Season - 1",
         OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC),
-        FixtureStatusEnum.NS,
+        FootballFixtureStatus.PLANNED,
         homeTeam,
         awayTeam,
         null,
         null);
 
-    when(apiFootballConnector.getFixtures(39L, "2026")).thenReturn(List.of(fixture));
+    when(footballDataProvider.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(teamRepository.findFirstByApiFootballId(1L)).thenReturn(Optional.empty());
     when(teamRepository.findFirstByApiFootballId(2L)).thenReturn(Optional.empty());
@@ -214,14 +218,16 @@ class CompetitionServiceFixtureRefreshTest {
         100L,
         "Regular Season - 2",
         OffsetDateTime.of(2026, 5, 28, 18, 30, 0, 0, ZoneOffset.UTC),
-        FixtureStatusEnum.NS,
+        FootballFixtureStatus.PLANNED,
         homeTeam,
         awayTeam,
         null,
         null);
 
-    when(apiFootballConnector.getFixtures(39L, "2026")).thenReturn(List.of(fixture));
-    when(apiFootballConnector.getRounds(39L, "2026")).thenReturn(List.of("Regular Season - 1", "Regular Season - 2"));
+    when(footballDataProvider.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
+    when(footballDataProvider.getRounds("39", "2026")).thenReturn(List.of(
+        roundDto("Regular Season - 1"),
+        roundDto("Regular Season - 2")));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(teamRepository.findFirstByApiFootballId(1L)).thenReturn(Optional.empty());
     when(teamRepository.findFirstByApiFootballId(2L)).thenReturn(Optional.empty());
@@ -241,7 +247,7 @@ class CompetitionServiceFixtureRefreshTest {
     assertThat(createdRound.getOrderNumber()).isEqualTo(2);
     assertThat(createdRound.getMatches()).hasSize(1);
     assertThat(createdRound.getMatches().get(0).getApiFootballId()).isEqualTo(100L);
-    verify(apiFootballConnector).getRounds(39L, "2026");
+    verify(footballDataProvider).getRounds("39", "2026");
     verify(seasonRepository).save(season);
   }
 
@@ -260,13 +266,13 @@ class CompetitionServiceFixtureRefreshTest {
         100L,
         "Regular Season - 2",
         OffsetDateTime.of(2026, 5, 28, 18, 30, 0, 0, ZoneOffset.UTC),
-        FixtureStatusEnum.NS,
+        FootballFixtureStatus.PLANNED,
         team(1L, "Arsenal", "arsenal.png"),
         team(2L, "Chelsea", "chelsea.png"),
         null,
         null);
 
-    when(apiFootballConnector.getFixtures(39L, "2026")).thenReturn(List.of(fixture));
+    when(footballDataProvider.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
 
     competitionService.refreshFixtures(season);
@@ -290,11 +296,11 @@ class CompetitionServiceFixtureRefreshTest {
     season.setRounds(new ArrayList<>(List.of(round)));
 
     var kickoff = OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC);
-    when(apiFootballConnector.getFixtures(39L, "2026")).thenReturn(List.of(
-        fixture(100L, "Regular Season - 1", kickoff, FixtureStatusEnum.NS, team(1L, "Arsenal", null), team(2L, "Chelsea", null), null, null),
-        fixture(101L, "Regular Season - 1", kickoff, FixtureStatusEnum.LIVE, team(3L, "Liverpool", null), team(4L, "Everton", null), 1, 0),
-        fixture(102L, "Regular Season - 1", kickoff, FixtureStatusEnum.FT, team(5L, "Brighton", null), team(6L, "Fulham", null), 2, 1),
-        fixture(103L, "Regular Season - 1", kickoff, FixtureStatusEnum.TBD, team(7L, "Leeds", null), team(8L, "Burnley", null), null, null)));
+    when(footballDataProvider.getSeasonFixtures("39", "2026")).thenReturn(List.of(
+        fixture(100L, "Regular Season - 1", kickoff, FootballFixtureStatus.PLANNED, team(1L, "Arsenal", null), team(2L, "Chelsea", null), null, null),
+        fixture(101L, "Regular Season - 1", kickoff, FootballFixtureStatus.STARTED, team(3L, "Liverpool", null), team(4L, "Everton", null), 1, 0),
+        fixture(102L, "Regular Season - 1", kickoff, FootballFixtureStatus.FINISHED, team(5L, "Brighton", null), team(6L, "Fulham", null), 2, 1),
+        fixture(103L, "Regular Season - 1", kickoff, FootballFixtureStatus.NOT_DEFINED, team(7L, "Leeds", null), team(8L, "Burnley", null), null, null)));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
 
     competitionService.refreshFixtures(season);
@@ -351,68 +357,30 @@ class CompetitionServiceFixtureRefreshTest {
     return team;
   }
 
-  private Fixture fixture(
+  private FootballFixtureSyncDto fixture(
       Long id,
       String round,
       OffsetDateTime kickoff,
-      FixtureStatusEnum status,
-      Team homeTeam,
-      Team awayTeam,
+      FootballFixtureStatus status,
+      FootballTeamSyncDto homeTeam,
+      FootballTeamSyncDto awayTeam,
       Integer homeScore,
       Integer awayScore) {
-    var fixture = new Fixture();
-    fixture.setFixture(fixtureData(id, kickoff, status));
-    fixture.setLeague(leagueData(round));
-    fixture.setTeams(teamsData(homeTeam, awayTeam));
-    fixture.setGoals(score(homeScore, awayScore));
-
-    var scoreDetail = new ScoreDetail();
-    scoreDetail.setFulltime(score(homeScore, awayScore));
-    fixture.setScore(scoreDetail);
-    return fixture;
+    return new FootballFixtureSyncDto(
+        id.toString(),
+        round,
+        kickoff == null ? null : kickoff.toInstant(),
+        status,
+        homeTeam,
+        awayTeam,
+        new FootballScoreSyncDto(homeScore, awayScore));
   }
 
-  private FixtureData fixtureData(Long id, OffsetDateTime kickoff, FixtureStatusEnum status) {
-    var fixtureData = new FixtureData();
-    fixtureData.setId(id);
-    fixtureData.setDate(kickoff);
-    fixtureData.setStatus(status(status));
-    return fixtureData;
+  private FootballRoundSyncDto roundDto(String round) {
+    return new FootballRoundSyncDto(round, round, null, null);
   }
 
-  private LeagueData leagueData(String round) {
-    var leagueData = new LeagueData();
-    leagueData.setId(39L);
-    leagueData.setName("Premier League");
-    leagueData.setRound(round);
-    return leagueData;
-  }
-
-  private TeamsData teamsData(Team homeTeam, Team awayTeam) {
-    var teamsData = new TeamsData();
-    teamsData.setHome(homeTeam);
-    teamsData.setAway(awayTeam);
-    return teamsData;
-  }
-
-  private Team team(Long id, String name, String logo) {
-    var team = new Team();
-    team.setId(id);
-    team.setName(name);
-    team.setLogo(logo);
-    return team;
-  }
-
-  private Status status(FixtureStatusEnum statusEnum) {
-    var status = new Status();
-    status.setStatus(statusEnum);
-    return status;
-  }
-
-  private Score score(Integer home, Integer away) {
-    var score = new Score();
-    score.setHome(home);
-    score.setAway(away);
-    return score;
+  private FootballTeamSyncDto team(Long id, String name, String logo) {
+    return new FootballTeamSyncDto(id.toString(), name, logo);
   }
 }
