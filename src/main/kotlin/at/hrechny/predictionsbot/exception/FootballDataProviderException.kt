@@ -1,6 +1,6 @@
-package at.hrechny.predictionsbot.connector
+package at.hrechny.predictionsbot.exception
 
-import at.hrechny.predictionsbot.model.FootballDataProviderId
+import at.hrechny.predictionsbot.model.football.FootballDataProviderId
 
 class FootballDataProviderException(
     val providerId: FootballDataProviderId,

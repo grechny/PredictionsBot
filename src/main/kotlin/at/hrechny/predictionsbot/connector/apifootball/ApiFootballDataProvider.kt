@@ -2,13 +2,13 @@ package at.hrechny.predictionsbot.connector.apifootball
 
 import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConnectorException
 import at.hrechny.predictionsbot.connector.FootballDataProvider
-import at.hrechny.predictionsbot.connector.FootballDataProviderException
-import at.hrechny.predictionsbot.model.FootballDataType
-import at.hrechny.predictionsbot.model.FootballFixtureSyncDto
-import at.hrechny.predictionsbot.model.FootballFreshness
-import at.hrechny.predictionsbot.model.FootballProviderCapabilities
-import at.hrechny.predictionsbot.model.FootballRoundSyncDto
-import at.hrechny.predictionsbot.model.FootballDataProviderId
+import at.hrechny.predictionsbot.exception.FootballDataProviderException
+import at.hrechny.predictionsbot.model.football.FootballDataType
+import at.hrechny.predictionsbot.model.football.FootballFixtureSyncDto
+import at.hrechny.predictionsbot.model.football.FootballFreshness
+import at.hrechny.predictionsbot.model.football.FootballProviderCapabilities
+import at.hrechny.predictionsbot.model.football.FootballRoundSyncDto
+import at.hrechny.predictionsbot.model.football.FootballDataProviderId
 import jakarta.inject.Singleton
 
 @Singleton

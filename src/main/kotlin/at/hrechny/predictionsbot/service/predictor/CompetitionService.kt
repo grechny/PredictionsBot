@@ -1,10 +1,10 @@
 package at.hrechny.predictionsbot.service.predictor
 
 import at.hrechny.predictionsbot.connector.FootballDataProvider
-import at.hrechny.predictionsbot.connector.FootballDataProviderException
-import at.hrechny.predictionsbot.model.FootballFixtureStatus
-import at.hrechny.predictionsbot.model.FootballFixtureSyncDto
-import at.hrechny.predictionsbot.model.FootballTeamSyncDto
+import at.hrechny.predictionsbot.exception.FootballDataProviderException
+import at.hrechny.predictionsbot.model.football.FootballFixtureStatus
+import at.hrechny.predictionsbot.model.football.FootballFixtureSyncDto
+import at.hrechny.predictionsbot.model.football.FootballTeamSyncDto
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity
 import at.hrechny.predictionsbot.database.entity.MatchEntity
 import at.hrechny.predictionsbot.database.entity.RoundEntity
@@ -23,7 +23,7 @@ import at.hrechny.predictionsbot.exception.RequestValidationException
 import at.hrechny.predictionsbot.mapper.CompetitionMapper
 import at.hrechny.predictionsbot.mapper.SeasonMapper
 import at.hrechny.predictionsbot.model.Competition
-import at.hrechny.predictionsbot.model.FootballDataProviderId
+import at.hrechny.predictionsbot.model.football.FootballDataProviderId
 import at.hrechny.predictionsbot.model.Season
 import jakarta.inject.Singleton
 import io.micronaut.transaction.annotation.Transactional

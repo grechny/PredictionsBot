@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.model
+package at.hrechny.predictionsbot.model.football
 
 data class FootballDataProviderId(val value: String) {
     init {

@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.model
+package at.hrechny.predictionsbot.model.football
 
 data class FootballRoutingPolicy(
     val fieldPriority: Map<FootballDataType, List<FootballDataProviderId>> = emptyMap(),

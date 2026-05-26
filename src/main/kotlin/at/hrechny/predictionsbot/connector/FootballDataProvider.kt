@@ -1,9 +1,9 @@
 package at.hrechny.predictionsbot.connector
 
-import at.hrechny.predictionsbot.model.FootballFixtureSyncDto
-import at.hrechny.predictionsbot.model.FootballProviderCapabilities
-import at.hrechny.predictionsbot.model.FootballRoundSyncDto
-import at.hrechny.predictionsbot.model.FootballDataProviderId
+import at.hrechny.predictionsbot.model.football.FootballFixtureSyncDto
+import at.hrechny.predictionsbot.model.football.FootballProviderCapabilities
+import at.hrechny.predictionsbot.model.football.FootballRoundSyncDto
+import at.hrechny.predictionsbot.model.football.FootballDataProviderId
 
 interface FootballDataProvider {
     val providerId: FootballDataProviderId

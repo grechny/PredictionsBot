@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.model
+package at.hrechny.predictionsbot.model.football
 
 data class FootballProviderCapabilities(
     val providerId: FootballDataProviderId,
