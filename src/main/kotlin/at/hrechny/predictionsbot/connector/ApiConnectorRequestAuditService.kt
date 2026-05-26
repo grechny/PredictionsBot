@@ -2,16 +2,19 @@ package at.hrechny.predictionsbot.connector
 
 import at.hrechny.predictionsbot.database.entity.AuditEntity
 import at.hrechny.predictionsbot.database.repository.AuditRepository
+import io.micronaut.transaction.TransactionDefinition
+import io.micronaut.transaction.annotation.Transactional
 import jakarta.inject.Singleton
 import java.time.Clock
 import java.time.Instant
 
 @Singleton
-class ApiConnectorRequestAuditService(
+open class ApiConnectorRequestAuditService(
     private val auditRepository: AuditRepository,
     private val clock: Clock,
 ) {
-    fun recordRequest(
+    @Transactional(propagation = TransactionDefinition.Propagation.REQUIRES_NEW)
+    open fun recordRequest(
         connectorCode: String,
         requestUri: String,
         success: Boolean,

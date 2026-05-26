@@ -6,6 +6,9 @@ import static org.mockito.Mockito.when;
 
 import at.hrechny.predictionsbot.database.entity.AuditEntity;
 import at.hrechny.predictionsbot.database.repository.AuditRepository;
+import io.micronaut.transaction.TransactionDefinition;
+import io.micronaut.transaction.annotation.Transactional;
+import java.lang.reflect.Method;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -22,6 +25,20 @@ class ApiConnectorRequestAuditServiceTest {
 
   @Mock
   private AuditRepository auditRepository;
+
+  @Test
+  void recordRequestUsesNewTransactionSoFailuresSurviveCallerRollback() throws Exception {
+    Method method = ApiConnectorRequestAuditService.class.getDeclaredMethod(
+        "recordRequest",
+        String.class,
+        String.class,
+        boolean.class,
+        String.class,
+        String.class);
+
+    assertThat(method.getAnnotation(Transactional.class).propagation())
+        .isEqualTo(TransactionDefinition.Propagation.REQUIRES_NEW);
+  }
 
   @Test
   void recordRequestSavesConnectorAuditWithoutApiKey() {
