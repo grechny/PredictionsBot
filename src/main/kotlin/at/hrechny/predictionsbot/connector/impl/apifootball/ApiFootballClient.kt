@@ -5,7 +5,6 @@ import at.hrechny.predictionsbot.connector.impl.apifootball.model.Fixture
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesResponse
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.RoundsResponse
 import at.hrechny.predictionsbot.database.entity.AuditEntity
-import at.hrechny.predictionsbot.database.model.ApiConnectorCode
 import at.hrechny.predictionsbot.database.repository.AuditRepository
 import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason
@@ -85,8 +84,7 @@ open class ApiFootballClient(
         checkMaxAttempts()
 
         val auditEntity = AuditEntity().apply {
-            apiKey = this@ApiFootballClient.apiKey
-            apiConnectorCode = ApiConnectorCode.API_FOOTBALL
+            connectorCode = CONNECTOR_CODE
             requestUri = uri.toString()
             requestDate = Instant.now()
         }
@@ -135,10 +133,12 @@ open class ApiFootballClient(
             return response
         } catch (exception: ApiConnectorException) {
             auditEntity.success = false
+            auditEntity.failureReason = exception.message
             throw exception
         } catch (exception: Exception) {
             log.error("Request to API-Football failed", exception)
             auditEntity.success = false
+            auditEntity.failureReason = exception.message
             throw ApiConnectorException(CONNECTOR_CODE, Reason.REQUEST_ERROR, exception.message, exception)
         } finally {
             auditRepository.save(auditEntity)
@@ -222,11 +222,7 @@ open class ApiFootballClient(
         }
 
         val billingStartDateTime = LocalDateTime.of(billingStartDate, billingStartTime).toInstant(ZoneOffset.UTC)
-        val count = auditRepository.countAllByApiConnectorCodeAndApiKeyAndRequestDateAfter(
-            ApiConnectorCode.API_FOOTBALL,
-            apiKey,
-            billingStartDateTime,
-        )
+        val count = auditRepository.countAllByConnectorCodeAndRequestDateAfter(CONNECTOR_CODE, billingStartDateTime)
         if (count >= maxAttempts) {
             throw ApiConnectorException(CONNECTOR_CODE, Reason.QUOTA_EXCEEDED)
         }
