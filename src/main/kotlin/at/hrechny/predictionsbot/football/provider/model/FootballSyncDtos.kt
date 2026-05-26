@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.connector.football.model
+package at.hrechny.predictionsbot.football.provider.model
 
 import at.hrechny.predictionsbot.model.ExternalApiProviderId
 import java.time.Instant

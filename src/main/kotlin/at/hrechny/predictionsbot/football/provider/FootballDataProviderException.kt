@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.connector.football
+package at.hrechny.predictionsbot.football.provider
 
 import at.hrechny.predictionsbot.model.ExternalApiProviderId
 

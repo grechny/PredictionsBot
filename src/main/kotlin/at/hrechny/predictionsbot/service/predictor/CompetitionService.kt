@@ -1,10 +1,10 @@
 package at.hrechny.predictionsbot.service.predictor
 
-import at.hrechny.predictionsbot.connector.football.FootballDataProvider
-import at.hrechny.predictionsbot.connector.football.FootballDataProviderException
-import at.hrechny.predictionsbot.connector.football.model.FootballFixtureStatus
-import at.hrechny.predictionsbot.connector.football.model.FootballFixtureSyncDto
-import at.hrechny.predictionsbot.connector.football.model.FootballTeamSyncDto
+import at.hrechny.predictionsbot.football.provider.FootballDataProvider
+import at.hrechny.predictionsbot.football.provider.FootballDataProviderException
+import at.hrechny.predictionsbot.football.provider.model.FootballFixtureStatus
+import at.hrechny.predictionsbot.football.provider.model.FootballFixtureSyncDto
+import at.hrechny.predictionsbot.football.provider.model.FootballTeamSyncDto
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity
 import at.hrechny.predictionsbot.database.entity.MatchEntity
 import at.hrechny.predictionsbot.database.entity.RoundEntity

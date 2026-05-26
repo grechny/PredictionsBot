@@ -1,8 +1,8 @@
-package at.hrechny.predictionsbot.connector.football
+package at.hrechny.predictionsbot.football.provider
 
-import at.hrechny.predictionsbot.connector.football.model.FootballFixtureSyncDto
-import at.hrechny.predictionsbot.connector.football.model.FootballProviderCapabilities
-import at.hrechny.predictionsbot.connector.football.model.FootballRoundSyncDto
+import at.hrechny.predictionsbot.football.provider.model.FootballFixtureSyncDto
+import at.hrechny.predictionsbot.football.provider.model.FootballProviderCapabilities
+import at.hrechny.predictionsbot.football.provider.model.FootballRoundSyncDto
 import at.hrechny.predictionsbot.model.ExternalApiProviderId
 
 interface FootballDataProvider {
