@@ -83,6 +83,7 @@ open class MessageListener(
                 "/competitions" -> telegramService.sendCompetitions(user)
                 "/timezone" -> telegramService.sendTimezoneMessage(user)
                 "/language" -> telegramService.sendLanguageMessage(user)
+                "/username" -> telegramService.sendUsernameInfo(user)
                 "/help" -> telegramService.sendHelp(user)
                 "/stop" -> stopBot(user)
                 else -> {

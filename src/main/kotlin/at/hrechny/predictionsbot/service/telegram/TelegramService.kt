@@ -366,6 +366,20 @@ open class TelegramService(
         sendTelegramMessage(user.id, message)
     }
 
+    open fun sendUsernameInfo(user: User) {
+        val userEntity = userService.getUser(user.id)
+        val locale = getLocale(userEntity)
+        val currentUsername = StringUtils.defaultIfBlank(
+            userEntity.username,
+            messageResolver.getMessage("username.not_set", null, locale),
+        )!!
+        sendTelegramMessage(
+            user.id,
+            messageResolver.getMessage("username.current", arrayOf<Any>(currentUsername), locale),
+            ParseMode.HTML,
+        )
+    }
+
     open fun pushUpdate(competitionId: UUID) {
         userService.getUsers(competitionId).forEach { user ->
             val locale = user.language ?: Locale.forLanguageTag("ru")
