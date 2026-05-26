@@ -22,7 +22,7 @@ class FlywayPostgresMigrationTest {
 
         val result = flyway.migrate()
 
-        assertThat(result.migrationsExecuted).isEqualTo(3)
+        assertThat(result.migrationsExecuted).isEqualTo(4)
         DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()).use { connection ->
             connection.prepareStatement(
                 """
@@ -95,6 +95,47 @@ class FlywayPostgresMigrationTest {
                         "updated_at",
                     )
                     assertThat(columnNames).doesNotContain("api_key", "secret", "token", "authorization")
+                }
+            }
+
+            connection.prepareStatement(
+                """
+                select column_name
+                from information_schema.columns
+                where table_schema = 'public'
+                  and table_name = 'audit'
+                order by ordinal_position
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    val columnNames = generateSequence {
+                        if (resultSet.next()) resultSet.getString("column_name") else null
+                    }.toList()
+
+                    assertThat(columnNames).contains(
+                        "id",
+                        "connector_code",
+                        "request_uri",
+                        "request_date",
+                        "success",
+                        "failure_reason",
+                        "quota_snapshot",
+                    )
+                    assertThat(columnNames).doesNotContain("api_key", "secret", "token", "authorization")
+                }
+            }
+
+            connection.prepareStatement(
+                """
+                select indexname
+                from pg_indexes
+                where schemaname = 'public'
+                  and tablename = 'audit'
+                  and indexname = 'idx_audit_connector_code_request_date'
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    assertThat(resultSet.next()).isTrue()
                 }
             }
         }
