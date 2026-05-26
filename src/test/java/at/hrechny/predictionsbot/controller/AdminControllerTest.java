@@ -24,6 +24,8 @@ import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import java.time.Year;
 import java.util.List;
 import java.util.UUID;
@@ -59,6 +61,12 @@ class AdminControllerTest {
     competitionController = new CompetitionController(competitionService, telegramService);
     predictionController = new PredictionController(predictionService);
     serviceController = new ServiceController(userService, telegramService);
+  }
+
+  @Test
+  void competitionControllerRunsOnBlockingExecutor() {
+    assertThat(CompetitionController.class.getAnnotation(ExecuteOn.class).value())
+        .isEqualTo(TaskExecutors.BLOCKING);
   }
 
   @Test

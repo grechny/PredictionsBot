@@ -35,6 +35,8 @@ import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import at.hrechny.predictionsbot.util.HashUtils;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.views.ModelAndView;
 import java.lang.reflect.Field;
 import java.time.Instant;
@@ -87,6 +89,12 @@ class TelegramWebAppControllerTest {
         new MessageResolver());
     setApplicationUrl(controller, "http://localhost");
     lenient().when(hashUtils.getHash(USER_ID.toString())).thenReturn(HASH);
+  }
+
+  @Test
+  void telegramWebAppControllerRunsOnBlockingExecutor() {
+    assertThat(TelegramWebAppController.class.getAnnotation(ExecuteOn.class).value())
+        .isEqualTo(TaskExecutors.BLOCKING);
   }
 
   @Test
