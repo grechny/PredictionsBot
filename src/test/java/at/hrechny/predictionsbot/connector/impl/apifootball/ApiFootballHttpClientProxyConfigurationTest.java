@@ -3,12 +3,21 @@ package at.hrechny.predictionsbot.connector.impl.apifootball;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micronaut.http.client.DefaultHttpClientConfiguration;
+import io.micronaut.http.client.annotation.Client;
 import io.micronaut.http.client.HttpClientConfiguration;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import org.junit.jupiter.api.Test;
 
 class ApiFootballHttpClientProxyConfigurationTest {
+
+  @Test
+  void apiFootballClientUsesNamedServiceAndVersionedBasePath() {
+    var client = ApiFootballHttpClient.class.getAnnotation(Client.class);
+
+    assertThat(client.id()).isEqualTo("api-football");
+    assertThat(client.path()).isEqualTo("/v3");
+  }
 
   @Test
   void leavesApiFootballClientDirectWhenProxyIsNotConfigured() {

@@ -6,7 +6,7 @@ import io.micronaut.http.annotation.Header
 import io.micronaut.http.annotation.QueryValue
 import io.micronaut.http.client.annotation.Client
 
-@Client("api-football")
+@Client(id = "api-football", path = "/v3")
 interface ApiFootballHttpClient {
     @Get("/fixtures/rounds{?league,season}")
     fun getRounds(
