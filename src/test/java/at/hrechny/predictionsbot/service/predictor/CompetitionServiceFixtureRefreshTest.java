@@ -163,6 +163,59 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
+  void refreshActiveFixturesAppliesReturnedFixturesAndLeavesMissingActiveMatchesUnchanged() {
+    var season = season();
+    var round = round(season, "Regular Season - 1");
+    var updatedMatch = existingMatch(round, 100L, "Arsenal", "Chelsea");
+    var unchangedMatch = existingMatch(round, 101L, "Liverpool", "Everton");
+    unchangedMatch.setHomeTeamScore(1);
+    unchangedMatch.setAwayTeamScore(1);
+    unchangedMatch.setStatus(MatchStatus.STARTED);
+    round.setMatches(new ArrayList<>(List.of(updatedMatch, unchangedMatch)));
+    season.setRounds(new ArrayList<>(List.of(round)));
+
+    var kickoff = OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC);
+    var fixture = fixture(
+        100L,
+        "Regular Season - 1",
+        kickoff,
+        FixtureSyncStatus.FINISHED,
+        team(1L, "Arsenal", "arsenal.png"),
+        team(2L, "Chelsea", "chelsea.png"),
+        2,
+        0);
+
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
+    when(matchRepository.findAllActive(season)).thenReturn(List.of(updatedMatch, unchangedMatch));
+    when(apiConnector.getFixturesByExternalIds(List.of("100", "101"))).thenReturn(List.of(fixture));
+
+    competitionService.refreshActiveFixtures(season.getId());
+
+    assertThat(updatedMatch.getStatus()).isEqualTo(MatchStatus.FINISHED);
+    assertThat(updatedMatch.getHomeTeamScore()).isEqualTo(2);
+    assertThat(updatedMatch.getAwayTeamScore()).isEqualTo(0);
+    assertThat(unchangedMatch.getStatus()).isEqualTo(MatchStatus.STARTED);
+    assertThat(unchangedMatch.getHomeTeamScore()).isEqualTo(1);
+    assertThat(unchangedMatch.getAwayTeamScore()).isEqualTo(1);
+    verify(seasonRepository).save(season);
+  }
+
+  @Test
+  void hasNonFinishedMatchesReturnsFalseOnlyWhenAllMatchesAreFinished() {
+    var season = season();
+    var round = round(season, "Regular Season - 1");
+    var finished = existingMatch(round, 100L, "Arsenal", "Chelsea");
+    finished.setStatus(MatchStatus.FINISHED);
+    round.setMatches(new ArrayList<>(List.of(finished)));
+    season.setRounds(new ArrayList<>(List.of(round)));
+
+    assertThat(competitionService.hasNonFinishedMatches(season)).isFalse();
+
+    finished.setStatus(MatchStatus.STARTED);
+    assertThat(competitionService.hasNonFinishedMatches(season)).isTrue();
+  }
+
+  @Test
   void refreshFixturesCreatesTeamsAndMatchForNewConnectorFixture() {
     var season = season();
     var round = round(season, "Regular Season - 1");

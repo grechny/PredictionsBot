@@ -131,6 +131,11 @@ open class CompetitionService(
         }
     }
 
+    open fun hasNonFinishedMatches(seasonEntity: SeasonEntity): Boolean =
+        seasonEntity.rounds
+            .flatMap { round -> round.matches }
+            .any { match -> match.status != MatchStatus.FINISHED }
+
     open fun refreshFixtures(seasonEntity: SeasonEntity) {
         val managedSeasonEntity = getSeason(seasonEntity.id!!)
         log.info("Start refreshing fixtures data for the season {}", managedSeasonEntity.id)
