@@ -1,6 +1,6 @@
 package at.hrechny.predictionsbot.connector.apifootball.exception
 
-class ApiFootballConnectorException @JvmOverloads constructor(
+class ApiFootballConnectorException(
     val reason: Reason,
     details: String? = null,
     cause: Throwable? = null,

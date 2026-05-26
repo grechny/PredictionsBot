@@ -125,7 +125,8 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
-    when(apiFootballConnector.getFixtures(anyList())).thenThrow(new ApiFootballConnectorException(Reason.QUOTA_EXCEEDED));
+    when(apiFootballConnector.getFixtures(anyList())).thenThrow(
+        new ApiFootballConnectorException(Reason.QUOTA_EXCEEDED, null, null));
 
     competitionService.refreshActiveFixtures(season.getId());
 

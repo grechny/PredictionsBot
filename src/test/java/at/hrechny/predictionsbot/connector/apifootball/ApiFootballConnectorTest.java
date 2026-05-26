@@ -2,7 +2,9 @@ package at.hrechny.predictionsbot.connector.apifootball;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConnectorException;
 import at.hrechny.predictionsbot.database.entity.AuditEntity;
@@ -11,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +62,31 @@ class ApiFootballConnectorTest {
     assertThat(auditCaptor.getValue().isSuccess()).isFalse();
   }
 
+  @Test
+  void getFixturesUsesProviderRateLimitHeadersToBlockFollowingRequests() throws IOException {
+    var requestCount = startServerWithExhaustedQuotaResponse();
+    var connector = new ApiFootballConnector(
+        auditRepository,
+        "http://localhost:" + server.getAddress().getPort(),
+        "secret-api-key",
+        0,
+        "22:00",
+        "",
+        0,
+        "",
+        "");
+
+    assertThat(connector.getFixtures(39L, "2025")).isEmpty();
+
+    assertThatThrownBy(() -> connector.getFixtures(39L, "2025"))
+        .isInstanceOf(ApiFootballConnectorException.class)
+        .hasMessageContaining("QUOTA_EXCEEDED")
+        .hasMessageContaining("API-Football request quota is exhausted");
+    assertThat(requestCount.get()).isEqualTo(1);
+    verify(auditRepository).save(any(AuditEntity.class));
+    verifyNoMoreInteractions(auditRepository);
+  }
+
   private void startServerWithRateLimitResponse() throws IOException {
     server = HttpServer.create(new InetSocketAddress(0), 0);
     server.createContext("/fixtures", exchange -> {
@@ -70,5 +98,21 @@ class ApiFootballConnectorTest {
       exchange.close();
     });
     server.start();
+  }
+
+  private AtomicInteger startServerWithExhaustedQuotaResponse() throws IOException {
+    var requestCount = new AtomicInteger();
+    server = HttpServer.create(new InetSocketAddress(0), 0);
+    server.createContext("/fixtures", exchange -> {
+      requestCount.incrementAndGet();
+      var body = "{\"errors\":[],\"response\":[]}".getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().add("x-ratelimit-requests-remaining", "0");
+      exchange.getResponseHeaders().add("x-ratelimit-requests-reset", "60");
+      exchange.sendResponseHeaders(200, body.length);
+      exchange.getResponseBody().write(body);
+      exchange.close();
+    });
+    server.start();
+    return requestCount;
   }
 }

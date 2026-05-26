@@ -1,6 +1,7 @@
 package at.hrechny.predictionsbot.service.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -10,10 +11,8 @@ import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.exception.FixturesSynchronizationException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
-import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import java.util.List;
 import java.util.UUID;
-import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,14 +25,11 @@ class FixturesSchedulerTest {
   @Mock
   private CompetitionService competitionService;
 
-  @Mock
-  private TelegramService telegramService;
-
   private FixturesScheduler fixturesScheduler;
 
   @BeforeEach
   void setUp() {
-    fixturesScheduler = new FixturesScheduler(competitionService, telegramService, true);
+    fixturesScheduler = new FixturesScheduler(competitionService, true);
   }
 
   @Test
@@ -44,38 +40,34 @@ class FixturesSchedulerTest {
 
     fixturesScheduler.refreshFixtures();
 
-    verify(competitionService).refreshFixturesOrThrow(firstSeason);
-    verify(competitionService).refreshFixturesOrThrow(secondSeason);
-    verifyNoInteractions(telegramService);
+    verify(competitionService).refreshFixtures(firstSeason);
+    verify(competitionService).refreshFixtures(secondSeason);
   }
 
   @Test
   void refreshFixturesDoesNothingWhenSchedulerIsDisabled() {
-    fixturesScheduler = new FixturesScheduler(competitionService, telegramService, false);
+    fixturesScheduler = new FixturesScheduler(competitionService, false);
 
     fixturesScheduler.refreshFixtures();
 
-    verifyNoInteractions(competitionService, telegramService);
+    verifyNoInteractions(competitionService);
   }
 
   @Test
-  void refreshFixturesReportsProviderFailuresAndContinuesWithOtherSeasons() {
+  void refreshFixturesThrowsAggregatedFailureAfterRefreshingOtherSeasons() {
     var failedSeason = season("Premier League", "2025");
     var successfulSeason = season("Champions League", "2025");
     var providerFailure = new RuntimeException("REQUEST_ERROR: HTTP 429; headers={x-ratelimit-requests-remaining=98}");
     when(competitionService.getActiveSeasons()).thenReturn(List.of(failedSeason, successfulSeason));
-    doThrow(providerFailure).when(competitionService).refreshFixturesOrThrow(failedSeason);
+    doThrow(providerFailure).when(competitionService).refreshFixtures(failedSeason);
 
-    fixturesScheduler.refreshFixtures();
+    var thrown = catchThrowable(() -> fixturesScheduler.refreshFixtures());
 
-    verify(competitionService).refreshFixturesOrThrow(failedSeason);
-    verify(competitionService).refreshFixturesOrThrow(successfulSeason);
-
-    var reportCaptor = ArgumentCaptor.forClass(Exception.class);
-    verify(telegramService).sendErrorReport(reportCaptor.capture());
-    assertThat(reportCaptor.getValue()).isInstanceOf(FixturesSynchronizationException.class);
-    assertThat(reportCaptor.getValue().getMessage()).contains("Premier League 2025");
-    assertThat(reportCaptor.getValue().getSuppressed()).containsExactly(providerFailure);
+    verify(competitionService).refreshFixtures(failedSeason);
+    verify(competitionService).refreshFixtures(successfulSeason);
+    assertThat(thrown).isInstanceOf(FixturesSynchronizationException.class);
+    assertThat(thrown.getMessage()).contains("Premier League 2025");
+    assertThat(thrown.getSuppressed()).containsExactly(providerFailure);
   }
 
   private SeasonEntity season() {
