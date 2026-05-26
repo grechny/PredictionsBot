@@ -7,9 +7,9 @@ import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.PredictionEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
+import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto;
+import at.hrechny.predictionsbot.controller.model.user.UserResponseDto;
 import at.hrechny.predictionsbot.mapper.UserMapper;
-import at.hrechny.predictionsbot.model.Result;
-import at.hrechny.predictionsbot.model.User;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -62,7 +62,7 @@ class PredictionServiceResultsTest {
     assertThat(results).hasSize(3);
     assertThat(results.get(0).getUser().getName()).isEqualTo("alice");
 
-    Map<String, Result> byName = results.stream()
+    Map<String, ResultResponseDto> byName = results.stream()
         .collect(Collectors.toMap(result -> result.getUser().getName(), result -> result));
     assertThat(byName.get("alice").getPredictions()).isEqualTo(4);
     assertThat(byName.get("alice").getGuessed()).isEqualTo(3);
@@ -115,8 +115,8 @@ class PredictionServiceResultsTest {
     return user;
   }
 
-  private User user(Long id, String name) {
-    var user = new User();
+  private UserResponseDto user(Long id, String name) {
+    var user = new UserResponseDto();
     user.setId(id);
     user.setName(name);
     return user;

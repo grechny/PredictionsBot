@@ -1,6 +1,6 @@
 package at.hrechny.predictionsbot.database.entity
 
-import at.hrechny.predictionsbot.database.model.ApiProvider
+import at.hrechny.predictionsbot.database.model.ApiConnectorCode
 import io.micronaut.core.annotation.Introspected
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -14,15 +14,15 @@ import java.time.Instant
 @Entity
 @Table(
     name = "audit",
-    indexes = [Index(name = "idx_api_key_provider", columnList = "apiKey, apiProvider", unique = true)],
+    indexes = [Index(name = "idx_api_key_provider", columnList = "api_key, api_provider", unique = true)],
 )
 class AuditEntity : GeneratedIdEntity() {
     @field:Column
     var apiKey: String? = null
 
-    @field:Column
+    @field:Column(name = "api_provider")
     @field:Enumerated(EnumType.STRING)
-    var apiProvider: ApiProvider? = null
+    var apiConnectorCode: ApiConnectorCode? = null
 
     @field:Column
     var requestUri: String? = null

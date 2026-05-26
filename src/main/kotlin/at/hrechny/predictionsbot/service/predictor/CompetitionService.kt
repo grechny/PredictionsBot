@@ -1,29 +1,32 @@
 package at.hrechny.predictionsbot.service.predictor
 
-import at.hrechny.predictionsbot.connector.apifootball.ApiFootballConnector
-import at.hrechny.predictionsbot.connector.apifootball.exception.ApiFootballConnectorException
-import at.hrechny.predictionsbot.connector.apifootball.model.Fixture
-import at.hrechny.predictionsbot.connector.apifootball.model.FixtureStatusEnum
-import at.hrechny.predictionsbot.connector.apifootball.model.Status
-import at.hrechny.predictionsbot.connector.apifootball.model.Team
+import at.hrechny.predictionsbot.connector.ApiConnector
+import at.hrechny.predictionsbot.connector.model.FixtureSyncDto
+import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus
+import at.hrechny.predictionsbot.connector.model.TeamSyncDto
+import at.hrechny.predictionsbot.controller.model.competition.CompetitionCreateRequestDto
+import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto
+import at.hrechny.predictionsbot.controller.model.competition.SeasonCreateRequestDto
+import at.hrechny.predictionsbot.controller.model.competition.SeasonResponseDto
+import at.hrechny.predictionsbot.controller.model.competition.SeasonUpdateRequestDto
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity
 import at.hrechny.predictionsbot.database.entity.MatchEntity
 import at.hrechny.predictionsbot.database.entity.RoundEntity
 import at.hrechny.predictionsbot.database.entity.SeasonEntity
 import at.hrechny.predictionsbot.database.entity.TeamEntity
+import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType
 import at.hrechny.predictionsbot.database.model.MatchStatus
 import at.hrechny.predictionsbot.database.model.RoundType
 import at.hrechny.predictionsbot.database.repository.CompetitionRepository
 import at.hrechny.predictionsbot.database.repository.MatchRepository
 import at.hrechny.predictionsbot.database.repository.SeasonRepository
 import at.hrechny.predictionsbot.database.repository.TeamRepository
+import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.FixturesSynchronizationException
 import at.hrechny.predictionsbot.exception.NotFoundException
 import at.hrechny.predictionsbot.exception.RequestValidationException
 import at.hrechny.predictionsbot.mapper.CompetitionMapper
 import at.hrechny.predictionsbot.mapper.SeasonMapper
-import at.hrechny.predictionsbot.model.Competition
-import at.hrechny.predictionsbot.model.Season
 import jakarta.inject.Singleton
 import io.micronaut.transaction.annotation.Transactional
 import java.time.Instant
@@ -41,25 +44,26 @@ open class CompetitionService(
     private val competitionRepository: CompetitionRepository?,
     private val teamRepository: TeamRepository?,
     private val matchRepository: MatchRepository?,
-    private val apiFootballConnector: ApiFootballConnector?,
+    private val apiConnector: ApiConnector?,
+    private val apiConnectorService: ApiConnectorService?,
 ) {
-    open fun addCompetition(competition: Competition): UUID {
+    open fun addCompetition(competition: CompetitionCreateRequestDto): UUID {
         log.info("Adding the new competition: {}", competition)
         val entity = competitionRepository!!.save(competitionMapper!!.modelToEntity(competition))
         log.info("The competition has been successfully stored: {}", entity.id)
         return entity.id!!
     }
 
-    open fun getCompetition(competitionId: UUID): Competition {
+    open fun getCompetition(competitionId: UUID): CompetitionResponseDto {
         val entity: CompetitionEntity = competitionRepository!!.findById(competitionId)
             .orElseThrow { NotFoundException("Competition with the ID $competitionId not found") }
         return competitionMapper!!.entityToModel(entity)
     }
 
-    open fun getCompetitions(): List<Competition> =
+    open fun getCompetitions(): List<CompetitionResponseDto> =
         competitionRepository!!.findAll().map(competitionMapper!!::entityToModel)
 
-    open fun addSeason(competitionId: UUID, season: Season): UUID {
+    open fun addSeason(competitionId: UUID, season: SeasonCreateRequestDto): UUID {
         log.info("Adding the new season for the competition {}: {}", competitionId, season)
         val competitionEntity = competitionRepository!!.findById(competitionId)
             .orElseThrow { NotFoundException("Competition with the ID $competitionId not found") }
@@ -70,7 +74,7 @@ open class CompetitionService(
         return seasonEntity.id!!
     }
 
-    open fun updateSeason(competitionId: UUID, season: Season) {
+    open fun updateSeason(competitionId: UUID, season: SeasonUpdateRequestDto) {
         log.info("Updating the season {} for the competition {}", season.id, competitionId)
         val seasonEntity = seasonRepository!!.findById(season.id!!).orElse(null)
         if (seasonEntity == null || seasonEntity.competition!!.id != competitionId) {
@@ -86,7 +90,7 @@ open class CompetitionService(
     open fun getSeason(seasonId: UUID): SeasonEntity =
         seasonRepository!!.findById(seasonId).orElseThrow { NotFoundException("Season $seasonId not found") }
 
-    open fun getSeasons(competitionId: UUID): List<Season> =
+    open fun getSeasons(competitionId: UUID): List<SeasonResponseDto> =
         seasonRepository!!.findAllByCompetitionId(competitionId).map(seasonMapper!!::entityToModel)
 
     open fun getCurrentSeason(competitionId: UUID): SeasonEntity =
@@ -116,12 +120,12 @@ open class CompetitionService(
             return true
         }
 
-        val fixtureIds = activeMatches.map { match -> match.apiFootballId!! }
+        val fixtureIds = activeMatches.map { match -> match.apiFootballId!!.toString() }
         try {
-            val fixtures = apiFootballConnector!!.getFixtures(fixtureIds)
+            val fixtures = apiConnector!!.getFixturesByExternalIds(fixtureIds)
             refreshFixtures(fixtures, seasonEntity)
             return true
-        } catch (exception: ApiFootballConnectorException) {
+        } catch (exception: ApiConnectorException) {
             log.error("Failed to refresh fixtures: {}", exception.message)
             return false
         }
@@ -130,32 +134,29 @@ open class CompetitionService(
     open fun refreshFixtures(seasonEntity: SeasonEntity) {
         val managedSeasonEntity = getSeason(seasonEntity.id!!)
         log.info("Start refreshing fixtures data for the season {}", managedSeasonEntity.id)
-        val fixtures = apiFootballConnector!!.getFixtures(
-            managedSeasonEntity.competition!!.apiFootballId!!,
+        val fixtures = apiConnector!!.getSeasonFixtures(
+            managedSeasonEntity.competition!!.apiFootballId!!.toString(),
             managedSeasonEntity.year!!,
         )
         refreshFixtures(fixtures, managedSeasonEntity)
     }
 
-    private fun refreshFixtures(fixtures: List<Fixture>, seasonEntity: SeasonEntity) {
+    private fun refreshFixtures(fixtures: List<FixtureSyncDto>, seasonEntity: SeasonEntity) {
         val rounds = seasonEntity.rounds
         val matches = rounds.flatMap { round -> round.matches }
 
         fixtures.forEach { fixture ->
-            val fixtureData = fixture.fixture!!
-            val fulltimeScore = fixture.score!!.fulltime!!
-            val score = if (fulltimeScore.home != null) fulltimeScore else fixture.goals!!
-            var roundList = getRound(rounds, fixture.league!!.round!!)
+            var roundList = getRound(rounds, fixture.roundExternalId)
             if (roundList.isEmpty()) {
                 refreshRounds(seasonEntity)
-                roundList = getRound(rounds, fixture.league!!.round!!)
+                roundList = getRound(rounds, fixture.roundExternalId)
             }
 
-            val matchEntity = matches.firstOrNull { match -> match.apiFootballId == fixtureData.id }
+            val matchEntity = findMatchByLegacyApiFootballId(matches, fixture.externalId)
                 ?: MatchEntity().apply {
-                    apiFootballId = fixtureData.id
-                    homeTeam = getTeamEntity(fixture.teams!!.home!!)
-                    awayTeam = getTeamEntity(fixture.teams!!.away!!)
+                    apiFootballId = fixture.externalId.toLongOrNull()
+                    homeTeam = getTeamEntity(fixture.homeTeam)
+                    awayTeam = getTeamEntity(fixture.awayTeam)
                 }
 
             val round = getRound(roundList, matchEntity.homeTeam!!, matchEntity.awayTeam!!)
@@ -168,79 +169,59 @@ open class CompetitionService(
                 round.matches.add(matchEntity)
             }
 
-            matchEntity.homeTeamScore = score.home
-            matchEntity.awayTeamScore = score.away
-            matchEntity.status = mapStatus(fixture.fixture!!.status)
-            matchEntity.startTime = if (fixtureData.date != null && matchEntity.status != MatchStatus.NOT_DEFINED) {
-                fixtureData.date!!.toInstant()
+            matchEntity.homeTeamScore = fixture.score.home
+            matchEntity.awayTeamScore = fixture.score.away
+            matchEntity.status = mapStatus(fixture.status)
+            matchEntity.startTime = if (fixture.startTime != null && matchEntity.status != MatchStatus.NOT_DEFINED) {
+                fixture.startTime
             } else {
                 null
             }
         }
-        seasonRepository!!.save(seasonEntity)
+        val savedSeasonEntity: SeasonEntity? = seasonRepository!!.save(seasonEntity)
+        recordApiConnectorIds(savedSeasonEntity ?: seasonEntity)
         log.info("Fixtures have been successfully updated for the season {}", seasonEntity.id)
     }
 
-    private fun mapStatus(status: Status?): MatchStatus {
-        val fixtureStatus = status?.status
-        if (fixtureStatus == null) {
-            return MatchStatus.NOT_DEFINED
+    private fun mapStatus(status: FixtureSyncStatus): MatchStatus =
+        when (status) {
+            FixtureSyncStatus.PLANNED -> MatchStatus.PLANNED
+            FixtureSyncStatus.STARTED -> MatchStatus.STARTED
+            FixtureSyncStatus.NOT_DEFINED -> MatchStatus.NOT_DEFINED
+            FixtureSyncStatus.FINISHED -> MatchStatus.FINISHED
         }
 
-        return when (fixtureStatus) {
-            FixtureStatusEnum.NS -> MatchStatus.PLANNED
-            FixtureStatusEnum._1H,
-            FixtureStatusEnum.HT,
-            FixtureStatusEnum._2H,
-            FixtureStatusEnum.LIVE,
-            -> MatchStatus.STARTED
-            FixtureStatusEnum.ABD,
-            FixtureStatusEnum.CANC,
-            FixtureStatusEnum.INT,
-            FixtureStatusEnum.PST,
-            FixtureStatusEnum.SUSP,
-            FixtureStatusEnum.WO,
-            FixtureStatusEnum.TBD,
-            -> MatchStatus.NOT_DEFINED
-            FixtureStatusEnum.AET,
-            FixtureStatusEnum.P,
-            FixtureStatusEnum.PEN,
-            FixtureStatusEnum.ET,
-            FixtureStatusEnum.AWD,
-            FixtureStatusEnum.BT,
-            FixtureStatusEnum.FT,
-            -> MatchStatus.FINISHED
-        }
-    }
-
-    private fun getTeamEntity(team: Team): TeamEntity {
-        val teamEntityOptional = teamRepository!!.findFirstByApiFootballId(team.id!!)
-        if (teamEntityOptional.isPresent) {
-            var teamEntity = teamEntityOptional.get()
-            if (teamEntity.name == team.name && teamEntity.logoUrl == team.logo) {
+    private fun getTeamEntity(team: TeamSyncDto): TeamEntity {
+        val legacyApiFootballId = team.externalId.toLongOrNull()
+        if (legacyApiFootballId != null) {
+            val teamEntityOptional = teamRepository!!.findFirstByApiFootballId(legacyApiFootballId)
+            if (teamEntityOptional.isPresent) {
+                var teamEntity = teamEntityOptional.get()
+                if (teamEntity.name == team.name && teamEntity.logoUrl == team.logoUrl) {
+                    return teamEntity
+                }
+                teamEntity.name = team.name
+                teamEntity.logoUrl = team.logoUrl
+                teamEntity = teamRepository.save(teamEntity)
+                log.info("Team {} has been updated: {}", teamEntity.name, teamEntity.id)
                 return teamEntity
             }
-            teamEntity.name = team.name
-            teamEntity.logoUrl = team.logo
-            teamEntity = teamRepository.save(teamEntity)
-            log.info("Team {} has been updated: {}", teamEntity.name, teamEntity.id)
-            return teamEntity
         }
-        return createTeam(team)
+        return createTeam(team, legacyApiFootballId)
     }
 
-    private fun createTeam(team: Team): TeamEntity {
+    private fun createTeam(team: TeamSyncDto, legacyApiFootballId: Long?): TeamEntity {
         var teamEntity = TeamEntity().apply {
             name = team.name
-            apiFootballId = team.id
-            logoUrl = team.logo
+            apiFootballId = legacyApiFootballId
+            logoUrl = team.logoUrl
         }
         teamEntity = teamRepository!!.save(teamEntity)
         log.info("New team {} has been created: {}", teamEntity.name, teamEntity.id)
         return teamEntity
     }
 
-    private fun validateActiveSeasons(competitionId: UUID, season: Season) {
+    private fun validateActiveSeasons(competitionId: UUID, season: SeasonCreateRequestDto) {
         if (season.isActive()) {
             val activeSeasons = seasonRepository!!.countAllByActiveIsTrueAndCompetitionId(competitionId)
             if (activeSeasons > 0) {
@@ -250,22 +231,34 @@ open class CompetitionService(
     }
 
     private fun refreshRounds(seasonEntity: SeasonEntity) {
-        val actualRounds = apiFootballConnector!!.getRounds(seasonEntity.competition!!.apiFootballId!!, seasonEntity.year!!)
+        val actualRounds = apiConnector!!.getRounds(
+            seasonEntity.competition!!.apiFootballId!!.toString(),
+            seasonEntity.year!!,
+        )
         val roundEntities = seasonEntity.rounds
         val lastRound = roundEntities.maxByOrNull(RoundEntity::orderNumber)
         val nextOrderNumber = AtomicInteger(if (lastRound != null) lastRound.orderNumber + 1 else 1)
         for (round in actualRounds) {
-            if (roundEntities.none { roundEntity -> roundEntity.apiFootballId == round }) {
-                RoundType.getByAlias(round).forEach { roundType ->
+            if (roundEntities.none { roundEntity -> roundEntity.apiFootballId == round.externalId }) {
+                RoundType.getByAlias(round.name).forEach { roundType ->
                     roundEntities.add(
                         RoundEntity().apply {
                             type = roundType
-                            orderNumber = getOrderNumber(round, roundType, nextOrderNumber)
-                            apiFootballId = round
+                            orderNumber = round.orderNumber ?: getOrderNumber(round.name, roundType, nextOrderNumber)
+                            apiFootballId = round.externalId
                             this.season = seasonEntity
                         },
                     )
                 }
+            }
+        }
+    }
+
+    private fun validateActiveSeasons(competitionId: UUID, season: SeasonUpdateRequestDto) {
+        if (season.isActive()) {
+            val activeSeasons = seasonRepository!!.countAllByActiveIsTrueAndCompetitionId(competitionId)
+            if (activeSeasons > 0) {
+                throw RequestValidationException("Not possible to add more than one active season")
             }
         }
     }
@@ -280,6 +273,97 @@ open class CompetitionService(
 
     private fun getRound(rounds: List<RoundEntity>, apiFootballId: String): List<RoundEntity> =
         rounds.filter { roundEntity -> roundEntity.apiFootballId == apiFootballId }
+
+    // Phase 1 still merges existing records through legacy API-Football columns while connector IDs are backfilled.
+    private fun findMatchByLegacyApiFootballId(
+        matches: List<MatchEntity>,
+        externalId: String,
+    ): MatchEntity? =
+        matches.firstOrNull { match -> match.apiFootballId?.toString() == externalId }
+
+    private fun recordApiConnectorIds(seasonEntity: SeasonEntity) {
+        val connectorService = apiConnectorService ?: return
+        val connectorCode = connectorCode()
+        val competition = seasonEntity.competition
+        if (competition?.id != null && competition.apiFootballId != null) {
+            connectorService.upsertId(
+                connectorCode,
+                ApiConnectorEntityType.COMPETITION,
+                competition.apiFootballId!!.toString(),
+                scopeGlobal(connectorService),
+                competition.id!!,
+            )
+        }
+        if (competition?.id != null && seasonEntity.id != null && seasonEntity.year != null) {
+            connectorService.upsertId(
+                connectorCode,
+                ApiConnectorEntityType.SEASON,
+                seasonEntity.year!!,
+                scopeCompetition(connectorService, competition.id!!),
+                seasonEntity.id!!,
+            )
+        }
+        seasonEntity.rounds.forEach { round ->
+            if (round.id != null && round.apiFootballId != null && seasonEntity.id != null) {
+                connectorService.upsertId(
+                    connectorCode,
+                    ApiConnectorEntityType.ROUND,
+                    round.apiFootballId!!,
+                    scopeSeason(connectorService, seasonEntity.id!!),
+                    round.id!!,
+                )
+            }
+            round.matches.forEach { match ->
+                if (match.id != null && match.apiFootballId != null && seasonEntity.id != null) {
+                    connectorService.upsertId(
+                        connectorCode,
+                        ApiConnectorEntityType.MATCH,
+                        match.apiFootballId!!.toString(),
+                        scopeSeason(connectorService, seasonEntity.id!!),
+                        match.id!!,
+                    )
+                }
+                recordTeamMapping(connectorService, connectorCode, match.homeTeam)
+                recordTeamMapping(connectorService, connectorCode, match.awayTeam)
+            }
+        }
+    }
+
+    private fun recordTeamMapping(
+        connectorService: ApiConnectorService,
+        connectorCode: String,
+        team: TeamEntity?,
+    ) {
+        if (team?.id != null && team.apiFootballId != null) {
+            connectorService.upsertId(
+                connectorCode,
+                ApiConnectorEntityType.TEAM,
+                team.apiFootballId!!.toString(),
+                scopeGlobal(connectorService),
+                team.id!!,
+            )
+        }
+    }
+
+    private fun connectorCode(): String {
+        val connectorCode: String? = apiConnector!!.code
+        return connectorCode?.takeIf(String::isNotBlank) ?: API_FOOTBALL_CONNECTOR_CODE
+    }
+
+    private fun scopeGlobal(connectorService: ApiConnectorService): String {
+        val scope: String? = connectorService.scopeGlobal()
+        return scope ?: GLOBAL_SCOPE
+    }
+
+    private fun scopeCompetition(connectorService: ApiConnectorService, competitionId: UUID): String {
+        val scope: String? = connectorService.scopeCompetition(competitionId)
+        return scope ?: "competition:$competitionId"
+    }
+
+    private fun scopeSeason(connectorService: ApiConnectorService, seasonId: UUID): String {
+        val scope: String? = connectorService.scopeSeason(seasonId)
+        return scope ?: "season:$seasonId"
+    }
 
     private fun getRound(roundList: List<RoundEntity>, homeTeam: TeamEntity, awayTeam: TeamEntity): RoundEntity {
         if (roundList.isEmpty()) {
@@ -314,5 +398,7 @@ open class CompetitionService(
 
     private companion object {
         val log = LoggerFactory.getLogger(CompetitionService::class.java)
+        const val GLOBAL_SCOPE = "global"
+        const val API_FOOTBALL_CONNECTOR_CODE = "api-football"
     }
 }

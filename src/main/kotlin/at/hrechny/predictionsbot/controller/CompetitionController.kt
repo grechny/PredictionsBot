@@ -1,8 +1,11 @@
 package at.hrechny.predictionsbot.controller
 
+import at.hrechny.predictionsbot.controller.model.competition.CompetitionCreateRequestDto
+import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto
+import at.hrechny.predictionsbot.controller.model.competition.SeasonCreateRequestDto
+import at.hrechny.predictionsbot.controller.model.competition.SeasonResponseDto
+import at.hrechny.predictionsbot.controller.model.competition.SeasonUpdateRequestDto
 import at.hrechny.predictionsbot.exception.RequestValidationException
-import at.hrechny.predictionsbot.model.Competition
-import at.hrechny.predictionsbot.model.Season
 import at.hrechny.predictionsbot.service.predictor.CompetitionService
 import at.hrechny.predictionsbot.service.telegram.TelegramService
 import io.micronaut.http.HttpResponse
@@ -26,7 +29,7 @@ open class CompetitionController(
         consumes = [MediaType.APPLICATION_JSON],
         produces = [MediaType.APPLICATION_JSON],
     )
-    open fun addCompetition(@Valid @Body competition: Competition): HttpResponse<Map<String, UUID>> {
+    open fun addCompetition(@Valid @Body competition: CompetitionCreateRequestDto): HttpResponse<Map<String, UUID>> {
         if (competition.id != null) {
             throw RequestValidationException("Setting of competition id is not allowed")
         }
@@ -37,7 +40,8 @@ open class CompetitionController(
     }
 
     @Get(value = "/\${secrets.adminKey:}/competitions", produces = [MediaType.APPLICATION_JSON])
-    open fun getCompetitions(): HttpResponse<List<Competition>> = HttpResponse.ok(competitionService.getCompetitions())
+    open fun getCompetitions(): HttpResponse<List<CompetitionResponseDto>> =
+        HttpResponse.ok(competitionService.getCompetitions())
 
     @Post(
         value = "/\${secrets.adminKey:}/competitions/{competitionId}/seasons",
@@ -46,7 +50,7 @@ open class CompetitionController(
     )
     open fun addSeason(
         @PathVariable("competitionId") competitionId: UUID,
-        @Valid @Body season: Season,
+        @Valid @Body season: SeasonCreateRequestDto,
     ): HttpResponse<Map<String, UUID>> {
         if (season.id != null) {
             throw RequestValidationException("Setting of season id is not allowed")
@@ -58,14 +62,14 @@ open class CompetitionController(
     }
 
     @Get(value = "/\${secrets.adminKey:}/competitions/{competitionId}/seasons", produces = [MediaType.APPLICATION_JSON])
-    open fun getSeasons(@PathVariable("competitionId") competitionId: UUID): HttpResponse<List<Season>> =
+    open fun getSeasons(@PathVariable("competitionId") competitionId: UUID): HttpResponse<List<SeasonResponseDto>> =
         HttpResponse.ok(competitionService.getSeasons(competitionId))
 
     @Put(value = "/\${secrets.adminKey:}/competitions/{competitionId}/seasons/{seasonId}", consumes = [MediaType.APPLICATION_JSON])
     open fun updateSeason(
         @PathVariable("competitionId") competitionId: UUID,
         @PathVariable("seasonId") seasonId: UUID,
-        @Valid @Body season: Season,
+        @Valid @Body season: SeasonUpdateRequestDto,
     ): HttpResponse<Void> {
         if (season.id != null && season.id != seasonId) {
             throw RequestValidationException("Season ID cannot be updated")

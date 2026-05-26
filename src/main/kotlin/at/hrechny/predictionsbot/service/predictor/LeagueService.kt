@@ -6,8 +6,9 @@ import at.hrechny.predictionsbot.database.repository.CompetitionRepository
 import at.hrechny.predictionsbot.database.repository.LeagueRepository
 import at.hrechny.predictionsbot.database.repository.UserRepository
 import at.hrechny.predictionsbot.exception.InputValidationException
-import at.hrechny.predictionsbot.model.LeagueRequest
-import at.hrechny.predictionsbot.model.LeagueResponse
+import at.hrechny.predictionsbot.controller.model.league.LeagueCreateRequestDto
+import at.hrechny.predictionsbot.controller.model.league.LeagueResponseDto
+import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto
 import jakarta.inject.Singleton
 import io.micronaut.transaction.annotation.Transactional
 import java.util.UUID
@@ -21,7 +22,7 @@ open class LeagueService(
     private val leagueRules: LeagueRules,
 ) {
     @Transactional
-    open fun create(userId: Long?, leagueRequest: LeagueRequest?): LeagueResponse {
+    open fun create(userId: Long?, leagueRequest: LeagueCreateRequestDto?): LeagueResponseDto {
         log.info("Creating new league {} by user {}", leagueRequest!!.name, userId)
 
         leagueRules.validateName(leagueRequest.name)
@@ -39,11 +40,11 @@ open class LeagueService(
             },
         )
         log.info("Created new league {}", leagueEntity.id)
-        return LeagueResponse(leagueEntity.id)
+        return LeagueResponseDto(leagueEntity.id)
     }
 
     @Transactional
-    open fun update(userId: Long?, leagueId: UUID, leagueRequest: LeagueRequest?): LeagueResponse? {
+    open fun update(userId: Long?, leagueId: UUID, leagueRequest: LeagueUpdateRequestDto?): LeagueResponseDto? {
         val adminUser = getUser(userId!!)
         val league = leagueRepository.findById(leagueId).orElseThrow()
         leagueRules.ensureLeagueAdmin(league.adminUser == adminUser)
@@ -51,10 +52,10 @@ open class LeagueService(
     }
 
     @Transactional
-    open fun join(userId: Long?, leagueId: UUID): LeagueResponse? = null
+    open fun join(userId: Long?, leagueId: UUID): LeagueResponseDto? = null
 
     @Transactional
-    open fun delete(userId: Long?, leagueId: UUID): LeagueResponse? = null
+    open fun delete(userId: Long?, leagueId: UUID): LeagueResponseDto? = null
 
     @Transactional
     open fun joinLeague(leagueIdString: String, userId: Long?): LeagueEntity {

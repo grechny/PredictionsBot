@@ -20,13 +20,14 @@ import at.hrechny.predictionsbot.database.entity.TeamEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.model.RoundType;
+import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto;
+import at.hrechny.predictionsbot.controller.model.league.LeagueCreateRequestDto;
+import at.hrechny.predictionsbot.controller.model.league.LeagueResponseDto;
+import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto;
+import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto;
+import at.hrechny.predictionsbot.controller.model.user.UserResponseDto;
 import at.hrechny.predictionsbot.exception.InputValidationException;
 import at.hrechny.predictionsbot.exception.LimitExceededException;
-import at.hrechny.predictionsbot.model.Competition;
-import at.hrechny.predictionsbot.model.LeagueRequest;
-import at.hrechny.predictionsbot.model.LeagueResponse;
-import at.hrechny.predictionsbot.model.Result;
-import at.hrechny.predictionsbot.model.User;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.LeagueService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
@@ -113,7 +114,7 @@ class TelegramWebAppControllerTest {
   @Test
   void predictionsRouteBuildsNoUpcomingMatchesModelWhenRoundIsEmpty() {
     var competitionId = UUID.randomUUID();
-    var competition = new Competition();
+    var competition = new CompetitionResponseDto();
     competition.setName("Premier League");
 
     when(userService.getUser(USER_ID)).thenReturn(userEntity());
@@ -200,8 +201,8 @@ class TelegramWebAppControllerTest {
   void createLeagueRouteDelegatesRequestToLeagueService() {
     var leagueId = UUID.randomUUID();
     var competitionId = UUID.randomUUID();
-    var request = leagueRequest("Office League", List.of(competitionId));
-    when(leagueService.create(eq(USER_ID), any())).thenReturn(new LeagueResponse(leagueId));
+    var request = leagueCreateRequest("Office League", List.of(competitionId));
+    when(leagueService.create(eq(USER_ID), any())).thenReturn(new LeagueResponseDto(leagueId));
 
     var response = controller.createLeague(HASH, USER_ID, request);
 
@@ -216,7 +217,7 @@ class TelegramWebAppControllerTest {
   void createLeagueRouteMapsValidationFailuresToBadRequest() {
     when(leagueService.create(any(), any())).thenThrow(new InputValidationException("invalid"));
 
-    var response = controller.createLeague(HASH, USER_ID, leagueRequest("ab", List.of()));
+    var response = controller.createLeague(HASH, USER_ID, leagueCreateRequest("ab", List.of()));
 
     assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.BAD_REQUEST.getCode());
     verify(userService, never()).getUser(USER_ID);
@@ -226,7 +227,7 @@ class TelegramWebAppControllerTest {
   void createLeagueRouteMapsLimitFailuresToConflict() {
     when(leagueService.create(any(), any())).thenThrow(new LimitExceededException("too many leagues"));
 
-    var response = controller.createLeague(HASH, USER_ID, leagueRequest("Office League", List.of()));
+    var response = controller.createLeague(HASH, USER_ID, leagueCreateRequest("Office League", List.of()));
 
     assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.CONFLICT.getCode());
   }
@@ -235,8 +236,8 @@ class TelegramWebAppControllerTest {
   void updateLeagueRouteDelegatesRequestToLeagueService() {
     var leagueId = UUID.randomUUID();
     var competitionId = UUID.randomUUID();
-    var request = leagueRequest("Updated League", List.of(competitionId));
-    when(leagueService.update(eq(USER_ID), eq(leagueId), any())).thenReturn(new LeagueResponse(leagueId));
+    var request = leagueUpdateRequest("Updated League", List.of(competitionId));
+    when(leagueService.update(eq(USER_ID), eq(leagueId), any())).thenReturn(new LeagueResponseDto(leagueId));
 
     var response = controller.updateLeague(HASH, USER_ID, leagueId, request);
 
@@ -252,7 +253,7 @@ class TelegramWebAppControllerTest {
     var leagueId = UUID.randomUUID();
     when(leagueService.update(eq(USER_ID), eq(leagueId), any())).thenThrow(new InputValidationException("invalid"));
 
-    var response = controller.updateLeague(HASH, USER_ID, leagueId, leagueRequest("Updated League", List.of()));
+    var response = controller.updateLeague(HASH, USER_ID, leagueId, leagueUpdateRequest("Updated League", List.of()));
 
     assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.BAD_REQUEST.getCode());
   }
@@ -260,7 +261,7 @@ class TelegramWebAppControllerTest {
   @Test
   void joinLeagueRouteDelegatesToLeagueService() {
     var leagueId = UUID.randomUUID();
-    when(leagueService.join(USER_ID, leagueId)).thenReturn(new LeagueResponse(leagueId));
+    when(leagueService.join(USER_ID, leagueId)).thenReturn(new LeagueResponseDto(leagueId));
 
     var response = controller.joinLeague(HASH, USER_ID, leagueId);
 
@@ -282,7 +283,7 @@ class TelegramWebAppControllerTest {
   @Test
   void deleteLeagueRouteDelegatesToLeagueService() {
     var leagueId = UUID.randomUUID();
-    when(leagueService.delete(USER_ID, leagueId)).thenReturn(new LeagueResponse(leagueId));
+    when(leagueService.delete(USER_ID, leagueId)).thenReturn(new LeagueResponseDto(leagueId));
 
     var response = controller.deleteLeague(HASH, USER_ID, leagueId);
 
@@ -377,22 +378,29 @@ class TelegramWebAppControllerTest {
     return prediction;
   }
 
-  private Competition competition(String name) {
-    var competition = new Competition();
+  private CompetitionResponseDto competition(String name) {
+    var competition = new CompetitionResponseDto();
     competition.setName(name);
     return competition;
   }
 
-  private LeagueRequest leagueRequest(String name, List<UUID> competitions) {
-    var request = new LeagueRequest();
+  private LeagueCreateRequestDto leagueCreateRequest(String name, List<UUID> competitions) {
+    var request = new LeagueCreateRequestDto();
     request.setName(name);
     request.setCompetitions(competitions);
     return request;
   }
 
-  private Result result(Long userId, String userName, int predictions, int guessed, int sum, Integer liveSum) {
-    var result = new Result();
-    var user = new User();
+  private LeagueUpdateRequestDto leagueUpdateRequest(String name, List<UUID> competitions) {
+    var request = new LeagueUpdateRequestDto();
+    request.setName(name);
+    request.setCompetitions(competitions);
+    return request;
+  }
+
+  private ResultResponseDto result(Long userId, String userName, int predictions, int guessed, int sum, Integer liveSum) {
+    var result = new ResultResponseDto();
+    var user = new UserResponseDto();
     user.setId(userId);
     user.setName(userName);
     result.setUser(user);

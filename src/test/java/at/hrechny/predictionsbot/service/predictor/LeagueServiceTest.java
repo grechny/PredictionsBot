@@ -13,9 +13,10 @@ import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.database.repository.CompetitionRepository;
 import at.hrechny.predictionsbot.database.repository.LeagueRepository;
 import at.hrechny.predictionsbot.database.repository.UserRepository;
+import at.hrechny.predictionsbot.controller.model.league.LeagueCreateRequestDto;
+import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto;
 import at.hrechny.predictionsbot.exception.InputValidationException;
 import at.hrechny.predictionsbot.exception.LimitExceededException;
-import at.hrechny.predictionsbot.model.LeagueRequest;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -63,7 +64,7 @@ class LeagueServiceTest {
       return league;
     });
 
-    var response = leagueService.create(USER_ID, leagueRequest("Office League", requestedCompetition.getId()));
+    var response = leagueService.create(USER_ID, leagueCreateRequest("Office League", requestedCompetition.getId()));
 
     assertThat(response.getId()).isNotNull();
 
@@ -78,7 +79,7 @@ class LeagueServiceTest {
 
   @Test
   void createRejectsBlankLeagueNameBeforeRepositorySave() {
-    assertThatThrownBy(() -> leagueService.create(USER_ID, leagueRequest(" ", UUID.randomUUID())))
+    assertThatThrownBy(() -> leagueService.create(USER_ID, leagueCreateRequest(" ", UUID.randomUUID())))
         .isInstanceOf(InputValidationException.class)
         .hasMessage("League name cannot be empty");
 
@@ -91,7 +92,7 @@ class LeagueServiceTest {
     user.setLeagues(leagues(11));
     when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
-    assertThatThrownBy(() -> leagueService.create(USER_ID, leagueRequest("Office League", UUID.randomUUID())))
+    assertThatThrownBy(() -> leagueService.create(USER_ID, leagueCreateRequest("Office League", UUID.randomUUID())))
         .isInstanceOf(LimitExceededException.class)
         .hasMessage("User is already a member of another league");
 
@@ -107,7 +108,7 @@ class LeagueServiceTest {
     when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
     when(leagueRepository.findById(leagueId)).thenReturn(Optional.of(league));
 
-    assertThatThrownBy(() -> leagueService.update(USER_ID, leagueId, leagueRequest("Updated League", UUID.randomUUID())))
+    assertThatThrownBy(() -> leagueService.update(USER_ID, leagueId, leagueUpdateRequest("Updated League", UUID.randomUUID())))
         .isInstanceOf(InputValidationException.class)
         .hasMessage("User is not the admin of this league and cannot update it");
   }
@@ -179,8 +180,15 @@ class LeagueServiceTest {
     verify(leagueRepository, never()).save(any());
   }
 
-  private LeagueRequest leagueRequest(String name, UUID competitionId) {
-    var request = new LeagueRequest();
+  private LeagueCreateRequestDto leagueCreateRequest(String name, UUID competitionId) {
+    var request = new LeagueCreateRequestDto();
+    request.setName(name);
+    request.setCompetitions(List.of(competitionId));
+    return request;
+  }
+
+  private LeagueUpdateRequestDto leagueUpdateRequest(String name, UUID competitionId) {
+    var request = new LeagueUpdateRequestDto();
     request.setName(name);
     request.setCompetitions(List.of(competitionId));
     return request;

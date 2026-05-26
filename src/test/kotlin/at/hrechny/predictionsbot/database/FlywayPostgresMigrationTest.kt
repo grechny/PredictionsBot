@@ -22,7 +22,7 @@ class FlywayPostgresMigrationTest {
 
         val result = flyway.migrate()
 
-        assertThat(result.migrationsExecuted).isEqualTo(2)
+        assertThat(result.migrationsExecuted).isEqualTo(3)
         DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()).use { connection ->
             connection.prepareStatement(
                 """
@@ -37,7 +37,7 @@ class FlywayPostgresMigrationTest {
                     'leagues_users',
                     'matches',
                     'predictions',
-                    'provider_external_ids',
+                    'api_connector_ids',
                     'rounds',
                     'seasons',
                     'teams',
@@ -53,6 +53,7 @@ class FlywayPostgresMigrationTest {
                     }.toList()
 
                     assertThat(tableNames).containsExactly(
+                        "api_connector_ids",
                         "audit",
                         "competitions",
                         "leagues",
@@ -60,7 +61,6 @@ class FlywayPostgresMigrationTest {
                         "leagues_users",
                         "matches",
                         "predictions",
-                        "provider_external_ids",
                         "rounds",
                         "seasons",
                         "teams",
@@ -75,7 +75,7 @@ class FlywayPostgresMigrationTest {
                 select column_name
                 from information_schema.columns
                 where table_schema = 'public'
-                  and table_name = 'provider_external_ids'
+                  and table_name = 'api_connector_ids'
                 order by ordinal_position
                 """.trimIndent(),
             ).use { statement ->
@@ -86,9 +86,9 @@ class FlywayPostgresMigrationTest {
 
                     assertThat(columnNames).contains(
                         "id",
-                        "provider_code",
+                        "connector_code",
                         "entity_type",
-                        "external_id",
+                        "connector_entity_id",
                         "scope_key",
                         "internal_id",
                         "created_at",

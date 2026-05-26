@@ -9,8 +9,8 @@ import at.hrechny.predictionsbot.database.repository.MatchRepository
 import at.hrechny.predictionsbot.exception.NotFoundException
 import at.hrechny.predictionsbot.exception.RequestValidationException
 import at.hrechny.predictionsbot.mapper.UserMapper
-import at.hrechny.predictionsbot.model.Prediction
-import at.hrechny.predictionsbot.model.Result
+import at.hrechny.predictionsbot.controller.model.prediction.PredictionRequestDto
+import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto
 import jakarta.inject.Singleton
 import io.micronaut.transaction.annotation.Transactional
 import java.time.Instant
@@ -26,7 +26,7 @@ open class PredictionService(
     private val userService: UserService?,
     private val predictionResultsCalculator: PredictionResultsCalculator,
 ) {
-    open fun savePredictions(userId: Long, predictions: List<Prediction>?) {
+    open fun savePredictions(userId: Long, predictions: List<PredictionRequestDto>?) {
         log.info("Saving predictions for the user {}", userId)
         val user = userService!!.getUser(userId)
 
@@ -63,13 +63,13 @@ open class PredictionService(
         }
     }
 
-    open fun getResults(seasonId: UUID): List<Result> {
+    open fun getResults(seasonId: UUID): List<ResultResponseDto> {
         val season = competitionService!!.getSeason(seasonId)
         val matches = season.rounds.flatMap { roundEntity -> roundEntity.matches }
         return getResults(matches)
     }
 
-    open fun getResults(matches: List<MatchEntity>): List<Result> =
+    open fun getResults(matches: List<MatchEntity>): List<ResultResponseDto> =
         predictionResultsCalculator.calculate(toResultInputs(matches))
             .map(::toResult)
 
@@ -90,8 +90,8 @@ open class PredictionService(
                 }
             }
 
-    private fun toResult(predictionUserResult: PredictionUserResult): Result =
-        Result().apply {
+    private fun toResult(predictionUserResult: PredictionUserResult): ResultResponseDto =
+        ResultResponseDto().apply {
             user = userMapper!!.entityToModel(predictionUserResult.user)
             predictions = predictionUserResult.predictions
             guessed = predictionUserResult.guessed

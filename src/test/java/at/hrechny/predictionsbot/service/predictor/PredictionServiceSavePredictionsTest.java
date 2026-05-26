@@ -16,7 +16,7 @@ import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.exception.RequestValidationException;
 import at.hrechny.predictionsbot.mapper.UserMapper;
-import at.hrechny.predictionsbot.model.Prediction;
+import at.hrechny.predictionsbot.controller.model.prediction.PredictionRequestDto;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -166,8 +166,8 @@ class PredictionServiceSavePredictionsTest {
     return prediction;
   }
 
-  private Prediction prediction(UUID matchId, int home, int away, boolean doubleUp) {
-    var prediction = new Prediction();
+  private PredictionRequestDto prediction(UUID matchId, int home, int away, boolean doubleUp) {
+    var prediction = new PredictionRequestDto();
     prediction.setMatchId(matchId);
     prediction.setPredictionHome(home);
     prediction.setPredictionAway(away);
