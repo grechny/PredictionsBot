@@ -7,23 +7,47 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.DriverManager
+import java.util.UUID
 
 @Testcontainers(disabledWithoutDocker = true)
 class FlywayPostgresMigrationTest {
     @Test
     fun baselineMigrationCreatesExpectedPostgresSchema() {
-        val flyway = Flyway.configure()
+        val flywayToV4 = Flyway.configure()
             .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
             .locations("classpath:db/migration")
+            .target("4")
             .baselineOnMigrate(true)
             .validateOnMigrate(true)
             .cleanDisabled(true)
             .load()
 
-        val result = flyway.migrate()
+        val v4Result = flywayToV4.migrate()
 
-        assertThat(result.migrationsExecuted).isEqualTo(4)
+        assertThat(v4Result.migrationsExecuted).isEqualTo(4)
         DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()).use { connection ->
+            val legacyAuditId = UUID.randomUUID()
+            connection.prepareStatement(
+                """
+                insert into public.audit (id, connector_code, request_uri, request_date, success)
+                values (?, 'API_FOOTBALL', '/fixtures?league=39&season=2025', timestamp '2026-05-26 14:36:39', true)
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, legacyAuditId)
+                statement.executeUpdate()
+            }
+
+            val flyway = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .locations("classpath:db/migration")
+                .baselineOnMigrate(true)
+                .validateOnMigrate(true)
+                .cleanDisabled(true)
+                .load()
+            val v5Result = flyway.migrate()
+
+            assertThat(v5Result.migrationsExecuted).isEqualTo(1)
+
             connection.prepareStatement(
                 """
                 select table_name
@@ -67,6 +91,20 @@ class FlywayPostgresMigrationTest {
                         "users",
                         "users_competitions",
                     )
+                }
+            }
+
+            connection.prepareStatement(
+                """
+                select connector_code
+                from public.audit
+                where id = ?
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, legacyAuditId)
+                statement.executeQuery().use { resultSet ->
+                    assertThat(resultSet.next()).isTrue()
+                    assertThat(resultSet.getString("connector_code")).isEqualTo("api-football")
                 }
             }
 
