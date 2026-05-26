@@ -13,10 +13,12 @@ import static org.mockito.Mockito.when;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
 import at.hrechny.predictionsbot.exception.RequestValidationException;
-import at.hrechny.predictionsbot.model.Competition;
-import at.hrechny.predictionsbot.model.Prediction;
-import at.hrechny.predictionsbot.model.PushUpdate;
-import at.hrechny.predictionsbot.model.Season;
+import at.hrechny.predictionsbot.controller.model.competition.CompetitionCreateRequestDto;
+import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto;
+import at.hrechny.predictionsbot.controller.model.competition.SeasonCreateRequestDto;
+import at.hrechny.predictionsbot.controller.model.competition.SeasonUpdateRequestDto;
+import at.hrechny.predictionsbot.controller.model.prediction.PredictionRequestDto;
+import at.hrechny.predictionsbot.controller.model.service.PushUpdateRequestDto;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
@@ -62,8 +64,8 @@ class AdminControllerTest {
   @Test
   void addCompetitionStoresCompetitionAndSendsTelegramCompetitionUpdate() {
     var competitionId = UUID.randomUUID();
-    var request = competition(null, "Premier League", 39L, true);
-    when(competitionService.addCompetition(any(Competition.class))).thenReturn(competitionId);
+    var request = competitionCreateRequest(null, "Premier League", 39L, true);
+    when(competitionService.addCompetition(any(CompetitionCreateRequestDto.class))).thenReturn(competitionId);
 
     var response = competitionController.addCompetition(request);
 
@@ -79,7 +81,7 @@ class AdminControllerTest {
 
   @Test
   void addCompetitionRejectsClientProvidedIdBeforeSideEffects() {
-    var request = competition(UUID.randomUUID(), "Premier League", 39L, true);
+    var request = competitionCreateRequest(UUID.randomUUID(), "Premier League", 39L, true);
 
     assertThatThrownBy(() -> competitionController.addCompetition(request))
         .isInstanceOf(RequestValidationException.class);
@@ -89,7 +91,7 @@ class AdminControllerTest {
 
   @Test
   void getCompetitionsReturnsCompetitionList() {
-    var competition = competition(UUID.randomUUID(), "Premier League", 39L, true);
+    var competition = competitionResponse(UUID.randomUUID(), "Premier League", 39L, true);
     when(competitionService.getCompetitions()).thenReturn(List.of(competition));
 
     var response = competitionController.getCompetitions();
@@ -102,8 +104,8 @@ class AdminControllerTest {
   void addSeasonStoresSeasonAndPushesCompetitionUpdate() {
     var competitionId = UUID.randomUUID();
     var seasonId = UUID.randomUUID();
-    var request = season(null, Year.of(2026), true);
-    when(competitionService.addSeason(eq(competitionId), any(Season.class))).thenReturn(seasonId);
+    var request = seasonCreateRequest(null, Year.of(2026), true);
+    when(competitionService.addSeason(eq(competitionId), any(SeasonCreateRequestDto.class))).thenReturn(seasonId);
 
     var response = competitionController.addSeason(competitionId, request);
 
@@ -119,12 +121,12 @@ class AdminControllerTest {
   @Test
   void addSeasonRejectsClientProvidedIdBeforeSideEffects() {
     var competitionId = UUID.randomUUID();
-    var request = season(UUID.randomUUID(), Year.of(2026), true);
+    var request = seasonCreateRequest(UUID.randomUUID(), Year.of(2026), true);
 
     assertThatThrownBy(() -> competitionController.addSeason(competitionId, request))
         .isInstanceOf(RequestValidationException.class);
 
-    verify(competitionService, never()).addSeason(eq(competitionId), any(Season.class));
+    verify(competitionService, never()).addSeason(eq(competitionId), any(SeasonCreateRequestDto.class));
     verifyNoInteractions(telegramService);
   }
 
@@ -132,7 +134,7 @@ class AdminControllerTest {
   void updateSeasonUsesPathSeasonIdAndPushesCompetitionUpdate() {
     var competitionId = UUID.randomUUID();
     var seasonId = UUID.randomUUID();
-    var request = season(null, Year.of(2026), false);
+    var request = seasonUpdateRequest(null, Year.of(2026), false);
 
     var response = competitionController.updateSeason(competitionId, seasonId, request);
 
@@ -148,12 +150,12 @@ class AdminControllerTest {
   void updateSeasonRejectsMismatchedBodyIdBeforeSideEffects() {
     var competitionId = UUID.randomUUID();
     var seasonId = UUID.randomUUID();
-    var request = season(UUID.randomUUID(), Year.of(2026), true);
+    var request = seasonUpdateRequest(UUID.randomUUID(), Year.of(2026), true);
 
     assertThatThrownBy(() -> competitionController.updateSeason(competitionId, seasonId, request))
         .isInstanceOf(RequestValidationException.class);
 
-    verify(competitionService, never()).updateSeason(eq(competitionId), any(Season.class));
+    verify(competitionService, never()).updateSeason(eq(competitionId), any(SeasonUpdateRequestDto.class));
     verifyNoInteractions(telegramService);
   }
 
@@ -206,7 +208,7 @@ class AdminControllerTest {
     var secondUser = user(2L);
     when(userService.getUsers()).thenReturn(List.of(firstUser, secondUser));
 
-    var request = new PushUpdate();
+    var request = new PushUpdateRequestDto();
     request.setMessage("Refresh competitions");
     request.setUpdateCompetitionList(true);
 
@@ -217,8 +219,8 @@ class AdminControllerTest {
     verify(telegramService).pushUpdate(2L, "Refresh competitions", true);
   }
 
-  private Competition competition(UUID id, String name, Long apiFootballId, boolean active) {
-    var competition = new Competition();
+  private CompetitionCreateRequestDto competitionCreateRequest(UUID id, String name, Long apiFootballId, boolean active) {
+    var competition = new CompetitionCreateRequestDto();
     competition.setId(id);
     competition.setName(name);
     competition.setApiFootballId(apiFootballId);
@@ -226,16 +228,33 @@ class AdminControllerTest {
     return competition;
   }
 
-  private Season season(UUID id, Year year, boolean active) {
-    var season = new Season();
+  private CompetitionResponseDto competitionResponse(UUID id, String name, Long apiFootballId, boolean active) {
+    var competition = new CompetitionResponseDto();
+    competition.setId(id);
+    competition.setName(name);
+    competition.setApiFootballId(apiFootballId);
+    competition.setActive(active);
+    return competition;
+  }
+
+  private SeasonCreateRequestDto seasonCreateRequest(UUID id, Year year, boolean active) {
+    var season = new SeasonCreateRequestDto();
     season.setId(id);
     season.setYear(year);
     season.setActive(active);
     return season;
   }
 
-  private Prediction prediction(UUID matchId, int home, int away, boolean doubleUp) {
-    var prediction = new Prediction();
+  private SeasonUpdateRequestDto seasonUpdateRequest(UUID id, Year year, boolean active) {
+    var season = new SeasonUpdateRequestDto();
+    season.setId(id);
+    season.setYear(year);
+    season.setActive(active);
+    return season;
+  }
+
+  private PredictionRequestDto prediction(UUID matchId, int home, int away, boolean doubleUp) {
+    var prediction = new PredictionRequestDto();
     prediction.setMatchId(matchId);
     prediction.setPredictionHome(home);
     prediction.setPredictionAway(away);

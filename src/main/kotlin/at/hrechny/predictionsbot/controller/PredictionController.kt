@@ -1,7 +1,7 @@
 package at.hrechny.predictionsbot.controller
 
+import at.hrechny.predictionsbot.controller.model.prediction.PredictionRequestDto
 import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport
-import at.hrechny.predictionsbot.model.Prediction
 import at.hrechny.predictionsbot.service.predictor.PredictionService
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.MediaType
@@ -19,7 +19,7 @@ open class PredictionController(
     @Post(value = "/\${secrets.adminKey:}/users/{userId}/predictions", consumes = [MediaType.APPLICATION_JSON])
     open fun addPredictions(
         @PathVariable("userId") userId: Long,
-        @Valid @Body predictions: List<Prediction>,
+        @Valid @Body predictions: List<PredictionRequestDto>,
     ): HttpResponse<Void> {
         predictionService.savePredictions(userId, predictions)
         return HttpResponse.ok()

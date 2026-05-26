@@ -1,7 +1,7 @@
 package at.hrechny.predictionsbot.service.telegram
 
+import at.hrechny.predictionsbot.controller.model.prediction.PredictionRequestDto
 import at.hrechny.predictionsbot.exception.NotFoundException
-import at.hrechny.predictionsbot.model.Prediction
 import at.hrechny.predictionsbot.service.predictor.PredictionService
 import at.hrechny.predictionsbot.service.predictor.UserService
 import at.hrechny.predictionsbot.util.TimeZoneUtils
@@ -128,7 +128,7 @@ open class MessageListener(
     private fun savePredictions(message: Message) {
         val predictions = objectMapper.readValue(
             message.webAppData!!.data,
-            object : TypeReference<List<Prediction>>() {},
+            object : TypeReference<List<PredictionRequestDto>>() {},
         )
         predictionService.savePredictions(message.from!!.id, predictions)
     }

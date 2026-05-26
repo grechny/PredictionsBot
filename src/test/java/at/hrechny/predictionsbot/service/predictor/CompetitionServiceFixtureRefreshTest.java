@@ -9,14 +9,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import at.hrechny.predictionsbot.connector.FootballDataProvider;
-import at.hrechny.predictionsbot.exception.FootballDataProviderException;
-import at.hrechny.predictionsbot.exception.FootballDataProviderException.Reason;
-import at.hrechny.predictionsbot.model.football.FootballFixtureStatus;
-import at.hrechny.predictionsbot.model.football.FootballFixtureSyncDto;
-import at.hrechny.predictionsbot.model.football.FootballRoundSyncDto;
-import at.hrechny.predictionsbot.model.football.FootballScoreSyncDto;
-import at.hrechny.predictionsbot.model.football.FootballTeamSyncDto;
+import at.hrechny.predictionsbot.connector.ApiConnector;
+import at.hrechny.predictionsbot.exception.ApiConnectorException;
+import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason;
+import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus;
+import at.hrechny.predictionsbot.connector.model.FixtureSyncDto;
+import at.hrechny.predictionsbot.connector.model.RoundSyncDto;
+import at.hrechny.predictionsbot.connector.model.ScoreSyncDto;
+import at.hrechny.predictionsbot.connector.model.TeamSyncDto;
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
 import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.RoundEntity;
@@ -27,7 +27,6 @@ import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.database.repository.TeamRepository;
-import at.hrechny.predictionsbot.model.football.FootballDataProviderId;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -53,17 +52,17 @@ class CompetitionServiceFixtureRefreshTest {
   private MatchRepository matchRepository;
 
   @Mock
-  private FootballDataProvider footballDataProvider;
+  private ApiConnector apiConnector;
 
   @Mock
-  private ProviderExternalIdService providerExternalIdService;
+  private ApiConnectorService apiConnectorService;
 
   private CompetitionService competitionService;
 
   @BeforeEach
   void setUp() {
-    lenient().when(footballDataProvider.getProviderId())
-        .thenReturn(new FootballDataProviderId("api-football"));
+    lenient().when(apiConnector.getCode())
+        .thenReturn("api-football");
     competitionService = new CompetitionService(
         null,
         seasonRepository,
@@ -71,19 +70,19 @@ class CompetitionServiceFixtureRefreshTest {
         null,
         teamRepository,
         matchRepository,
-        footballDataProvider,
-        providerExternalIdService);
+        apiConnector,
+        apiConnectorService);
   }
 
   @Test
-  void refreshActiveFixturesDoesNotCallProviderWhenNoActiveMatchesExist() {
+  void refreshActiveFixturesDoesNotCallConnectorWhenNoActiveMatchesExist() {
     var season = season();
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of());
 
     competitionService.refreshActiveFixtures(season.getId());
 
-    verifyNoInteractions(footballDataProvider);
+    verifyNoInteractions(apiConnector);
     verify(seasonRepository, never()).save(season);
   }
 
@@ -100,7 +99,7 @@ class CompetitionServiceFixtureRefreshTest {
         100L,
         "Regular Season - 1",
         kickoff,
-        FootballFixtureStatus.FINISHED,
+        FixtureSyncStatus.FINISHED,
         team(1L, "Arsenal", "arsenal-new.png"),
         team(2L, "Chelsea", "chelsea-new.png"),
         2,
@@ -108,7 +107,7 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
-    when(footballDataProvider.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of(fixture));
+    when(apiConnector.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of(fixture));
 
     competitionService.refreshActiveFixtures(season.getId());
 
@@ -120,7 +119,7 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
-  void refreshActiveFixturesLeavesExistingDataWhenProviderFails() {
+  void refreshActiveFixturesLeavesExistingDataWhenConnectorFails() {
     var season = season();
     var round = round(season, "Regular Season - 1");
     var match = existingMatch(round, 100L, "Arsenal", "Chelsea");
@@ -129,8 +128,8 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
-    when(footballDataProvider.getFixturesByExternalIds(anyList())).thenThrow(
-        new FootballDataProviderException("api-football", Reason.QUOTA_EXCEEDED, null, null));
+    when(apiConnector.getFixturesByExternalIds(anyList())).thenThrow(
+        new ApiConnectorException("api-football", Reason.QUOTA_EXCEEDED, null, null));
 
     competitionService.refreshActiveFixtures(season.getId());
 
@@ -141,7 +140,7 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
-  void refreshActiveFixturesEmptyProviderResponseLeavesExistingDataAndSavesSeason() {
+  void refreshActiveFixturesEmptyConnectorResponseLeavesExistingDataAndSavesSeason() {
     var season = season();
     var round = round(season, "Regular Season - 1");
     var match = existingMatch(round, 100L, "Arsenal", "Chelsea");
@@ -153,7 +152,7 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
-    when(footballDataProvider.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of());
+    when(apiConnector.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of());
 
     competitionService.refreshActiveFixtures(season.getId());
 
@@ -164,7 +163,7 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
-  void refreshFixturesCreatesTeamsAndMatchForNewProviderFixture() {
+  void refreshFixturesCreatesTeamsAndMatchForNewConnectorFixture() {
     var season = season();
     var round = round(season, "Regular Season - 1");
     season.setRounds(List.of(round));
@@ -175,13 +174,13 @@ class CompetitionServiceFixtureRefreshTest {
         100L,
         "Regular Season - 1",
         OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC),
-        FootballFixtureStatus.PLANNED,
+        FixtureSyncStatus.PLANNED,
         homeTeam,
         awayTeam,
         null,
         null);
 
-    when(footballDataProvider.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
+    when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(teamRepository.findFirstByApiFootballId(1L)).thenReturn(Optional.empty());
     when(teamRepository.findFirstByApiFootballId(2L)).thenReturn(Optional.empty());
@@ -206,7 +205,7 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
-  void refreshFixturesCreatesMissingRoundWhenProviderReturnsUnknownRound() {
+  void refreshFixturesCreatesMissingRoundWhenConnectorReturnsUnknownRound() {
     var season = season();
     var existingRound = round(season, "Regular Season - 1");
     existingRound.setMatches(new ArrayList<>());
@@ -218,14 +217,14 @@ class CompetitionServiceFixtureRefreshTest {
         100L,
         "Regular Season - 2",
         OffsetDateTime.of(2026, 5, 28, 18, 30, 0, 0, ZoneOffset.UTC),
-        FootballFixtureStatus.PLANNED,
+        FixtureSyncStatus.PLANNED,
         homeTeam,
         awayTeam,
         null,
         null);
 
-    when(footballDataProvider.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
-    when(footballDataProvider.getRounds("39", "2026")).thenReturn(List.of(
+    when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
+    when(apiConnector.getRounds("39", "2026")).thenReturn(List.of(
         roundDto("Regular Season - 1"),
         roundDto("Regular Season - 2")));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
@@ -247,12 +246,12 @@ class CompetitionServiceFixtureRefreshTest {
     assertThat(createdRound.getOrderNumber()).isEqualTo(2);
     assertThat(createdRound.getMatches()).hasSize(1);
     assertThat(createdRound.getMatches().get(0).getApiFootballId()).isEqualTo(100L);
-    verify(footballDataProvider).getRounds("39", "2026");
+    verify(apiConnector).getRounds("39", "2026");
     verify(seasonRepository).save(season);
   }
 
   @Test
-  void refreshFixturesMovesExistingMatchToProviderRoundWithoutDuplicatingIt() {
+  void refreshFixturesMovesExistingMatchToConnectorRoundWithoutDuplicatingIt() {
     var season = season();
     var firstRound = round(season, "Regular Season - 1");
     var secondRound = round(season, "Regular Season - 2");
@@ -266,13 +265,13 @@ class CompetitionServiceFixtureRefreshTest {
         100L,
         "Regular Season - 2",
         OffsetDateTime.of(2026, 5, 28, 18, 30, 0, 0, ZoneOffset.UTC),
-        FootballFixtureStatus.PLANNED,
+        FixtureSyncStatus.PLANNED,
         team(1L, "Arsenal", "arsenal.png"),
         team(2L, "Chelsea", "chelsea.png"),
         null,
         null);
 
-    when(footballDataProvider.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
+    when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
 
     competitionService.refreshFixtures(season);
@@ -285,7 +284,7 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
-  void refreshFixturesMapsProviderStatusesToMatchStatuses() {
+  void refreshFixturesMapsConnectorStatusesToMatchStatuses() {
     var season = season();
     var round = round(season, "Regular Season - 1");
     var planned = existingMatch(round, 100L, "Arsenal", "Chelsea");
@@ -296,11 +295,11 @@ class CompetitionServiceFixtureRefreshTest {
     season.setRounds(new ArrayList<>(List.of(round)));
 
     var kickoff = OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC);
-    when(footballDataProvider.getSeasonFixtures("39", "2026")).thenReturn(List.of(
-        fixture(100L, "Regular Season - 1", kickoff, FootballFixtureStatus.PLANNED, team(1L, "Arsenal", null), team(2L, "Chelsea", null), null, null),
-        fixture(101L, "Regular Season - 1", kickoff, FootballFixtureStatus.STARTED, team(3L, "Liverpool", null), team(4L, "Everton", null), 1, 0),
-        fixture(102L, "Regular Season - 1", kickoff, FootballFixtureStatus.FINISHED, team(5L, "Brighton", null), team(6L, "Fulham", null), 2, 1),
-        fixture(103L, "Regular Season - 1", kickoff, FootballFixtureStatus.NOT_DEFINED, team(7L, "Leeds", null), team(8L, "Burnley", null), null, null)));
+    when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(
+        fixture(100L, "Regular Season - 1", kickoff, FixtureSyncStatus.PLANNED, team(1L, "Arsenal", null), team(2L, "Chelsea", null), null, null),
+        fixture(101L, "Regular Season - 1", kickoff, FixtureSyncStatus.STARTED, team(3L, "Liverpool", null), team(4L, "Everton", null), 1, 0),
+        fixture(102L, "Regular Season - 1", kickoff, FixtureSyncStatus.FINISHED, team(5L, "Brighton", null), team(6L, "Fulham", null), 2, 1),
+        fixture(103L, "Regular Season - 1", kickoff, FixtureSyncStatus.NOT_DEFINED, team(7L, "Leeds", null), team(8L, "Burnley", null), null, null)));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
 
     competitionService.refreshFixtures(season);
@@ -357,30 +356,30 @@ class CompetitionServiceFixtureRefreshTest {
     return team;
   }
 
-  private FootballFixtureSyncDto fixture(
+  private FixtureSyncDto fixture(
       Long id,
       String round,
       OffsetDateTime kickoff,
-      FootballFixtureStatus status,
-      FootballTeamSyncDto homeTeam,
-      FootballTeamSyncDto awayTeam,
+      FixtureSyncStatus status,
+      TeamSyncDto homeTeam,
+      TeamSyncDto awayTeam,
       Integer homeScore,
       Integer awayScore) {
-    return new FootballFixtureSyncDto(
+    return new FixtureSyncDto(
         id.toString(),
         round,
         kickoff == null ? null : kickoff.toInstant(),
         status,
         homeTeam,
         awayTeam,
-        new FootballScoreSyncDto(homeScore, awayScore));
+        new ScoreSyncDto(homeScore, awayScore));
   }
 
-  private FootballRoundSyncDto roundDto(String round) {
-    return new FootballRoundSyncDto(round, round, null, null);
+  private RoundSyncDto roundDto(String round) {
+    return new RoundSyncDto(round, round, null, null);
   }
 
-  private FootballTeamSyncDto team(Long id, String name, String logo) {
-    return new FootballTeamSyncDto(id.toString(), name, logo);
+  private TeamSyncDto team(Long id, String name, String logo) {
+    return new TeamSyncDto(id.toString(), name, logo);
   }
 }

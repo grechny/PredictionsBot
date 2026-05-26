@@ -71,8 +71,8 @@ schedulers:
     enabled: ${schedulers.fixtures.enabled:true}
     cron: ${schedulers.fixtures.cron:0 0 0 * * *}
 
-football-data:
-  providers:
+api-connectors:
+  connectors:
     api-football:
       enabled: true
       data-types:

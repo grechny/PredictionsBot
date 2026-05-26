@@ -57,9 +57,9 @@ class FixturesSchedulerTest {
   void refreshFixturesThrowsAggregatedFailureAfterRefreshingOtherSeasons() {
     var failedSeason = season("Premier League", "2025");
     var successfulSeason = season("Champions League", "2025");
-    var providerFailure = new RuntimeException("REQUEST_ERROR: HTTP 429; headers={x-ratelimit-requests-remaining=98}");
+    var connectorFailure = new RuntimeException("REQUEST_ERROR: HTTP 429; headers={x-ratelimit-requests-remaining=98}");
     when(competitionService.getActiveSeasons()).thenReturn(List.of(failedSeason, successfulSeason));
-    doThrow(providerFailure).when(competitionService).refreshFixtures(failedSeason);
+    doThrow(connectorFailure).when(competitionService).refreshFixtures(failedSeason);
 
     var thrown = catchThrowable(() -> fixturesScheduler.refreshFixtures());
 
@@ -67,7 +67,7 @@ class FixturesSchedulerTest {
     verify(competitionService).refreshFixtures(successfulSeason);
     assertThat(thrown).isInstanceOf(FixturesSynchronizationException.class);
     assertThat(thrown.getMessage()).contains("Premier League 2025");
-    assertThat(thrown.getSuppressed()).containsExactly(providerFailure);
+    assertThat(thrown.getSuppressed()).containsExactly(connectorFailure);
   }
 
   private SeasonEntity season() {

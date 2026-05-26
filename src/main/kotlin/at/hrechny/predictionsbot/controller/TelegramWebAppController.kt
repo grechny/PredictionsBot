@@ -8,9 +8,10 @@ import at.hrechny.predictionsbot.database.model.MatchStatus
 import at.hrechny.predictionsbot.exception.InputValidationException
 import at.hrechny.predictionsbot.exception.LimitExceededException
 import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport
-import at.hrechny.predictionsbot.model.LeagueRequest
-import at.hrechny.predictionsbot.model.LeagueResponse
-import at.hrechny.predictionsbot.model.Result
+import at.hrechny.predictionsbot.controller.model.league.LeagueCreateRequestDto
+import at.hrechny.predictionsbot.controller.model.league.LeagueResponseDto
+import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto
+import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto
 import at.hrechny.predictionsbot.service.predictor.CompetitionService
 import at.hrechny.predictionsbot.service.predictor.LeagueService
 import at.hrechny.predictionsbot.service.predictor.PredictionService
@@ -109,7 +110,7 @@ open class TelegramWebAppController(
         }
         competitionService.refreshActiveFixtures(season.id!!)
 
-        val results: List<Result>
+        val results: List<ResultResponseDto>
         val matches: List<MatchEntity>
         if (roundNumber != null && roundNumber != 0) {
             matches = season.rounds
@@ -180,8 +181,8 @@ open class TelegramWebAppController(
     open fun createLeague(
         @PathVariable("hash") hash: String,
         @PathVariable("userId") userId: Long,
-        @Body leagueRequest: LeagueRequest,
-    ): HttpResponse<LeagueResponse> =
+        @Body leagueRequest: LeagueCreateRequestDto,
+    ): HttpResponse<LeagueResponseDto> =
         try {
             HttpResponse.ok(leagueService.create(userId, leagueRequest))
         } catch (inputValidationException: InputValidationException) {
@@ -195,8 +196,8 @@ open class TelegramWebAppController(
         @PathVariable("hash") hash: String,
         @PathVariable("userId") userId: Long,
         @PathVariable("leagueId") leagueId: UUID,
-        @Body leagueRequest: LeagueRequest,
-    ): HttpResponse<LeagueResponse> =
+        @Body leagueRequest: LeagueUpdateRequestDto,
+    ): HttpResponse<LeagueResponseDto> =
         try {
             val response = leagueService.update(userId, leagueId, leagueRequest)
             if (response != null) HttpResponse.ok(response) else HttpResponse.ok()
@@ -209,7 +210,7 @@ open class TelegramWebAppController(
         @PathVariable("hash") hash: String,
         @PathVariable("userId") userId: Long,
         @PathVariable("leagueId") leagueId: UUID,
-    ): HttpResponse<LeagueResponse> =
+    ): HttpResponse<LeagueResponseDto> =
         try {
             val response = leagueService.join(userId, leagueId)
             if (response != null) HttpResponse.ok(response) else HttpResponse.ok()
@@ -222,7 +223,7 @@ open class TelegramWebAppController(
         @PathVariable("hash") hash: String,
         @PathVariable("userId") userId: Long,
         @PathVariable("leagueId") leagueId: UUID,
-    ): HttpResponse<LeagueResponse> =
+    ): HttpResponse<LeagueResponseDto> =
         try {
             val response = leagueService.delete(userId, leagueId)
             if (response != null) HttpResponse.ok(response) else HttpResponse.ok()
