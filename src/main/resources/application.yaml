@@ -71,6 +71,26 @@ schedulers:
     enabled: ${schedulers.fixtures.enabled:true}
     cron: ${schedulers.fixtures.cron:0 0 0 * * *}
 
+football-data:
+  providers:
+    api-football:
+      enabled: true
+      data-types:
+        - ROUNDS
+        - SEASON_FIXTURES
+        - LIVE_FIXTURES
+        - SCORES
+        - TEAMS
+        - PROVIDER_METADATA
+      freshness: NEAR_REAL_TIME
+      health:
+        derived-from-audit: true
+  routing:
+    fallback-order:
+      - api-football
+    merge-policy:
+      strategy: PRIMARY_ONLY
+
 application:
   url: ${application.url}
 

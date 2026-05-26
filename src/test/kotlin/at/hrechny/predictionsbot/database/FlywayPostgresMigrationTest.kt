@@ -22,7 +22,7 @@ class FlywayPostgresMigrationTest {
 
         val result = flyway.migrate()
 
-        assertThat(result.migrationsExecuted).isEqualTo(1)
+        assertThat(result.migrationsExecuted).isEqualTo(2)
         DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()).use { connection ->
             connection.prepareStatement(
                 """
@@ -37,6 +37,7 @@ class FlywayPostgresMigrationTest {
                     'leagues_users',
                     'matches',
                     'predictions',
+                    'provider_external_ids',
                     'rounds',
                     'seasons',
                     'teams',
@@ -59,12 +60,41 @@ class FlywayPostgresMigrationTest {
                         "leagues_users",
                         "matches",
                         "predictions",
+                        "provider_external_ids",
                         "rounds",
                         "seasons",
                         "teams",
                         "users",
                         "users_competitions",
                     )
+                }
+            }
+
+            connection.prepareStatement(
+                """
+                select column_name
+                from information_schema.columns
+                where table_schema = 'public'
+                  and table_name = 'provider_external_ids'
+                order by ordinal_position
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    val columnNames = generateSequence {
+                        if (resultSet.next()) resultSet.getString("column_name") else null
+                    }.toList()
+
+                    assertThat(columnNames).contains(
+                        "id",
+                        "provider_code",
+                        "entity_type",
+                        "external_id",
+                        "scope_key",
+                        "internal_id",
+                        "created_at",
+                        "updated_at",
+                    )
+                    assertThat(columnNames).doesNotContain("api_key", "secret", "token", "authorization")
                 }
             }
         }
