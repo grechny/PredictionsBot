@@ -45,17 +45,34 @@ open class ApiFootballClient(
             return emptyList()
         }
 
-        val fixtureIdsString = fixtureIds.take(20).map(Long::toString).joinToString("-")
-        val requestUri = buildRequestUri("/fixtures", mapOf("ids" to fixtureIdsString))
-
-        return try {
-            sendRequest(requestUri, FixturesResponse::class.java) {
-                apiFootballHttpClient.getFixturesByIds(apiKey, RAPID_API_HOST, fixtureIdsString)
-            }.response!!
-        } catch (exception: ApiConnectorException) {
-            log.error("Failed to fetch fixtures", exception)
-            emptyList()
+        val fixtures = mutableListOf<Fixture>()
+        fixtureIds.chunked(FIXTURE_IDS_BATCH_SIZE).forEachIndexed { batchIndex, batch ->
+            val fixtureIdsString = batch.map(Long::toString).joinToString("-")
+            val requestUri = buildRequestUri("/fixtures", mapOf("ids" to fixtureIdsString))
+            try {
+                fixtures.addAll(
+                    sendRequest(requestUri, FixturesResponse::class.java) {
+                        apiFootballHttpClient.getFixturesByIds(apiKey, RAPID_API_HOST, fixtureIdsString)
+                    }.response!!,
+                )
+            } catch (exception: ApiConnectorException) {
+                if (fixtures.isNotEmpty() && exception.reason in PARTIAL_BATCH_STOP_REASONS) {
+                    log.warn(
+                        "Stopped API-Football fixture batch refresh after batch {} because {}. Returning {} fixtures from completed batches",
+                        batchIndex,
+                        exception.reason,
+                        fixtures.size,
+                    )
+                    return fixtures
+                }
+                if (exception.reason in PARTIAL_BATCH_STOP_REASONS) {
+                    log.error("Failed to fetch fixtures", exception)
+                    return emptyList()
+                }
+                throw exception
+            }
         }
+        return fixtures
     }
 
     @Synchronized
@@ -147,9 +164,15 @@ open class ApiFootballClient(
     private companion object {
         const val CONNECTOR_CODE = "api-football"
         const val RAPID_API_HOST = "api-football-v1.p.rapidapi.com"
+        const val FIXTURE_IDS_BATCH_SIZE = 20
         const val RETRY_AFTER_HEADER = "retry-after"
         const val REQUESTS_REMAINING_HEADER = "x-ratelimit-requests-remaining"
         const val REQUESTS_RESET_HEADER = "x-ratelimit-requests-reset"
+        val PARTIAL_BATCH_STOP_REASONS = setOf(
+            Reason.QUOTA_EXCEEDED,
+            Reason.TOO_OFTEN_REQUESTS,
+            Reason.REQUEST_ERROR,
+        )
         val SAFE_RESPONSE_HEADERS = setOf(
             RETRY_AFTER_HEADER,
             "x-ratelimit-requests-limit",

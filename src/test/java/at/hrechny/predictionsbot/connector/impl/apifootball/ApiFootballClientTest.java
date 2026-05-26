@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import at.hrechny.predictionsbot.connector.ApiConnectorRequestAuditService;
@@ -19,6 +20,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -169,6 +171,44 @@ class ApiFootballClientTest {
   }
 
   @Test
+  void getFixturesByIdsBatchesMoreThanTwentyFixtureIds() {
+    var fixtureIds = LongStream.rangeClosed(1, 41).boxed().toList();
+    when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(1, 20)))
+        .thenReturn(ok(fixtureBody(1)));
+    when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(21, 40)))
+        .thenReturn(ok(fixtureBody(21)));
+    when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, "41"))
+        .thenReturn(ok(fixtureBody(41)));
+
+    var fixtures = client.getFixtures(fixtureIds);
+
+    assertThat(fixtures).hasSize(3);
+    assertThat(fixtures)
+        .extracting(fixture -> fixture.getFixture().getId())
+        .containsExactly(1L, 21L, 41L);
+    verify(httpClient).getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(1, 20));
+    verify(httpClient).getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(21, 40));
+    verify(httpClient).getFixturesByIds(API_KEY, RAPID_API_HOST, "41");
+  }
+
+  @Test
+  void getFixturesByIdsKeepsCompletedBatchesWhenLaterQuotaBatchStops() {
+    var fixtureIds = LongStream.rangeClosed(1, 41).boxed().toList();
+    when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(1, 20)))
+        .thenReturn(ok(fixtureBody(1)));
+    when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(21, 40)))
+        .thenReturn(response(HttpStatus.TOO_MANY_REQUESTS, "{\"message\":\"quota\"}")
+            .header("x-ratelimit-requests-remaining", "0")
+            .header("x-ratelimit-requests-reset", "60"));
+
+    var fixtures = client.getFixtures(fixtureIds);
+
+    assertThat(fixtures).hasSize(1);
+    assertThat(fixtures.get(0).getFixture().getId()).isEqualTo(1L);
+    verify(httpClient, never()).getFixturesByIds(API_KEY, RAPID_API_HOST, "41");
+  }
+
+  @Test
   void quotaBlockedRequestDoesNotCallProviderAndRecordsAudit() {
     when(auditService.countRequestsSince(eq("api-football"), org.mockito.ArgumentMatchers.any(Instant.class))).thenReturn(100);
     var quotaBlockedClient = new ApiFootballClient(
@@ -217,5 +257,16 @@ class ApiFootballClientTest {
 
   private MutableHttpResponse<String> response(HttpStatus status, String body) {
     return HttpResponse.<String>status(status).body(body);
+  }
+
+  private String fixtureIdsString(long from, long to) {
+    return LongStream.rangeClosed(from, to)
+        .mapToObj(Long::toString)
+        .reduce((left, right) -> left + "-" + right)
+        .orElseThrow();
+  }
+
+  private String fixtureBody(long fixtureId) {
+    return "{\"errors\":[],\"response\":[{\"fixture\":{\"id\":" + fixtureId + "}}]}";
   }
 }
