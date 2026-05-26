@@ -17,11 +17,12 @@ open class ApiFootballFixtureMapper {
     open fun toFixtureSyncDto(fixture: Fixture): FootballFixtureSyncDto {
         val fixtureData = requireNotNull(fixture.fixture) { "Fixture data is missing" }
         val fixtureId = requireNotNull(fixtureData.id) { "Fixture id is missing" }
+        val providerFixtureId = fixtureId.toString()
         val roundExternalId = requireNotNull(fixture.league?.round) { "Fixture round is missing" }
         val teamsData = requireNotNull(fixture.teams) { "Fixture teams are missing" }
 
         return FootballFixtureSyncDto(
-            externalId = fixtureId.toString(),
+            externalId = providerFixtureId,
             roundExternalId = roundExternalId,
             startTime = fixtureData.date?.toInstant(),
             status = mapStatus(fixtureData.status),
