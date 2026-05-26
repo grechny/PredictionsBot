@@ -12,12 +12,12 @@ import java.time.Instant
 @Table(
     name = "audit",
     indexes = [
-        Index(name = "idx_audit_connector_code_request_date", columnList = "connector_code, request_date"),
+        Index(name = "idx_audit_connector_name_request_date", columnList = "connector_name, request_date"),
     ],
 )
 class AuditEntity : GeneratedIdEntity() {
-    @field:Column(name = "connector_code")
-    var connectorCode: String? = null
+    @field:Column(name = "connector_name")
+    var connectorName: String? = null
 
     @field:Column(length = 2048)
     var requestUri: String? = null
@@ -30,9 +30,6 @@ class AuditEntity : GeneratedIdEntity() {
 
     @field:Column(columnDefinition = "TEXT")
     var failureReason: String? = null
-
-    @field:Column(columnDefinition = "TEXT")
-    var quotaSnapshot: String? = null
 
     fun isSuccess(): Boolean = success
 }

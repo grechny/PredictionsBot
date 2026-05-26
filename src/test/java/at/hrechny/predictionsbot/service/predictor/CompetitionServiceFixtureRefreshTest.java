@@ -1,6 +1,7 @@
 package at.hrechny.predictionsbot.service.predictor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.lenient;
@@ -12,6 +13,7 @@ import static org.mockito.Mockito.when;
 import at.hrechny.predictionsbot.connector.ApiConnector;
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason;
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncDto;
 import at.hrechny.predictionsbot.connector.model.RoundSyncDto;
@@ -61,7 +63,7 @@ class CompetitionServiceFixtureRefreshTest {
 
   @BeforeEach
   void setUp() {
-    lenient().when(apiConnector.getCode())
+    lenient().when(apiConnector.getName())
         .thenReturn("api-football");
     competitionService = new CompetitionService(
         null,
@@ -72,6 +74,13 @@ class CompetitionServiceFixtureRefreshTest {
         matchRepository,
         apiConnector,
         apiConnectorService);
+  }
+
+  @Test
+  void refreshActiveFixturesReportsFailuresThroughErrorReportInterceptor() throws Exception {
+    var method = CompetitionService.class.getDeclaredMethod("refreshActiveFixtures", UUID.class);
+
+    assertThat(method.getAnnotation(EnableErrorReport.class)).isNotNull();
   }
 
   @Test
@@ -131,7 +140,8 @@ class CompetitionServiceFixtureRefreshTest {
     when(apiConnector.getFixturesByExternalIds(anyList())).thenThrow(
         new ApiConnectorException("api-football", Reason.QUOTA_EXCEEDED, null, null));
 
-    competitionService.refreshActiveFixtures(season.getId());
+    assertThatThrownBy(() -> competitionService.refreshActiveFixtures(season.getId()))
+        .isInstanceOf(ApiConnectorException.class);
 
     assertThat(match.getStatus()).isEqualTo(MatchStatus.PLANNED);
     assertThat(match.getHomeTeamScore()).isNull();
@@ -201,7 +211,7 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
-  void hasNonFinishedMatchesReturnsFalseOnlyWhenAllMatchesAreFinished() {
+  void hasNonFinishedMatchesReturnsTrueOnlyForRefreshableStatuses() {
     var season = season();
     var round = round(season, "Regular Season - 1");
     var finished = existingMatch(round, 100L, "Arsenal", "Chelsea");
@@ -213,6 +223,12 @@ class CompetitionServiceFixtureRefreshTest {
 
     finished.setStatus(MatchStatus.STARTED);
     assertThat(competitionService.hasNonFinishedMatches(season)).isTrue();
+
+    finished.setStatus(MatchStatus.PLANNED);
+    assertThat(competitionService.hasNonFinishedMatches(season)).isTrue();
+
+    finished.setStatus(MatchStatus.NOT_DEFINED);
+    assertThat(competitionService.hasNonFinishedMatches(season)).isFalse();
   }
 
   @Test

@@ -41,8 +41,8 @@ class ApiFootballConnectorTest {
   }
 
   @Test
-  void exposesApiFootballConnectorCode() {
-    assertThat(connector.getCode()).isEqualTo("api-football");
+  void exposesApiFootballConnectorName() {
+    assertThat(connector.getName()).isEqualTo("api-football");
   }
 
   @Test

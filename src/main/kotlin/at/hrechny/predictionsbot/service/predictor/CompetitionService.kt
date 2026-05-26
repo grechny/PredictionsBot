@@ -21,10 +21,10 @@ import at.hrechny.predictionsbot.database.repository.CompetitionRepository
 import at.hrechny.predictionsbot.database.repository.MatchRepository
 import at.hrechny.predictionsbot.database.repository.SeasonRepository
 import at.hrechny.predictionsbot.database.repository.TeamRepository
-import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.FixturesSynchronizationException
 import at.hrechny.predictionsbot.exception.NotFoundException
 import at.hrechny.predictionsbot.exception.RequestValidationException
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport
 import at.hrechny.predictionsbot.mapper.CompetitionMapper
 import at.hrechny.predictionsbot.mapper.SeasonMapper
 import jakarta.inject.Singleton
@@ -113,6 +113,7 @@ open class CompetitionService(
         return seasonRepository!!.findAllByActiveIsTrue()
     }
 
+    @EnableErrorReport
     open fun refreshActiveFixtures(seasonId: UUID): Boolean {
         val seasonEntity = getSeason(seasonId)
         val activeMatches = matchRepository!!.findAllActive(seasonEntity)
@@ -121,20 +122,15 @@ open class CompetitionService(
         }
 
         val fixtureIds = activeMatches.map { match -> match.apiFootballId!!.toString() }
-        try {
-            val fixtures = apiConnector!!.getFixturesByExternalIds(fixtureIds)
-            refreshFixtures(fixtures, seasonEntity)
-            return true
-        } catch (exception: ApiConnectorException) {
-            log.error("Failed to refresh fixtures: {}", exception.message)
-            return false
-        }
+        val fixtures = apiConnector!!.getFixturesByExternalIds(fixtureIds)
+        refreshFixtures(fixtures, seasonEntity)
+        return true
     }
 
     open fun hasNonFinishedMatches(seasonEntity: SeasonEntity): Boolean =
         seasonEntity.rounds
             .flatMap { round -> round.matches }
-            .any { match -> match.status != MatchStatus.FINISHED }
+            .any { match -> match.status in ACTIVE_REFRESH_STATUSES }
 
     open fun refreshFixtures(seasonEntity: SeasonEntity) {
         val managedSeasonEntity = getSeason(seasonEntity.id!!)
@@ -288,11 +284,11 @@ open class CompetitionService(
 
     private fun recordApiConnectorIds(seasonEntity: SeasonEntity) {
         val connectorService = apiConnectorService ?: return
-        val connectorCode = connectorCode()
+        val connectorName = connectorName()
         val competition = seasonEntity.competition
         if (competition?.id != null && competition.apiFootballId != null) {
             connectorService.upsertId(
-                connectorCode,
+                connectorName,
                 ApiConnectorEntityType.COMPETITION,
                 competition.apiFootballId!!.toString(),
                 scopeGlobal(connectorService),
@@ -301,7 +297,7 @@ open class CompetitionService(
         }
         if (competition?.id != null && seasonEntity.id != null && seasonEntity.year != null) {
             connectorService.upsertId(
-                connectorCode,
+                connectorName,
                 ApiConnectorEntityType.SEASON,
                 seasonEntity.year!!,
                 scopeCompetition(connectorService, competition.id!!),
@@ -311,7 +307,7 @@ open class CompetitionService(
         seasonEntity.rounds.forEach { round ->
             if (round.id != null && round.apiFootballId != null && seasonEntity.id != null) {
                 connectorService.upsertId(
-                    connectorCode,
+                    connectorName,
                     ApiConnectorEntityType.ROUND,
                     round.apiFootballId!!,
                     scopeSeason(connectorService, seasonEntity.id!!),
@@ -321,27 +317,27 @@ open class CompetitionService(
             round.matches.forEach { match ->
                 if (match.id != null && match.apiFootballId != null && seasonEntity.id != null) {
                     connectorService.upsertId(
-                        connectorCode,
+                        connectorName,
                         ApiConnectorEntityType.MATCH,
                         match.apiFootballId!!.toString(),
                         scopeSeason(connectorService, seasonEntity.id!!),
                         match.id!!,
                     )
                 }
-                recordTeamMapping(connectorService, connectorCode, match.homeTeam)
-                recordTeamMapping(connectorService, connectorCode, match.awayTeam)
+                recordTeamMapping(connectorService, connectorName, match.homeTeam)
+                recordTeamMapping(connectorService, connectorName, match.awayTeam)
             }
         }
     }
 
     private fun recordTeamMapping(
         connectorService: ApiConnectorService,
-        connectorCode: String,
+        connectorName: String,
         team: TeamEntity?,
     ) {
         if (team?.id != null && team.apiFootballId != null) {
             connectorService.upsertId(
-                connectorCode,
+                connectorName,
                 ApiConnectorEntityType.TEAM,
                 team.apiFootballId!!.toString(),
                 scopeGlobal(connectorService),
@@ -350,9 +346,9 @@ open class CompetitionService(
         }
     }
 
-    private fun connectorCode(): String {
-        val connectorCode: String? = apiConnector!!.code
-        return connectorCode?.takeIf(String::isNotBlank) ?: API_FOOTBALL_CONNECTOR_CODE
+    private fun connectorName(): String {
+        val connectorName: String? = apiConnector!!.name
+        return connectorName?.takeIf(String::isNotBlank) ?: API_FOOTBALL_CONNECTOR_NAME
     }
 
     private fun scopeGlobal(connectorService: ApiConnectorService): String {
@@ -404,6 +400,7 @@ open class CompetitionService(
     private companion object {
         val log = LoggerFactory.getLogger(CompetitionService::class.java)
         const val GLOBAL_SCOPE = "global"
-        const val API_FOOTBALL_CONNECTOR_CODE = "api-football"
+        const val API_FOOTBALL_CONNECTOR_NAME = "api-football"
+        val ACTIVE_REFRESH_STATUSES = setOf(MatchStatus.PLANNED, MatchStatus.STARTED)
     }
 }

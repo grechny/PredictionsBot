@@ -11,7 +11,7 @@ open class ApiFootballConnector(
     private val apiFootballClient: ApiFootballClient,
     private val apiFootballFixtureMapper: ApiFootballFixtureMapper,
 ) : ApiConnector {
-    override val code: String = CONNECTOR_CODE
+    override val name: String = CONNECTOR_NAME
 
     override fun getRounds(competitionExternalId: String, seasonYear: String): List<RoundSyncDto> =
         translateConnectorFailures {
@@ -39,7 +39,7 @@ open class ApiFootballConnector(
     private fun parseNumericExternalId(entityName: String, externalId: String): Long =
         externalId.toLongOrNull()
             ?: throw ApiConnectorException(
-                code,
+                name,
                 ApiConnectorException.Reason.INVALID_RESPONSE,
                 "API-Football $entityName external id must be numeric: $externalId",
             )
@@ -51,14 +51,14 @@ open class ApiFootballConnector(
             throw exception
         } catch (exception: IllegalArgumentException) {
             throw ApiConnectorException(
-                code,
+                name,
                 ApiConnectorException.Reason.INVALID_RESPONSE,
                 exception.message,
                 exception,
             )
         } catch (exception: NullPointerException) {
             throw ApiConnectorException(
-                code,
+                name,
                 ApiConnectorException.Reason.INVALID_RESPONSE,
                 exception.message,
                 exception,
@@ -66,6 +66,6 @@ open class ApiFootballConnector(
         }
 
     private companion object {
-        const val CONNECTOR_CODE = "api-football"
+        const val CONNECTOR_NAME = "api-football"
     }
 }

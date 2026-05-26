@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.connector;
+package at.hrechny.predictionsbot.service.connector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -33,7 +33,6 @@ class ApiConnectorRequestAuditServiceTest {
         String.class,
         String.class,
         boolean.class,
-        String.class,
         String.class);
 
     assertThat(method.getAnnotation(Transactional.class).propagation())
@@ -51,17 +50,15 @@ class ApiConnectorRequestAuditServiceTest {
         "api-football",
         "/fixtures?ids=1-2-3",
         false,
-        "HTTP 429",
-        "remaining=0");
+        "HTTP 429");
 
     verify(auditRepository).save(captor.capture());
     var entity = captor.getValue();
-    assertThat(entity.getConnectorCode()).isEqualTo("api-football");
+    assertThat(entity.getConnectorName()).isEqualTo("api-football");
     assertThat(entity.getRequestUri()).isEqualTo("/fixtures?ids=1-2-3");
     assertThat(entity.getRequestDate()).isEqualTo(NOW);
     assertThat(entity.isSuccess()).isFalse();
     assertThat(entity.getFailureReason()).isEqualTo("HTTP 429");
-    assertThat(entity.getQuotaSnapshot()).isEqualTo("remaining=0");
   }
 
   @Test
@@ -70,7 +67,7 @@ class ApiConnectorRequestAuditServiceTest {
         auditRepository,
         Clock.fixed(NOW, ZoneOffset.UTC));
     var since = Instant.parse("2026-05-25T22:00:00Z");
-    when(auditRepository.countAllByConnectorCodeAndRequestDateAfter("api-football", since))
+    when(auditRepository.countAllByConnectorNameAndRequestDateAfter("api-football", since))
         .thenReturn(42);
 
     assertThat(service.countRequestsSince("api-football", since)).isEqualTo(42);

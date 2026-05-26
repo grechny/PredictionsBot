@@ -7,8 +7,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import at.hrechny.predictionsbot.connector.ApiConnectorRequestAuditService;
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorRequestAuditService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

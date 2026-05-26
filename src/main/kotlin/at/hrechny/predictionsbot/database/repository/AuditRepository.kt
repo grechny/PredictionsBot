@@ -18,20 +18,20 @@ class AuditRepository(
 
     fun findById(id: UUID): Optional<AuditEntity> = Optional.ofNullable(entityManager.find(AuditEntity::class.java, id))
 
-    fun countAllByConnectorCodeAndRequestDateAfter(
-        connectorCode: String,
+    fun countAllByConnectorNameAndRequestDateAfter(
+        connectorName: String,
         date: Instant,
     ): Int = entityManager
         .createQuery(
             """
             select count(a)
             from AuditEntity a
-            where a.connectorCode = :connectorCode
+            where a.connectorName = :connectorName
               and a.requestDate > :date
             """.trimIndent(),
             Long::class.javaObjectType,
         )
-        .setParameter("connectorCode", connectorCode)
+        .setParameter("connectorName", connectorName)
         .setParameter("date", date)
         .singleResult
         .toInt()

@@ -13,13 +13,10 @@ import at.hrechny.predictionsbot.controller.model.league.LeagueResponseDto
 import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto
 import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto
 import at.hrechny.predictionsbot.database.entity.SeasonEntity
-import at.hrechny.predictionsbot.exception.ApiConnectorException
-import at.hrechny.predictionsbot.exception.FixturesSynchronizationException
 import at.hrechny.predictionsbot.service.predictor.CompetitionService
 import at.hrechny.predictionsbot.service.predictor.LeagueService
 import at.hrechny.predictionsbot.service.predictor.PredictionService
 import at.hrechny.predictionsbot.service.predictor.UserService
-import at.hrechny.predictionsbot.service.telegram.TelegramService
 import at.hrechny.predictionsbot.util.HashUtils
 import io.micronaut.context.annotation.Value
 import io.micronaut.core.annotation.Nullable
@@ -51,7 +48,6 @@ open class TelegramWebAppController(
     private val predictionService: PredictionService,
     private val leagueService: LeagueService,
     private val userService: UserService,
-    private val telegramService: TelegramService,
     private val hashUtils: HashUtils,
     private val messageResolver: MessageResolver,
 ) {
@@ -180,22 +176,9 @@ open class TelegramWebAppController(
         }
 
         try {
-            val refreshed = competitionService.refreshActiveFixtures(season.id!!)
-            if (!refreshed) {
-                telegramService.sendErrorReport(
-                    FixturesSynchronizationException("Failed to refresh active fixtures for results season ${season.id}"),
-                )
-            }
-        } catch (exception: ApiConnectorException) {
-            telegramService.sendErrorReport(exception)
-        } catch (exception: FixturesSynchronizationException) {
-            telegramService.sendErrorReport(exception)
-        } catch (exception: RuntimeException) {
-            telegramService.sendErrorReport(
-                FixturesSynchronizationException(
-                    "Failed to refresh active fixtures for results season ${season.id}: ${exception.message}",
-                ),
-            )
+            competitionService.refreshActiveFixtures(season.id!!)
+        } catch (_: RuntimeException) {
+            // refreshActiveFixtures reports through @EnableErrorReport; keep rendering stored results here.
         }
     }
 

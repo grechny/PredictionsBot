@@ -14,11 +14,6 @@ micronaut:
       enabled: true
       default-extension: ftlh
       recognize-standard-file-extensions: true
-  http:
-    services:
-      api-football:
-        url: ${connectors.api-football.url}
-
 datasources:
   default:
     # Runtime credentials come from Vault or environment as datasources.default.*.
@@ -53,6 +48,8 @@ connectors:
   api-football:
     url: ${connectors.api-football.url}
     apiKey: ${connectors.api-football.apiKey}
+    rapidApiHost: ${connectors.api-football.rapidApiHost:api-football-v1.p.rapidapi.com}
+    fixtureBatchSize: ${connectors.api-football.fixtureBatchSize:20}
     minInterval: ${connectors.api-football.minInterval:60}
     maxAttempts: ${connectors.api-football.maxAttempts}
     dayStarts: ${connectors.api-football.dayStarts}

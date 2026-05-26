@@ -26,13 +26,13 @@ import at.hrechny.predictionsbot.controller.model.league.LeagueResponseDto;
 import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto;
 import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto;
 import at.hrechny.predictionsbot.controller.model.user.UserResponseDto;
+import at.hrechny.predictionsbot.exception.ApiConnectorException;
 import at.hrechny.predictionsbot.exception.InputValidationException;
 import at.hrechny.predictionsbot.exception.LimitExceededException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.LeagueService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
-import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import at.hrechny.predictionsbot.util.HashUtils;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.scheduling.TaskExecutors;
@@ -72,9 +72,6 @@ class TelegramWebAppControllerTest {
   @Mock
   private HashUtils hashUtils;
 
-  @Mock
-  private TelegramService telegramService;
-
   private TelegramWebAppController controller;
 
   @BeforeEach
@@ -84,7 +81,6 @@ class TelegramWebAppControllerTest {
         predictionService,
         leagueService,
         userService,
-        telegramService,
         hashUtils,
         new MessageResolver());
     setApplicationUrl(controller, "http://localhost");
@@ -204,11 +200,10 @@ class TelegramWebAppControllerTest {
 
     assertThat(view(response)).isEqualTo("results");
     verify(competitionService, never()).refreshActiveFixtures(season.getId());
-    verify(telegramService, never()).sendErrorReport(any(Exception.class));
   }
 
   @Test
-  void resultsRouteRendersStoredDataAndReportsRefreshFailure() {
+  void resultsRouteRendersStoredDataWhenRefreshFailureWasReportedByServiceInterceptor() {
     var competitionId = UUID.randomUUID();
     var user = userEntity();
     var season = season(competitionId, "Premier League");
@@ -221,7 +216,8 @@ class TelegramWebAppControllerTest {
     when(userService.getUser(USER_ID)).thenReturn(user);
     when(competitionService.getCurrentSeason(competitionId)).thenReturn(season);
     when(competitionService.hasNonFinishedMatches(season)).thenReturn(true);
-    when(competitionService.refreshActiveFixtures(season.getId())).thenReturn(false);
+    when(competitionService.refreshActiveFixtures(season.getId())).thenThrow(
+        new ApiConnectorException("api-football", ApiConnectorException.Reason.REQUEST_ERROR, "boom", null));
     when(competitionService.getCompetition(competitionId)).thenReturn(competition("Premier League"));
     when(predictionService.getResults(season.getId())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
     when(predictionService.getResults(anyList())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
@@ -230,7 +226,7 @@ class TelegramWebAppControllerTest {
 
     assertThat(view(response)).isEqualTo("results");
     assertThat(model(response)).doesNotContainKey("warning");
-    verify(telegramService).sendErrorReport(any(Exception.class));
+    verify(competitionService).refreshActiveFixtures(season.getId());
   }
 
   @Test

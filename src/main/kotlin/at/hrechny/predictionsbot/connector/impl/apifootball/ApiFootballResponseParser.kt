@@ -3,9 +3,6 @@ package at.hrechny.predictionsbot.connector.impl.apifootball
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.ApiFootballResponse
 import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import io.micronaut.context.annotation.Value
 import jakarta.inject.Singleton
 
@@ -14,53 +11,36 @@ open class ApiFootballResponseParser(
     @param:Value("\${connectors.api-football.apiKey}")
     private val apiKey: String,
 ) {
-    private val objectMapper = ObjectMapper()
-        .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        .registerModule(JavaTimeModule())
-
-    open fun <T, G : ApiFootballResponse<T>> parse(
-        connectorCode: String,
+    open fun <T, G : ApiFootballResponse<T>> validate(
+        connectorName: String,
         requestUri: String,
         statusCode: Int,
         reasonPhrase: String?,
         headers: Map<String, String>,
-        body: String,
-        clazz: Class<G>,
+        response: G?,
     ): G {
         val normalizedHeaders = headers.mapKeys { (name, _) -> name.lowercase() }
         if (statusCode !in 200..299) {
             throw ApiConnectorException(
-                connectorCode,
+                connectorName,
                 reasonFor(statusCode, normalizedHeaders),
-                responseDetails(requestUri, statusCode, reasonPhrase, normalizedHeaders, body),
-            )
-        }
-
-        val response = try {
-            objectMapper.readValue(body, clazz)
-        } catch (exception: Exception) {
-            throw ApiConnectorException(
-                connectorCode,
-                Reason.INVALID_RESPONSE,
-                "Failed to parse API-Football response for $requestUri: ${sanitizeBody(body)}",
-                exception,
+                responseDetails(requestUri, statusCode, reasonPhrase, normalizedHeaders),
             )
         }
 
         if (response == null) {
-            throw ApiConnectorException(connectorCode, Reason.INVALID_RESPONSE, "API-Football response is null for $requestUri")
+            throw ApiConnectorException(connectorName, Reason.INVALID_RESPONSE, "API-Football response is null for $requestUri")
         }
         if (response.errors.isNotEmpty()) {
             throw ApiConnectorException(
-                connectorCode,
+                connectorName,
                 Reason.INVALID_RESPONSE,
                 "API-Football response contains errors for $requestUri: ${response.errors}",
             )
         }
         if (response.response == null) {
             throw ApiConnectorException(
-                connectorCode,
+                connectorName,
                 Reason.INVALID_RESPONSE,
                 "API-Football response has null response field for $requestUri",
             )
@@ -80,19 +60,18 @@ open class ApiFootballResponseParser(
         statusCode: Int,
         reasonPhrase: String?,
         headers: Map<String, String>,
-        body: String,
     ): String =
-        "HTTP $statusCode ${reasonPhrase.orEmpty()}; request=$requestUri; headers=$headers; body=${sanitizeBody(body)}"
+        "HTTP $statusCode ${reasonPhrase.orEmpty()}; request=$requestUri; headers=$headers"
 
-    private fun sanitizeBody(body: String): String {
-        if (body.isBlank()) {
-            return ""
+    fun sanitize(value: String?): String? {
+        if (value.isNullOrBlank()) {
+            return value
         }
 
         val withoutApiKey = if (apiKey.isBlank()) {
-            body
+            value
         } else {
-            body.replace(apiKey, "<redacted>")
+            value.replace(apiKey, "<redacted>")
         }
         return if (withoutApiKey.length <= RESPONSE_BODY_LOG_LIMIT) {
             withoutApiKey

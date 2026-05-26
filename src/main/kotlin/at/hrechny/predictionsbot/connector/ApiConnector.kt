@@ -4,7 +4,7 @@ import at.hrechny.predictionsbot.connector.model.FixtureSyncDto
 import at.hrechny.predictionsbot.connector.model.RoundSyncDto
 
 interface ApiConnector {
-    val code: String
+    val name: String
 
     fun getRounds(competitionExternalId: String, seasonYear: String): List<RoundSyncDto>
 

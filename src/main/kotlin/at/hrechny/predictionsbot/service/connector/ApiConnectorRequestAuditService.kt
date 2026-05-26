@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.connector
+package at.hrechny.predictionsbot.service.connector
 
 import at.hrechny.predictionsbot.database.entity.AuditEntity
 import at.hrechny.predictionsbot.database.repository.AuditRepository
@@ -15,22 +15,20 @@ open class ApiConnectorRequestAuditService(
 ) {
     @Transactional(propagation = TransactionDefinition.Propagation.REQUIRES_NEW)
     open fun recordRequest(
-        connectorCode: String,
+        connectorName: String,
         requestUri: String,
         success: Boolean,
         failureReason: String?,
-        quotaSnapshot: String?,
     ): AuditEntity = auditRepository.save(
         AuditEntity().apply {
-            this.connectorCode = connectorCode
+            this.connectorName = connectorName
             this.requestUri = requestUri
             this.requestDate = Instant.now(clock)
             this.success = success
             this.failureReason = failureReason
-            this.quotaSnapshot = quotaSnapshot
         },
     )
 
-    fun countRequestsSince(connectorCode: String, since: Instant): Int =
-        auditRepository.countAllByConnectorCodeAndRequestDateAfter(connectorCode, since)
+    fun countRequestsSince(connectorName: String, since: Instant): Int =
+        auditRepository.countAllByConnectorNameAndRequestDateAfter(connectorName, since)
 }

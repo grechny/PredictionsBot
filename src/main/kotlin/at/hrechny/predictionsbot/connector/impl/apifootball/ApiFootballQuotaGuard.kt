@@ -1,8 +1,8 @@
 package at.hrechny.predictionsbot.connector.impl.apifootball
 
-import at.hrechny.predictionsbot.connector.ApiConnectorRequestAuditService
 import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason
+import at.hrechny.predictionsbot.service.connector.ApiConnectorRequestAuditService
 import io.micronaut.context.annotation.Value
 import jakarta.inject.Singleton
 import java.time.Clock
@@ -11,8 +11,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneOffset
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import org.slf4j.LoggerFactory
 
 @Singleton
@@ -26,8 +24,7 @@ open class ApiFootballQuotaGuard(
 ) {
     private var billingStart: Instant = currentBillingStart(Instant.now(clock))
     private var requestCount: Int =
-        apiConnectorRequestAuditService.countRequestsSince(CONNECTOR_CODE, billingStart)
-    private var quotaBlockedUntil: Instant? = null
+        apiConnectorRequestAuditService.countRequestsSince(CONNECTOR_NAME, billingStart)
     private var retryBlockedUntil: Instant? = null
 
     @Synchronized
@@ -35,13 +32,12 @@ open class ApiFootballQuotaGuard(
         val now = Instant.now(clock)
         refreshBillingWindow(now)
         checkRetryState(now)
-        checkQuotaState(now)
 
         if (maxAttempts > 0 && requestCount >= maxAttempts) {
             throw ApiConnectorException(
-                CONNECTOR_CODE,
+                CONNECTOR_NAME,
                 Reason.QUOTA_EXCEEDED,
-                "API-Football daily request quota is exhausted before $requestUri: ${snapshot()}",
+                "API-Football daily request quota is exhausted before $requestUri: ${quotaState()}",
             )
         }
     }
@@ -69,38 +65,18 @@ open class ApiFootballQuotaGuard(
             return
         }
 
-        if (remainingRequests <= 0) {
-            quotaBlockedUntil = parseReset(normalizedHeaders[REQUESTS_RESET_HEADER], now) ?: nextBillingStart(now)
-            log.warn("API-Football request quota is exhausted until {}", quotaBlockedUntil)
+        updateCountFromHeaders(remainingRequests, normalizedHeaders)
+        if (remainingRequests <= 0 && maxAttempts > 0) {
+            requestCount = maxAttempts
+            log.warn("API-Football request quota is exhausted")
         }
-    }
-
-    @Synchronized
-    open fun snapshot(headers: Map<String, String> = emptyMap()): String {
-        val parts = mutableListOf(
-            "connector=$CONNECTOR_CODE",
-            "dailyCount=$requestCount",
-            "dailyLimit=$maxAttempts",
-            "billingStart=$billingStart",
-        )
-        retryBlockedUntil?.let { parts.add("retryBlockedUntil=$it") }
-        quotaBlockedUntil?.let { parts.add("quotaBlockedUntil=$it") }
-        if (headers.isNotEmpty()) {
-            parts.add(
-                headers.entries
-                    .sortedBy { (name, _) -> name }
-                    .joinToString(",", prefix = "headers=") { (name, value) -> "$name=$value" },
-            )
-        }
-        return parts.joinToString(";")
     }
 
     private fun refreshBillingWindow(now: Instant) {
         val currentBillingStart = currentBillingStart(now)
         if (currentBillingStart.isAfter(billingStart)) {
             billingStart = currentBillingStart
-            requestCount = apiConnectorRequestAuditService.countRequestsSince(CONNECTOR_CODE, billingStart)
-            quotaBlockedUntil = null
+            requestCount = apiConnectorRequestAuditService.countRequestsSince(CONNECTOR_NAME, billingStart)
         }
     }
 
@@ -108,24 +84,12 @@ open class ApiFootballQuotaGuard(
         val blockedUntil = retryBlockedUntil ?: return
         if (now.isBefore(blockedUntil)) {
             throw ApiConnectorException(
-                CONNECTOR_CODE,
+                CONNECTOR_NAME,
                 Reason.TOO_OFTEN_REQUESTS,
                 "API-Football retry-after is active until $blockedUntil",
             )
         }
         retryBlockedUntil = null
-    }
-
-    private fun checkQuotaState(now: Instant) {
-        val blockedUntil = quotaBlockedUntil ?: return
-        if (now.isBefore(blockedUntil)) {
-            throw ApiConnectorException(
-                CONNECTOR_CODE,
-                Reason.QUOTA_EXCEEDED,
-                "API-Football request quota is exhausted until $blockedUntil",
-            )
-        }
-        quotaBlockedUntil = null
     }
 
     private fun currentBillingStart(now: Instant): Instant {
@@ -136,9 +100,6 @@ open class ApiFootballQuotaGuard(
         }
         return LocalDateTime.of(billingStartDate, billingStartTime).toInstant(ZoneOffset.UTC)
     }
-
-    private fun nextBillingStart(now: Instant): Instant =
-        currentBillingStart(now).plusSeconds(SECONDS_PER_DAY)
 
     private fun parseRetryAfter(value: String?, now: Instant): Instant? {
         if (value.isNullOrBlank()) {
@@ -151,23 +112,20 @@ open class ApiFootballQuotaGuard(
         return parseHttpDate(value)
     }
 
-    private fun parseReset(value: String?, now: Instant): Instant? {
-        if (value.isNullOrBlank()) {
-            return null
-        }
+    private fun parseHttpDate(value: String): Instant? =
+        runCatching { java.time.ZonedDateTime.parse(value, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() }
+            .getOrNull()
 
-        value.toLongOrNull()?.let { seconds ->
-            return if (seconds > EPOCH_SECONDS_THRESHOLD) {
-                Instant.ofEpochSecond(seconds)
-            } else {
-                now.plusSeconds(seconds.coerceAtLeast(0))
-            }
+    private fun updateCountFromHeaders(remainingRequests: Int, headers: Map<String, String>) {
+        val requestsUsed = headers[REQUESTS_USED_HEADER]?.toIntOrNull()
+            ?: headers[REQUESTS_LIMIT_HEADER]?.toIntOrNull()?.let { limit -> limit - remainingRequests }
+        if (requestsUsed != null && requestsUsed >= 0) {
+            requestCount = maxOf(requestCount, requestsUsed)
         }
-        return runCatching { Instant.parse(value) }.getOrNull() ?: parseHttpDate(value)
     }
 
-    private fun parseHttpDate(value: String): Instant? =
-        runCatching { ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() }.getOrNull()
+    private fun quotaState(): String =
+        "connector=$CONNECTOR_NAME;dailyCount=$requestCount;dailyLimit=$maxAttempts;billingStart=$billingStart"
 
     private fun logMalformedHeader(headers: Map<String, String>, headerName: String) {
         if (headers.containsKey(headerName)) {
@@ -176,12 +134,11 @@ open class ApiFootballQuotaGuard(
     }
 
     private companion object {
-        const val CONNECTOR_CODE = "api-football"
-        const val EPOCH_SECONDS_THRESHOLD = 1_000_000_000L
-        const val SECONDS_PER_DAY = 86_400L
+        const val CONNECTOR_NAME = "api-football"
         const val RETRY_AFTER_HEADER = "retry-after"
+        const val REQUESTS_LIMIT_HEADER = "x-ratelimit-requests-limit"
         const val REQUESTS_REMAINING_HEADER = "x-ratelimit-requests-remaining"
-        const val REQUESTS_RESET_HEADER = "x-ratelimit-requests-reset"
+        const val REQUESTS_USED_HEADER = "x-ratelimit-requests-used"
         val log = LoggerFactory.getLogger(ApiFootballQuotaGuard::class.java)
     }
 }

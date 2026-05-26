@@ -29,7 +29,7 @@ class FlywayPostgresMigrationTest {
             val legacyAuditId = UUID.randomUUID()
             connection.prepareStatement(
                 """
-                insert into public.audit (id, connector_code, request_uri, request_date, success)
+                insert into public.audit (id, connector_name, request_uri, request_date, success)
                 values (?, 'API_FOOTBALL', '/fixtures?league=39&season=2025', timestamp '2026-05-26 14:36:39', true)
                 """.trimIndent(),
             ).use { statement ->
@@ -96,7 +96,7 @@ class FlywayPostgresMigrationTest {
 
             connection.prepareStatement(
                 """
-                select connector_code
+                select connector_name
                 from public.audit
                 where id = ?
                 """.trimIndent(),
@@ -104,7 +104,7 @@ class FlywayPostgresMigrationTest {
                 statement.setObject(1, legacyAuditId)
                 statement.executeQuery().use { resultSet ->
                     assertThat(resultSet.next()).isTrue()
-                    assertThat(resultSet.getString("connector_code")).isEqualTo("api-football")
+                    assertThat(resultSet.getString("connector_name")).isEqualTo("api-football")
                 }
             }
 
@@ -152,12 +152,11 @@ class FlywayPostgresMigrationTest {
 
                     assertThat(columnNames).contains(
                         "id",
-                        "connector_code",
+                        "connector_name",
                         "request_uri",
                         "request_date",
                         "success",
                         "failure_reason",
-                        "quota_snapshot",
                     )
                     assertThat(columnNames).doesNotContain("api_key", "secret", "token", "authorization")
                 }
@@ -169,7 +168,7 @@ class FlywayPostgresMigrationTest {
                 from pg_indexes
                 where schemaname = 'public'
                   and tablename = 'audit'
-                  and indexname = 'idx_audit_connector_code_request_date'
+                  and indexname = 'idx_audit_connector_name_request_date'
                 """.trimIndent(),
             ).use { statement ->
                 statement.executeQuery().use { resultSet ->

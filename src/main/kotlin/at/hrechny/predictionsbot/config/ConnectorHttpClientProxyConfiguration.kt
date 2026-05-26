@@ -1,17 +1,16 @@
-package at.hrechny.predictionsbot.connector.impl.apifootball
+package at.hrechny.predictionsbot.config
 
 import io.micronaut.context.annotation.Value
 import io.micronaut.context.event.BeanCreatedEvent
 import io.micronaut.context.event.BeanCreatedEventListener
 import io.micronaut.http.client.HttpClientConfiguration
-import io.micronaut.http.client.ServiceHttpClientConfiguration
 import jakarta.inject.Singleton
 import java.net.InetSocketAddress
 import java.net.Proxy
 import org.slf4j.LoggerFactory
 
 @Singleton
-class ApiFootballHttpClientProxyConfiguration(
+class ConnectorHttpClientProxyConfiguration(
     @param:Value("\${connectors.proxy.host:}")
     private val proxyHost: String,
     @param:Value("\${connectors.proxy.port:0}")
@@ -20,16 +19,16 @@ class ApiFootballHttpClientProxyConfiguration(
     private val proxyUsername: String,
     @param:Value("\${connectors.proxy.password:}")
     private val proxyPassword: String,
-) : BeanCreatedEventListener<ServiceHttpClientConfiguration> {
-    override fun onCreated(event: BeanCreatedEvent<ServiceHttpClientConfiguration>): ServiceHttpClientConfiguration =
-        configure(event.bean.serviceId, event.bean)
+) : BeanCreatedEventListener<HttpClientConfiguration> {
+    override fun onCreated(event: BeanCreatedEvent<HttpClientConfiguration>): HttpClientConfiguration =
+        configure(event.bean)
 
-    fun <T : HttpClientConfiguration> configure(serviceId: String, configuration: T): T {
-        if (serviceId != API_FOOTBALL_SERVICE_ID || proxyHost.isBlank()) {
+    fun <T : HttpClientConfiguration> configure(configuration: T): T {
+        if (proxyHost.isBlank()) {
             return configuration
         }
         if (proxyPort <= 0) {
-            log.warn("API-Football proxy host is configured but proxy port is not valid")
+            log.warn("Connector HTTP proxy host is configured but proxy port is not valid")
             return configuration
         }
 
@@ -43,7 +42,6 @@ class ApiFootballHttpClientProxyConfiguration(
     }
 
     private companion object {
-        const val API_FOOTBALL_SERVICE_ID = "api-football"
-        val log = LoggerFactory.getLogger(ApiFootballHttpClientProxyConfiguration::class.java)
+        val log = LoggerFactory.getLogger(ConnectorHttpClientProxyConfiguration::class.java)
     }
 }

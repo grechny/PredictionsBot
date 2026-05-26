@@ -5,13 +5,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
-import at.hrechny.predictionsbot.connector.ApiConnectorRequestAuditService;
+import at.hrechny.predictionsbot.connector.impl.apifootball.model.Fixture;
+import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixtureData;
+import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesResponse;
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorRequestAuditService;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpResponse;
@@ -19,6 +22,7 @@ import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.LongStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,23 +48,14 @@ class ApiFootballClientTest {
   @BeforeEach
   void setUp() {
     when(auditService.countRequestsSince(eq("api-football"), org.mockito.ArgumentMatchers.any(Instant.class))).thenReturn(0);
-    client = new ApiFootballClient(
-        httpClient,
-        new ApiFootballResponseParser(API_KEY),
-        auditService,
-        new ApiFootballQuotaGuard(
-            auditService,
-            Clock.fixed(Instant.parse("2026-05-26T23:30:00Z"), ZoneOffset.UTC),
-            100,
-            "22:00"),
-        API_KEY);
+    client = clientWithDailyLimit(100);
     org.mockito.Mockito.clearInvocations(auditService);
   }
 
   @Test
   void getFixturesRecordsSuccessfulAudit() {
     when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025"))
-        .thenReturn(ok("{\"errors\":[],\"response\":[]}")
+        .thenReturn(ok(fixtures())
             .header("x-ratelimit-requests-remaining", "98"));
 
     assertThat(client.getFixtures(39L, "2025")).isEmpty();
@@ -69,20 +64,13 @@ class ApiFootballClientTest {
         eq("api-football"),
         eq("/fixtures?league=39&season=2025"),
         eq(true),
-        isNull(),
-        contains("dailyCount=1"));
-    verify(auditService).recordRequest(
-        eq("api-football"),
-        eq("/fixtures?league=39&season=2025"),
-        eq(true),
-        isNull(),
-        contains("x-ratelimit-requests-remaining=98"));
+        isNull());
   }
 
   @Test
   void getFixturesIncludesSafeRateLimitHeadersWhenConnectorReturnsNonSuccessResponse() {
     when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025"))
-        .thenReturn(response(HttpStatus.TOO_MANY_REQUESTS, "{\"message\":\"too many secret-api-key requests\"}")
+        .thenReturn(response(HttpStatus.TOO_MANY_REQUESTS, fixtures())
             .header("x-ratelimit-requests-remaining", "98")
             .header("x-ratelimit-requests-limit", "100"));
 
@@ -97,15 +85,14 @@ class ApiFootballClientTest {
         eq("api-football"),
         eq("/fixtures?league=39&season=2025"),
         eq(false),
-        contains("HTTP 429"),
-        contains("x-ratelimit-requests-remaining=98"));
+        contains("HTTP 429"));
   }
 
   @Test
   void getFixturesExtractsNonSuccessResponseFromMicronautException() {
     var exception = new HttpClientResponseException(
         "Too many requests",
-        response(HttpStatus.TOO_MANY_REQUESTS, "{\"message\":\"too many requests\"}")
+        response(HttpStatus.TOO_MANY_REQUESTS, fixtures())
             .header("retry-after", "60"));
     when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025")).thenThrow(exception);
 
@@ -119,32 +106,32 @@ class ApiFootballClientTest {
         eq("api-football"),
         eq("/fixtures?league=39&season=2025"),
         eq(false),
-        contains("HTTP 429"),
-        contains("retry-after=60"));
+        contains("HTTP 429"));
   }
 
   @Test
-  void parserRejectsInvalidJsonWithoutLeakingApiKey() {
+  void requestFailureDoesNotLeakApiKey() {
     when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025"))
-        .thenReturn(ok("{\"broken\":\"secret-api-key\""));
+        .thenThrow(new RuntimeException("failed with " + API_KEY));
 
     assertThatThrownBy(() -> client.getFixtures(39L, "2025"))
         .isInstanceOf(ApiConnectorException.class)
-        .hasMessageContaining("INVALID_RESPONSE")
+        .hasMessageContaining("REQUEST_ERROR")
         .hasMessageNotContaining(API_KEY);
 
     verify(auditService).recordRequest(
         eq("api-football"),
         eq("/fixtures?league=39&season=2025"),
         eq(false),
-        contains("Failed to parse API-Football response"),
-        contains("dailyCount=1"));
+        contains("<redacted>"));
   }
 
   @Test
   void parserRejectsApiFootballErrors() {
+    var response = fixtures();
+    response.setErrors(List.of("bad league"));
     when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025"))
-        .thenReturn(ok("{\"errors\":[\"bad league\"],\"response\":[]}"));
+        .thenReturn(ok(response));
 
     assertThatThrownBy(() -> client.getFixtures(39L, "2025"))
         .isInstanceOf(ApiConnectorException.class)
@@ -155,7 +142,7 @@ class ApiFootballClientTest {
   @Test
   void parserRejectsNullResponseField() {
     when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025"))
-        .thenReturn(ok("{\"errors\":[]}"));
+        .thenReturn(ok(new FixturesResponse()));
 
     assertThatThrownBy(() -> client.getFixtures(39L, "2025"))
         .isInstanceOf(ApiConnectorException.class)
@@ -174,11 +161,11 @@ class ApiFootballClientTest {
   void getFixturesByIdsBatchesMoreThanTwentyFixtureIds() {
     var fixtureIds = LongStream.rangeClosed(1, 41).boxed().toList();
     when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(1, 20)))
-        .thenReturn(ok(fixtureBody(1)));
+        .thenReturn(ok(fixtures(fixture(1))));
     when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(21, 40)))
-        .thenReturn(ok(fixtureBody(21)));
+        .thenReturn(ok(fixtures(fixture(21))));
     when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, "41"))
-        .thenReturn(ok(fixtureBody(41)));
+        .thenReturn(ok(fixtures(fixture(41))));
 
     var fixtures = client.getFixtures(fixtureIds);
 
@@ -195,9 +182,9 @@ class ApiFootballClientTest {
   void getFixturesByIdsKeepsCompletedBatchesWhenLaterQuotaBatchStops() {
     var fixtureIds = LongStream.rangeClosed(1, 41).boxed().toList();
     when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(1, 20)))
-        .thenReturn(ok(fixtureBody(1)));
+        .thenReturn(ok(fixtures(fixture(1))));
     when(httpClient.getFixturesByIds(API_KEY, RAPID_API_HOST, fixtureIdsString(21, 40)))
-        .thenReturn(response(HttpStatus.TOO_MANY_REQUESTS, "{\"message\":\"quota\"}")
+        .thenReturn(response(HttpStatus.TOO_MANY_REQUESTS, fixtures())
             .header("x-ratelimit-requests-remaining", "0")
             .header("x-ratelimit-requests-reset", "60"));
 
@@ -211,16 +198,7 @@ class ApiFootballClientTest {
   @Test
   void quotaBlockedRequestDoesNotCallProviderAndRecordsAudit() {
     when(auditService.countRequestsSince(eq("api-football"), org.mockito.ArgumentMatchers.any(Instant.class))).thenReturn(100);
-    var quotaBlockedClient = new ApiFootballClient(
-        httpClient,
-        new ApiFootballResponseParser(API_KEY),
-        auditService,
-        new ApiFootballQuotaGuard(
-            auditService,
-            Clock.fixed(Instant.parse("2026-05-26T23:30:00Z"), ZoneOffset.UTC),
-            100,
-            "22:00"),
-        API_KEY);
+    var quotaBlockedClient = clientWithDailyLimit(100);
     org.mockito.Mockito.clearInvocations(auditService);
 
     assertThatThrownBy(() -> quotaBlockedClient.getFixtures(39L, "2025"))
@@ -232,14 +210,13 @@ class ApiFootballClientTest {
         eq("api-football"),
         eq("/fixtures?league=39&season=2025"),
         eq(false),
-        contains("QUOTA_EXCEEDED"),
-        contains("dailyCount=100"));
+        contains("QUOTA_EXCEEDED"));
   }
 
   @Test
   void headerDrivenExhaustionBlocksFollowingRequest() {
     when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025"))
-        .thenReturn(ok("{\"errors\":[],\"response\":[]}")
+        .thenReturn(ok(fixtures())
             .header("x-ratelimit-requests-remaining", "0")
             .header("x-ratelimit-requests-reset", "60"));
 
@@ -251,12 +228,41 @@ class ApiFootballClientTest {
     verify(httpClient).getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025");
   }
 
-  private MutableHttpResponse<String> ok(String body) {
+  private ApiFootballClient clientWithDailyLimit(int dailyLimit) {
+    return new ApiFootballClient(
+        httpClient,
+        new ApiFootballResponseParser(API_KEY),
+        auditService,
+        new ApiFootballQuotaGuard(
+            auditService,
+            Clock.fixed(Instant.parse("2026-05-26T23:30:00Z"), ZoneOffset.UTC),
+            dailyLimit,
+            "22:00"),
+        API_KEY,
+        RAPID_API_HOST,
+        20);
+  }
+
+  private MutableHttpResponse<FixturesResponse> ok(FixturesResponse body) {
     return HttpResponse.ok(body);
   }
 
-  private MutableHttpResponse<String> response(HttpStatus status, String body) {
-    return HttpResponse.<String>status(status).body(body);
+  private MutableHttpResponse<FixturesResponse> response(HttpStatus status, FixturesResponse body) {
+    return HttpResponse.<FixturesResponse>status(status).body(body);
+  }
+
+  private FixturesResponse fixtures(Fixture... fixtures) {
+    var response = new FixturesResponse();
+    response.setResponse(Arrays.asList(fixtures));
+    return response;
+  }
+
+  private Fixture fixture(long fixtureId) {
+    var fixture = new Fixture();
+    var fixtureData = new FixtureData();
+    fixtureData.setId(fixtureId);
+    fixture.setFixture(fixtureData);
+    return fixture;
   }
 
   private String fixtureIdsString(long from, long to) {
@@ -264,9 +270,5 @@ class ApiFootballClientTest {
         .mapToObj(Long::toString)
         .reduce((left, right) -> left + "-" + right)
         .orElseThrow();
-  }
-
-  private String fixtureBody(long fixtureId) {
-    return "{\"errors\":[],\"response\":[{\"fixture\":{\"id\":" + fixtureId + "}}]}";
   }
 }
