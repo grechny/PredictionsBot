@@ -25,9 +25,11 @@ import java.time.LocalTime
 import java.time.ZoneOffset
 import org.apache.commons.collections4.CollectionUtils
 import org.apache.commons.lang3.StringUtils
+import org.apache.http.HttpResponse
 import org.apache.http.HttpHost
 import org.apache.http.client.fluent.Executor
 import org.apache.http.client.fluent.Request
+import org.apache.http.util.EntityUtils
 import org.slf4j.LoggerFactory
 
 @Singleton
@@ -99,10 +101,10 @@ open class ApiFootballConnector(
                 }
             }
 
-            val responseString = executor
+            val httpResponse = executor
                 .execute(request)
-                .returnContent()
-                .asString()
+                .returnResponse()
+            val responseString = readResponse(uri, httpResponse)
 
             val objectMapper = ObjectMapper()
             objectMapper.configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
@@ -126,12 +128,56 @@ open class ApiFootballConnector(
                 auditEntity.success = true
             }
             return response
+        } catch (exception: ApiFootballConnectorException) {
+            auditEntity.success = false
+            throw exception
         } catch (exception: Exception) {
             log.error("Request to API-Football failed", exception)
             auditEntity.success = false
-            throw ApiFootballConnectorException(Reason.REQUEST_ERROR)
+            throw ApiFootballConnectorException(Reason.REQUEST_ERROR, exception.message, exception)
         } finally {
             auditRepository.save(auditEntity)
+        }
+    }
+
+    private fun readResponse(uri: URI, httpResponse: HttpResponse): String {
+        val responseString = if (httpResponse.entity != null) {
+            EntityUtils.toString(httpResponse.entity, StandardCharsets.UTF_8)
+        } else {
+            ""
+        }
+        val statusCode = httpResponse.statusLine.statusCode
+        if (statusCode in 200..299) {
+            return responseString
+        }
+
+        val safeHeaders = safeRateLimitHeaders(httpResponse)
+        val bodyExcerpt = sanitizeBody(responseString)
+        val details = "HTTP $statusCode ${httpResponse.statusLine.reasonPhrase}; headers=$safeHeaders; body=$bodyExcerpt"
+        log.error("API-Football returned non-success response for {}: {}", uri, details)
+        throw ApiFootballConnectorException(Reason.REQUEST_ERROR, details)
+    }
+
+    private fun safeRateLimitHeaders(httpResponse: HttpResponse): Map<String, String> =
+        httpResponse.allHeaders
+            .map { header -> header.name.lowercase() to header.value }
+            .filter { (name, _) -> SAFE_RESPONSE_HEADERS.contains(name) || name.startsWith("x-ratelimit-") }
+            .toMap()
+
+    private fun sanitizeBody(body: String): String {
+        if (body.isBlank()) {
+            return ""
+        }
+
+        val withoutApiKey = if (apiKey.isBlank()) {
+            body
+        } else {
+            body.replace(apiKey, "<redacted>")
+        }
+        return if (withoutApiKey.length <= RESPONSE_BODY_LOG_LIMIT) {
+            withoutApiKey
+        } else {
+            withoutApiKey.take(RESPONSE_BODY_LOG_LIMIT) + "...<truncated>"
         }
     }
 
@@ -165,6 +211,16 @@ open class ApiFootballConnector(
     private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
 
     private companion object {
+        const val RESPONSE_BODY_LOG_LIMIT = 500
+        val SAFE_RESPONSE_HEADERS = setOf(
+            "retry-after",
+            "x-ratelimit-requests-limit",
+            "x-ratelimit-requests-remaining",
+            "x-ratelimit-requests-reset",
+            "x-ratelimit-requests-used",
+            "x-ratelimit-subscription-limit",
+            "x-ratelimit-subscription-remaining",
+        )
         val log = LoggerFactory.getLogger(ApiFootballConnector::class.java)
     }
 }

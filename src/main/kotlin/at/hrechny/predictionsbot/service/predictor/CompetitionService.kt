@@ -109,23 +109,31 @@ open class CompetitionService(
         return seasonRepository!!.findAllByActiveIsTrue()
     }
 
-    open fun refreshActiveFixtures(seasonId: UUID) {
+    open fun refreshActiveFixtures(seasonId: UUID): Boolean {
         val seasonEntity = getSeason(seasonId)
         val activeMatches = matchRepository!!.findAllActive(seasonEntity)
         if (activeMatches.isEmpty()) {
-            return
+            return true
         }
 
         val fixtureIds = activeMatches.map { match -> match.apiFootballId!! }
         try {
             val fixtures = apiFootballConnector!!.getFixtures(fixtureIds)
             refreshFixtures(fixtures, seasonEntity)
+            return true
         } catch (exception: ApiFootballConnectorException) {
             log.error("Failed to refresh fixtures: {}", exception.message)
+            return false
         }
     }
 
-    open fun refreshFixtures(seasonEntity: SeasonEntity) {
+    open fun refreshFixtures(seasonEntity: SeasonEntity): Boolean = refreshFixtures(seasonEntity, false)
+
+    open fun refreshFixturesOrThrow(seasonEntity: SeasonEntity) {
+        refreshFixtures(seasonEntity, true)
+    }
+
+    private fun refreshFixtures(seasonEntity: SeasonEntity, propagateProviderErrors: Boolean): Boolean {
         val managedSeasonEntity = getSeason(seasonEntity.id!!)
         log.info("Start refreshing fixtures data for the season {}", managedSeasonEntity.id)
         try {
@@ -134,8 +142,13 @@ open class CompetitionService(
                 managedSeasonEntity.year!!,
             )
             refreshFixtures(fixtures, managedSeasonEntity)
+            return true
         } catch (exception: ApiFootballConnectorException) {
             log.error("Failed to refresh fixtures for {}: {}", managedSeasonEntity.competition!!.name, exception.message)
+            if (propagateProviderErrors) {
+                throw exception
+            }
+            return false
         }
     }
 

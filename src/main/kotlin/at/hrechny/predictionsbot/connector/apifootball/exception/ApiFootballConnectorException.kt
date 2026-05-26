@@ -1,6 +1,10 @@
 package at.hrechny.predictionsbot.connector.apifootball.exception
 
-class ApiFootballConnectorException(reason: Reason) : RuntimeException(reason.toString()) {
+class ApiFootballConnectorException @JvmOverloads constructor(
+    val reason: Reason,
+    details: String? = null,
+    cause: Throwable? = null,
+) : RuntimeException(listOfNotNull(reason.toString(), details).joinToString(": "), cause) {
     enum class Reason {
         TOO_OFTEN_REQUESTS,
         QUOTA_EXCEEDED,

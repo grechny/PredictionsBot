@@ -66,6 +66,11 @@ telegram:
   token: ${telegram.token}
   reportTo: ${telegram.reportTo:}
 
+schedulers:
+  fixtures:
+    enabled: ${schedulers.fixtures.enabled:true}
+    cron: ${schedulers.fixtures.cron:0 0 0 * * *}
+
 application:
   url: ${application.url}
 
