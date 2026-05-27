@@ -21,6 +21,10 @@ import java.util.UUID
             name = "uk_api_connector_ids_connector_entity",
             columnNames = ["connector_code", "entity_type", "connector_entity_id"],
         ),
+        UniqueConstraint(
+            name = "uk_api_connector_ids_connector_internal",
+            columnNames = ["connector_code", "entity_type", "internal_id"],
+        ),
     ],
     indexes = [
         Index(name = "idx_api_connector_ids_entity_internal", columnList = "entity_type, internal_id"),

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,6 +26,7 @@ import at.hrechny.predictionsbot.database.entity.MatchEntity;
 import at.hrechny.predictionsbot.database.entity.RoundEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.database.entity.TeamEntity;
+import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
@@ -66,6 +68,16 @@ class CompetitionServiceFixtureRefreshTest {
   void setUp() {
     lenient().when(apiConnector.getName())
         .thenReturn("api-football");
+    lenient().when(apiConnectorService.findInternalId(anyString(), any(ApiConnectorEntityType.class), anyString()))
+        .thenReturn(Optional.empty());
+    lenient().when(seasonRepository.save(any(SeasonEntity.class))).thenAnswer(invocation -> {
+      var season = invocation.getArgument(0, SeasonEntity.class);
+      season.getRounds().stream()
+          .flatMap(round -> round.getMatches().stream())
+          .filter(match -> match.getId() == null)
+          .forEach(match -> match.setId(UUID.randomUUID()));
+      return season;
+    });
     competitionService = new CompetitionService(
         null,
         seasonRepository,
@@ -231,8 +243,6 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
-    when(teamRepository.findFirstByApiFootballId(1L)).thenReturn(Optional.empty());
-    when(teamRepository.findFirstByApiFootballId(2L)).thenReturn(Optional.empty());
     when(teamRepository.save(any(TeamEntity.class))).thenAnswer(invocation -> {
       var team = invocation.getArgument(0, TeamEntity.class);
       team.setId(UUID.randomUUID());
@@ -243,14 +253,13 @@ class CompetitionServiceFixtureRefreshTest {
 
     assertThat(round.getMatches()).hasSize(1);
     var createdMatch = round.getMatches().get(0);
-    assertThat(createdMatch.getApiFootballId()).isEqualTo(100L);
-    assertThat(createdMatch.getHomeTeam().getApiFootballId()).isEqualTo(1L);
     assertThat(createdMatch.getHomeTeam().getName()).isEqualTo("Arsenal");
-    assertThat(createdMatch.getAwayTeam().getApiFootballId()).isEqualTo(2L);
     assertThat(createdMatch.getAwayTeam().getName()).isEqualTo("Chelsea");
     assertThat(createdMatch.getStatus()).isEqualTo(MatchStatus.PLANNED);
     assertThat(createdMatch.getStartTime()).isNotNull();
-    assertThat(round.getApiFootballId()).isNull();
+    verify(apiConnectorService).upsertId("api-football", ApiConnectorEntityType.TEAM, "1", createdMatch.getHomeTeam().getId());
+    verify(apiConnectorService).upsertId("api-football", ApiConnectorEntityType.TEAM, "2", createdMatch.getAwayTeam().getId());
+    verify(apiConnectorService).upsertId("api-football", ApiConnectorEntityType.MATCH, "100", createdMatch.getId());
     verify(seasonRepository).save(season);
   }
 
@@ -278,8 +287,6 @@ class CompetitionServiceFixtureRefreshTest {
         roundDto("Regular Season - 1"),
         roundDto("Regular Season - 2")));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
-    when(teamRepository.findFirstByApiFootballId(1L)).thenReturn(Optional.empty());
-    when(teamRepository.findFirstByApiFootballId(2L)).thenReturn(Optional.empty());
     when(teamRepository.save(any(TeamEntity.class))).thenAnswer(invocation -> {
       var team = invocation.getArgument(0, TeamEntity.class);
       team.setId(UUID.randomUUID());
@@ -294,9 +301,12 @@ class CompetitionServiceFixtureRefreshTest {
         .findFirst()
         .orElseThrow();
     assertThat(createdRound.getOrderNumber()).isEqualTo(2);
-    assertThat(createdRound.getApiFootballId()).isNull();
     assertThat(createdRound.getMatches()).hasSize(1);
-    assertThat(createdRound.getMatches().get(0).getApiFootballId()).isEqualTo(100L);
+    verify(apiConnectorService).upsertId(
+        "api-football",
+        ApiConnectorEntityType.MATCH,
+        "100",
+        createdRound.getMatches().get(0).getId());
     verify(apiConnector).getRounds("39", "2026");
     verify(seasonRepository).save(season);
   }
@@ -329,7 +339,7 @@ class CompetitionServiceFixtureRefreshTest {
 
     assertThat(firstRound.getMatches()).isEmpty();
     assertThat(secondRound.getMatches()).containsExactly(match);
-    assertThat(secondRound.getMatches().get(0).getApiFootballId()).isEqualTo(100L);
+    verify(apiConnectorService).upsertId("api-football", ApiConnectorEntityType.MATCH, "100", match.getId());
     assertThat(season.getRounds().stream().flatMap(round -> round.getMatches().stream()).toList()).hasSize(1);
     verify(seasonRepository).save(season);
   }
@@ -368,7 +378,11 @@ class CompetitionServiceFixtureRefreshTest {
     var competition = new CompetitionEntity();
     competition.setId(UUID.randomUUID());
     competition.setName("Premier League");
-    competition.setApiFootballId(39L);
+    lenient().when(apiConnectorService.requireConnectorEntityId(
+        "api-football",
+        ApiConnectorEntityType.COMPETITION,
+        competition.getId()))
+        .thenReturn("39");
 
     var season = new SeasonEntity();
     season.setId(UUID.randomUUID());
@@ -393,23 +407,37 @@ class CompetitionServiceFixtureRefreshTest {
     return 1;
   }
 
-  private MatchEntity existingMatch(RoundEntity round, Long apiFootballId, String home, String away) {
+  private MatchEntity existingMatch(RoundEntity round, Long connectorMatchId, String home, String away) {
     var match = new MatchEntity();
     match.setId(UUID.randomUUID());
     match.setRound(round);
-    match.setApiFootballId(apiFootballId);
     match.setHomeTeam(teamEntity(1L, home, home + ".png"));
     match.setAwayTeam(teamEntity(2L, away, away + ".png"));
     match.setStatus(MatchStatus.PLANNED);
+    lenient().when(apiConnectorService.findInternalId(
+        "api-football",
+        ApiConnectorEntityType.MATCH,
+        connectorMatchId.toString()))
+        .thenReturn(Optional.of(match.getId()));
+    lenient().when(apiConnectorService.requireConnectorEntityId(
+        "api-football",
+        ApiConnectorEntityType.MATCH,
+        match.getId()))
+        .thenReturn(connectorMatchId.toString());
     return match;
   }
 
-  private TeamEntity teamEntity(Long apiFootballId, String name, String logoUrl) {
+  private TeamEntity teamEntity(Long connectorTeamId, String name, String logoUrl) {
     var team = new TeamEntity();
     team.setId(UUID.randomUUID());
-    team.setApiFootballId(apiFootballId);
     team.setName(name);
     team.setLogoUrl(logoUrl);
+    lenient().when(apiConnectorService.findInternalId(
+        "api-football",
+        ApiConnectorEntityType.TEAM,
+        connectorTeamId.toString()))
+        .thenReturn(Optional.of(team.getId()));
+    lenient().when(teamRepository.findById(team.getId())).thenReturn(Optional.of(team));
     return team;
   }
 

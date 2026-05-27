@@ -352,7 +352,6 @@ class TelegramWebAppControllerTest {
     round.setSeason(season);
     round.setOrderNumber(orderNumber);
     round.setType(RoundType.SEASON);
-    round.setApiFootballId("Regular Season - " + orderNumber);
     return round;
   }
 

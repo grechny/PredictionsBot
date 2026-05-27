@@ -54,4 +54,26 @@ class ApiConnectorIdRepository(
         .setParameter("internalId", internalId)
         .setParameter("entityType", entityType)
         .resultList
+
+    fun findByConnectorCodeAndEntityTypeAndInternalId(
+        connectorCode: String,
+        entityType: ApiConnectorEntityType,
+        internalId: UUID,
+    ): Optional<ApiConnectorIdEntity> = entityManager
+        .createQuery(
+            """
+            select p
+            from ApiConnectorIdEntity p
+            where p.connectorCode = :connectorCode
+              and p.entityType = :entityType
+              and p.internalId = :internalId
+            """.trimIndent(),
+            ApiConnectorIdEntity::class.java,
+        )
+        .setParameter("connectorCode", connectorCode)
+        .setParameter("entityType", entityType)
+        .setParameter("internalId", internalId)
+        .setMaxResults(1)
+        .resultStream
+        .findFirst()
 }

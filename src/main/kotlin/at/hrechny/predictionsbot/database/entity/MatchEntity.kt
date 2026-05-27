@@ -43,9 +43,6 @@ class MatchEntity : GeneratedIdEntity() {
     @field:Column
     var awayTeamScore: Int? = null
 
-    @field:Column(unique = true)
-    var apiFootballId: Long? = null
-
     @field:OneToMany(mappedBy = "match", cascade = [CascadeType.PERSIST, CascadeType.MERGE])
     var predictions: MutableList<PredictionEntity> = mutableListOf()
 

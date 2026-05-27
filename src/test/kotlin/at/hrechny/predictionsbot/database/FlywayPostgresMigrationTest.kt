@@ -27,6 +27,12 @@ class FlywayPostgresMigrationTest {
         assertThat(v1Result.migrationsExecuted).isEqualTo(1)
         DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()).use { connection ->
             val legacyAuditId = UUID.randomUUID()
+            val competitionId = UUID.randomUUID()
+            val homeTeamId = UUID.randomUUID()
+            val awayTeamId = UUID.randomUUID()
+            val seasonId = UUID.randomUUID()
+            val roundId = UUID.randomUUID()
+            val matchId = UUID.randomUUID()
             connection.prepareStatement(
                 """
                 insert into public.audit (id, api_key, api_provider, request_uri, request_date, success)
@@ -34,6 +40,68 @@ class FlywayPostgresMigrationTest {
                 """.trimIndent(),
             ).use { statement ->
                 statement.setObject(1, legacyAuditId)
+                statement.executeUpdate()
+            }
+            connection.prepareStatement(
+                """
+                insert into public.competitions (id, api_football_id, name)
+                values (?, 39, 'Premier League')
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, competitionId)
+                statement.executeUpdate()
+            }
+            connection.prepareStatement(
+                """
+                insert into public.teams (id, api_football_id, name, logo_url)
+                values (?, 1, 'Arsenal', 'arsenal.png'),
+                       (?, 2, 'Chelsea', 'chelsea.png')
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, homeTeamId)
+                statement.setObject(2, awayTeamId)
+                statement.executeUpdate()
+            }
+            connection.prepareStatement(
+                """
+                insert into public.seasons (id, active, year, competition_id)
+                values (?, true, '2026', ?)
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, seasonId)
+                statement.setObject(2, competitionId)
+                statement.executeUpdate()
+            }
+            connection.prepareStatement(
+                """
+                insert into public.rounds (id, order_number, api_football_id, type, season_id)
+                values (?, 1, 'Regular Season - 1', 'SEASON', ?)
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, roundId)
+                statement.setObject(2, seasonId)
+                statement.executeUpdate()
+            }
+            connection.prepareStatement(
+                """
+                insert into public.matches (
+                    id,
+                    api_football_id,
+                    away_team_score,
+                    home_team_score,
+                    start_time,
+                    status,
+                    away_team_id,
+                    home_team_id,
+                    round_id
+                )
+                values (?, 100, null, null, timestamp '2026-05-27 18:30:00', 'PLANNED', ?, ?, ?)
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, matchId)
+                statement.setObject(2, awayTeamId)
+                statement.setObject(3, homeTeamId)
+                statement.setObject(4, roundId)
                 statement.executeUpdate()
             }
 
@@ -137,6 +205,56 @@ class FlywayPostgresMigrationTest {
 
             connection.prepareStatement(
                 """
+                select connector_code, entity_type, connector_entity_id, internal_id
+                from public.api_connector_ids
+                order by entity_type, connector_entity_id
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    val mappings = generateSequence {
+                        if (resultSet.next()) {
+                            listOf(
+                                resultSet.getString("connector_code"),
+                                resultSet.getString("entity_type"),
+                                resultSet.getString("connector_entity_id"),
+                                resultSet.getObject("internal_id", UUID::class.java).toString(),
+                            ).joinToString(":")
+                        } else {
+                            null
+                        }
+                    }.toList()
+
+                    assertThat(mappings).contains(
+                        "api-football:COMPETITION:39:$competitionId",
+                        "api-football:MATCH:100:$matchId",
+                        "api-football:TEAM:1:$homeTeamId",
+                        "api-football:TEAM:2:$awayTeamId",
+                    )
+                }
+            }
+
+            listOf("competitions", "matches", "rounds", "teams").forEach { tableName ->
+                connection.prepareStatement(
+                    """
+                    select column_name
+                    from information_schema.columns
+                    where table_schema = 'public'
+                      and table_name = ?
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, tableName)
+                    statement.executeQuery().use { resultSet ->
+                        val columnNames = generateSequence {
+                            if (resultSet.next()) resultSet.getString("column_name") else null
+                        }.toList()
+
+                        assertThat(columnNames).doesNotContain("api_football_id")
+                    }
+                }
+            }
+
+            connection.prepareStatement(
+                """
                 select column_name
                 from information_schema.columns
                 where table_schema = 'public'
@@ -168,6 +286,20 @@ class FlywayPostgresMigrationTest {
                 where schemaname = 'public'
                   and tablename = 'audit'
                   and indexname = 'idx_audit_connector_name_request_date'
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    assertThat(resultSet.next()).isTrue()
+                }
+            }
+
+            connection.prepareStatement(
+                """
+                select constraint_name
+                from information_schema.table_constraints
+                where table_schema = 'public'
+                  and table_name = 'api_connector_ids'
+                  and constraint_name = 'uk_api_connector_ids_connector_internal'
                 """.trimIndent(),
             ).use { statement ->
                 statement.executeQuery().use { resultSet ->

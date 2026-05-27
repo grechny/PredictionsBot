@@ -27,9 +27,6 @@ class RoundEntity : GeneratedIdEntity() {
     @field:Column
     var orderNumber: Int = 0
 
-    @field:Column
-    var apiFootballId: String? = null
-
     @field:OneToMany(mappedBy = "round", cascade = [CascadeType.PERSIST, CascadeType.MERGE])
     var matches: MutableList<MatchEntity> = mutableListOf()
 }

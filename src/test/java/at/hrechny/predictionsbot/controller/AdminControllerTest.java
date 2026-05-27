@@ -27,6 +27,7 @@ import io.micronaut.http.HttpStatus;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import java.time.Year;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,7 +83,7 @@ class AdminControllerTest {
     verify(competitionService).addCompetition(argThat(competition ->
         competition.getId() == null
             && "Premier League".equals(competition.getName())
-            && Long.valueOf(39L).equals(competition.getApiFootballId())
+            && "39".equals(competition.getConnectorIds().get("api-football"))
             && competition.isActive()));
     verify(telegramService).sendCompetition(competitionId);
   }
@@ -227,20 +228,24 @@ class AdminControllerTest {
     verify(telegramService).pushUpdate(2L, "Refresh competitions", true);
   }
 
-  private CompetitionCreateRequestDto competitionCreateRequest(UUID id, String name, Long apiFootballId, boolean active) {
+  private CompetitionCreateRequestDto competitionCreateRequest(UUID id, String name, Long connectorCompetitionId, boolean active) {
     var competition = new CompetitionCreateRequestDto();
     competition.setId(id);
     competition.setName(name);
-    competition.setApiFootballId(apiFootballId);
+    var connectorIds = new HashMap<String, String>();
+    connectorIds.put("api-football", connectorCompetitionId.toString());
+    competition.setConnectorIds(connectorIds);
     competition.setActive(active);
     return competition;
   }
 
-  private CompetitionResponseDto competitionResponse(UUID id, String name, Long apiFootballId, boolean active) {
+  private CompetitionResponseDto competitionResponse(UUID id, String name, Long connectorCompetitionId, boolean active) {
     var competition = new CompetitionResponseDto();
     competition.setId(id);
     competition.setName(name);
-    competition.setApiFootballId(apiFootballId);
+    var connectorIds = new HashMap<String, String>();
+    connectorIds.put("api-football", connectorCompetitionId.toString());
+    competition.setConnectorIds(connectorIds);
     competition.setActive(active);
     return competition;
   }
