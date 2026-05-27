@@ -16,10 +16,11 @@ class ApiConnectorIdRepository(
     @Transactional
     fun save(entity: ApiConnectorIdEntity): ApiConnectorIdEntity = entityManager.merge(entity)
 
-    fun findByConnectorCodeAndEntityTypeAndConnectorEntityId(
+    fun findByConnectorCodeAndEntityTypeAndConnectorEntityIdAndScopeKey(
         connectorCode: String,
         entityType: ApiConnectorEntityType,
         connectorEntityId: String,
+        scopeKey: String,
     ): Optional<ApiConnectorIdEntity> = entityManager
         .createQuery(
             """
@@ -28,12 +29,14 @@ class ApiConnectorIdRepository(
             where p.connectorCode = :connectorCode
               and p.entityType = :entityType
               and p.connectorEntityId = :connectorEntityId
+              and p.scopeKey = :scopeKey
             """.trimIndent(),
             ApiConnectorIdEntity::class.java,
         )
         .setParameter("connectorCode", connectorCode)
         .setParameter("entityType", entityType)
         .setParameter("connectorEntityId", connectorEntityId)
+        .setParameter("scopeKey", scopeKey)
         .setMaxResults(1)
         .resultStream
         .findFirst()

@@ -3,6 +3,7 @@ CREATE TABLE public.api_connector_ids (
     connector_code character varying(255) NOT NULL,
     entity_type character varying(255) NOT NULL,
     connector_entity_id character varying(255) NOT NULL,
+    scope_key character varying(255) NOT NULL,
     internal_id uuid NOT NULL,
     created_at timestamp without time zone NOT NULL,
     updated_at timestamp without time zone NOT NULL
@@ -12,8 +13,8 @@ ALTER TABLE ONLY public.api_connector_ids
     ADD CONSTRAINT api_connector_ids_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY public.api_connector_ids
-    ADD CONSTRAINT uk_api_connector_ids_connector_entity
-    UNIQUE (connector_code, entity_type, connector_entity_id);
+    ADD CONSTRAINT uk_api_connector_ids_connector_entity_scope
+    UNIQUE (connector_code, entity_type, connector_entity_id, scope_key);
 
 CREATE INDEX idx_api_connector_ids_entity_internal
     ON public.api_connector_ids (entity_type, internal_id);

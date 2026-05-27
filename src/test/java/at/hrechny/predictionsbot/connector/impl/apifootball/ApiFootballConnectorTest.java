@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 
 import at.hrechny.predictionsbot.connector.model.FixtureSyncDto;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus;
-import at.hrechny.predictionsbot.connector.model.RoundSyncType;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.Fixture;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixtureData;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixtureStatusEnum;
@@ -53,11 +52,9 @@ class ApiFootballConnectorTest {
     var rounds = connector.getRounds("39", "2026");
 
     assertThat(rounds).hasSize(2);
+    assertThat(rounds.get(0).getExternalId()).isEqualTo("Regular Season - 1");
     assertThat(rounds.get(0).getName()).isEqualTo("Regular Season - 1");
-    assertThat(rounds.get(0).getTypes()).containsExactly(RoundSyncType.SEASON);
-    assertThat(rounds.get(0).getOrderNumber()).isEqualTo(1);
-    assertThat(rounds.get(1).getName()).isEqualTo("Final");
-    assertThat(rounds.get(1).getTypes()).containsExactly(RoundSyncType.FINAL);
+    assertThat(rounds.get(1).getExternalId()).isEqualTo("Final");
     verify(apiFootballClient).getRounds(39L, "2026");
   }
 
@@ -80,9 +77,7 @@ class ApiFootballConnectorTest {
     assertThat(fixtures).hasSize(1);
     var mappedFixture = fixtures.get(0);
     assertThat(mappedFixture.getExternalId()).isEqualTo("100");
-    assertThat(mappedFixture.getRound().getName()).isEqualTo("Regular Season - 1");
-    assertThat(mappedFixture.getRound().getTypes()).containsExactly(RoundSyncType.SEASON);
-    assertThat(mappedFixture.getRound().getOrderNumber()).isEqualTo(1);
+    assertThat(mappedFixture.getRoundExternalId()).isEqualTo("Regular Season - 1");
     assertThat(mappedFixture.getStartTime()).isEqualTo(kickoff.toInstant());
     assertThat(mappedFixture.getStatus()).isEqualTo(FixtureSyncStatus.FINISHED);
     assertThat(mappedFixture.getHomeTeam().getExternalId()).isEqualTo("1");
