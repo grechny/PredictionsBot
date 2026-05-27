@@ -18,8 +18,8 @@ import java.util.UUID
     name = "api_connector_ids",
     uniqueConstraints = [
         UniqueConstraint(
-            name = "uk_api_connector_ids_connector_entity_scope",
-            columnNames = ["connector_code", "entity_type", "connector_entity_id", "scope_key"],
+            name = "uk_api_connector_ids_connector_entity",
+            columnNames = ["connector_code", "entity_type", "connector_entity_id"],
         ),
     ],
     indexes = [
@@ -36,9 +36,6 @@ class ApiConnectorIdEntity : GeneratedIdEntity() {
 
     @field:Column(nullable = false, name = "connector_entity_id")
     var connectorEntityId: String? = null
-
-    @field:Column(nullable = false)
-    var scopeKey: String? = null
 
     @field:Column(nullable = false)
     var internalId: UUID? = null

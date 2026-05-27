@@ -127,7 +127,6 @@ class FlywayPostgresMigrationTest {
                         "connector_code",
                         "entity_type",
                         "connector_entity_id",
-                        "scope_key",
                         "internal_id",
                         "created_at",
                         "updated_at",

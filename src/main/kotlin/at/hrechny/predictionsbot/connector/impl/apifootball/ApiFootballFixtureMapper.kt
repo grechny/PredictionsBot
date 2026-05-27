@@ -8,9 +8,11 @@ import at.hrechny.predictionsbot.connector.impl.apifootball.model.Team
 import at.hrechny.predictionsbot.connector.model.FixtureSyncDto
 import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus
 import at.hrechny.predictionsbot.connector.model.RoundSyncDto
+import at.hrechny.predictionsbot.connector.model.RoundSyncType
 import at.hrechny.predictionsbot.connector.model.ScoreSyncDto
 import at.hrechny.predictionsbot.connector.model.TeamSyncDto
 import jakarta.inject.Singleton
+import java.util.regex.Pattern
 
 @Singleton
 class ApiFootballFixtureMapper {
@@ -18,12 +20,12 @@ class ApiFootballFixtureMapper {
         val fixtureData = requireNotNull(fixture.fixture) { "Fixture data is missing" }
         val fixtureId = requireNotNull(fixtureData.id) { "Fixture id is missing" }
         val connectorFixtureId = fixtureId.toString()
-        val roundExternalId = requireNotNull(fixture.league?.round) { "Fixture round is missing" }
+        val round = requireNotNull(fixture.league?.round) { "Fixture round is missing" }
         val teamsData = requireNotNull(fixture.teams) { "Fixture teams are missing" }
 
         return FixtureSyncDto(
             externalId = connectorFixtureId,
-            roundExternalId = roundExternalId,
+            round = toRoundSyncDto(round),
             startTime = fixtureData.date?.toInstant(),
             status = mapStatus(fixtureData.status),
             homeTeam = toTeamSyncDto(requireNotNull(teamsData.home) { "Home team is missing" }),
@@ -34,9 +36,35 @@ class ApiFootballFixtureMapper {
 
     fun toRoundSyncDto(round: String) =
         RoundSyncDto(
-            externalId = round,
             name = round,
+            orderNumber = parseOrderNumber(round),
+            types = mapRoundTypes(round),
         )
+
+    private fun mapRoundTypes(round: String): List<RoundSyncType> =
+        when {
+            round == "Knockout Round Play-offs" -> listOf(RoundSyncType.ROUND_OF_32)
+            matches(round, "Preliminary Round", ".*Qualifying.*", "Relegation Round", ".*Play-offs.*") ->
+                listOf(RoundSyncType.QUALIFYING)
+            matches(round, "Regular Season.*") -> listOf(RoundSyncType.SEASON)
+            matches(round, "Group.*", "League Stage.*") -> listOf(RoundSyncType.GROUP_STAGE)
+            matches(round, "Round of 32") -> listOf(RoundSyncType.ROUND_OF_32, RoundSyncType.ROUND_OF_32_RETURN)
+            matches(round, "Round of 16", "8th Finals") -> listOf(RoundSyncType.ROUND_OF_16, RoundSyncType.ROUND_OF_16_RETURN)
+            matches(round, "Quarter-finals") -> listOf(RoundSyncType.QUARTER_FINAL, RoundSyncType.QUARTER_FINAL_RETURN)
+            matches(round, "Semi-finals") -> listOf(RoundSyncType.SEMI_FINAL, RoundSyncType.SEMI_FINAL_RETURN)
+            matches(round, "3rd Place Final") -> listOf(RoundSyncType.THIRD_PLACE_FINAL)
+            matches(round, "Final") -> listOf(RoundSyncType.FINAL)
+            else -> throw IllegalArgumentException("Unsupported API-Football round: $round")
+        }
+
+    private fun matches(value: String, vararg patterns: String): Boolean =
+        patterns.any { pattern -> Regex(pattern).matches(value) }
+
+    private fun parseOrderNumber(round: String): Int? =
+        Pattern.compile("^(.+) - (\\d+)$").matcher(round)
+            .takeIf { matcher -> matcher.matches() }
+            ?.group(2)
+            ?.toInt()
 
     private fun toTeamSyncDto(team: Team): TeamSyncDto =
         TeamSyncDto(
@@ -87,4 +115,5 @@ class ApiFootballFixtureMapper {
             -> FixtureSyncStatus.FINISHED
         }
     }
+
 }

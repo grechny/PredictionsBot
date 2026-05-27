@@ -13,42 +13,29 @@ import java.util.UUID
 open class ApiConnectorService(
     private val apiConnectorIdRepository: ApiConnectorIdRepository,
 ) {
-    open fun globalScopeKey(): String = GLOBAL_SCOPE
-
-    open fun competitionScopeKey(competitionId: UUID): String = "competition:$competitionId"
-
-    open fun seasonScopeKey(seasonId: UUID): String = "season:$seasonId"
-
     open fun upsertId(
         connectorCode: String,
         entityType: ApiConnectorEntityType,
         connectorEntityId: String,
-        scopeKey: String,
         internalId: UUID,
     ): ApiConnectorIdEntity {
         val now = Instant.now()
         val entity = apiConnectorIdRepository
-            .findByConnectorCodeAndEntityTypeAndConnectorEntityIdAndScopeKey(
+            .findByConnectorCodeAndEntityTypeAndConnectorEntityId(
                 connectorCode,
                 entityType,
                 connectorEntityId,
-                scopeKey,
             )
             .orElseGet {
                 ApiConnectorIdEntity().apply {
                     this.connectorCode = connectorCode
                     this.entityType = entityType
                     this.connectorEntityId = connectorEntityId
-                    this.scopeKey = scopeKey
                     this.createdAt = now
                 }
             }
         entity.internalId = internalId
         entity.updatedAt = now
         return apiConnectorIdRepository.save(entity)
-    }
-
-    private companion object {
-        const val GLOBAL_SCOPE = "global"
     }
 }

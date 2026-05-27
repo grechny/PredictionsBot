@@ -17,6 +17,7 @@ import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncDto;
 import at.hrechny.predictionsbot.connector.model.RoundSyncDto;
+import at.hrechny.predictionsbot.connector.model.RoundSyncType;
 import at.hrechny.predictionsbot.connector.model.ScoreSyncDto;
 import at.hrechny.predictionsbot.connector.model.TeamSyncDto;
 import at.hrechny.predictionsbot.database.entity.CompetitionEntity;
@@ -249,6 +250,7 @@ class CompetitionServiceFixtureRefreshTest {
     assertThat(createdMatch.getAwayTeam().getName()).isEqualTo("Chelsea");
     assertThat(createdMatch.getStatus()).isEqualTo(MatchStatus.PLANNED);
     assertThat(createdMatch.getStartTime()).isNotNull();
+    assertThat(round.getApiFootballId()).isNull();
     verify(seasonRepository).save(season);
   }
 
@@ -288,10 +290,11 @@ class CompetitionServiceFixtureRefreshTest {
 
     assertThat(season.getRounds()).hasSize(2);
     var createdRound = season.getRounds().stream()
-        .filter(round -> "Regular Season - 2".equals(round.getApiFootballId()))
+        .filter(round -> round.getType() == RoundType.SEASON && round.getOrderNumber() == 2)
         .findFirst()
         .orElseThrow();
     assertThat(createdRound.getOrderNumber()).isEqualTo(2);
+    assertThat(createdRound.getApiFootballId()).isNull();
     assertThat(createdRound.getMatches()).hasSize(1);
     assertThat(createdRound.getMatches().get(0).getApiFootballId()).isEqualTo(100L);
     verify(apiConnector).getRounds("39", "2026");
@@ -374,14 +377,20 @@ class CompetitionServiceFixtureRefreshTest {
     return season;
   }
 
-  private RoundEntity round(SeasonEntity season, String apiFootballId) {
+  private RoundEntity round(SeasonEntity season, String roundName) {
     var round = new RoundEntity();
     round.setId(UUID.randomUUID());
     round.setSeason(season);
     round.setType(RoundType.SEASON);
-    round.setOrderNumber(1);
-    round.setApiFootballId(apiFootballId);
+    round.setOrderNumber(orderNumber(roundName));
     return round;
+  }
+
+  private int orderNumber(String roundName) {
+    if (roundName.endsWith(" - 2")) {
+      return 2;
+    }
+    return 1;
   }
 
   private MatchEntity existingMatch(RoundEntity round, Long apiFootballId, String home, String away) {
@@ -415,7 +424,7 @@ class CompetitionServiceFixtureRefreshTest {
       Integer awayScore) {
     return new FixtureSyncDto(
         id.toString(),
-        round,
+        roundDto(round),
         kickoff == null ? null : kickoff.toInstant(),
         status,
         homeTeam,
@@ -424,7 +433,7 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   private RoundSyncDto roundDto(String round) {
-    return new RoundSyncDto(round, round, null, null);
+    return new RoundSyncDto(round, orderNumber(round), List.of(RoundSyncType.SEASON));
   }
 
   private TeamSyncDto team(Long id, String name, String logo) {
