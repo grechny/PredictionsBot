@@ -3,6 +3,8 @@ package at.hrechny.predictionsbot.service.predictor
 import at.hrechny.predictionsbot.connector.ApiConnector
 import at.hrechny.predictionsbot.connector.model.FixtureSyncDto
 import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus
+import at.hrechny.predictionsbot.connector.model.RoundSyncDto
+import at.hrechny.predictionsbot.connector.model.RoundSyncType
 import at.hrechny.predictionsbot.connector.model.TeamSyncDto
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionCreateRequestDto
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto
@@ -141,10 +143,10 @@ open class CompetitionService(
         val matches = rounds.flatMap { round -> round.matches }
 
         fixtures.forEach { fixture ->
-            var roundList = getRound(rounds, fixture.roundExternalId)
+            var roundList = getRound(rounds, fixture.round)
             if (roundList.isEmpty()) {
                 refreshRounds(seasonEntity)
-                roundList = getRound(rounds, fixture.roundExternalId)
+                roundList = getRound(rounds, fixture.round)
             }
 
             val matchEntity = findMatchByLegacyApiFootballId(matches, fixture.externalId)
@@ -234,13 +236,13 @@ open class CompetitionService(
         val lastRound = roundEntities.maxByOrNull(RoundEntity::orderNumber)
         val nextOrderNumber = AtomicInteger(if (lastRound != null) lastRound.orderNumber + 1 else 1)
         for (round in actualRounds) {
-            if (roundEntities.none { roundEntity -> roundEntity.apiFootballId == round.externalId }) {
-                RoundType.getByAlias(round.name).forEach { roundType ->
+            round.types.map(::mapRoundType).forEach { roundType ->
+                val orderNumber = round.orderNumber ?: getOrderNumber(round.name, roundType, nextOrderNumber)
+                if (roundEntities.none { roundEntity -> sameRound(roundEntity, roundType, round.orderNumber, orderNumber) }) {
                     roundEntities.add(
                         RoundEntity().apply {
                             type = roundType
-                            orderNumber = round.orderNumber ?: getOrderNumber(round.name, roundType, nextOrderNumber)
-                            apiFootballId = round.externalId
+                            this.orderNumber = orderNumber
                             this.season = seasonEntity
                         },
                     )
@@ -266,8 +268,23 @@ open class CompetitionService(
         return if (roundType == RoundType.QUALIFYING) 0 else nextOrderNumber.getAndIncrement()
     }
 
-    private fun getRound(rounds: List<RoundEntity>, apiFootballId: String): List<RoundEntity> =
-        rounds.filter { roundEntity -> roundEntity.apiFootballId == apiFootballId }
+    private fun getRound(rounds: List<RoundEntity>, round: RoundSyncDto): List<RoundEntity> {
+        val roundTypes = round.types.map(::mapRoundType).toSet()
+        return rounds.filter { roundEntity ->
+            roundEntity.type in roundTypes && (round.orderNumber == null || roundEntity.orderNumber == round.orderNumber)
+        }
+    }
+
+    private fun sameRound(
+        roundEntity: RoundEntity,
+        roundType: RoundType,
+        sourceOrderNumber: Int?,
+        resolvedOrderNumber: Int,
+    ): Boolean =
+        roundEntity.type == roundType && (sourceOrderNumber == null || roundEntity.orderNumber == resolvedOrderNumber)
+
+    private fun mapRoundType(roundType: RoundSyncType): RoundType =
+        RoundType.valueOf(roundType.name)
 
     // Phase 1 still merges existing records through legacy API-Football columns while connector IDs are backfilled.
     private fun findMatchByLegacyApiFootballId(
@@ -285,36 +302,16 @@ open class CompetitionService(
                 connectorName,
                 ApiConnectorEntityType.COMPETITION,
                 competition.apiFootballId!!.toString(),
-                connectorService.globalScopeKey(),
                 competition.id!!,
             )
         }
-        if (competition?.id != null && seasonEntity.id != null && seasonEntity.year != null) {
-            connectorService.upsertId(
-                connectorName,
-                ApiConnectorEntityType.SEASON,
-                seasonEntity.year!!,
-                connectorService.competitionScopeKey(competition.id!!),
-                seasonEntity.id!!,
-            )
-        }
         seasonEntity.rounds.forEach { round ->
-            if (round.id != null && round.apiFootballId != null && seasonEntity.id != null) {
-                connectorService.upsertId(
-                    connectorName,
-                    ApiConnectorEntityType.ROUND,
-                    round.apiFootballId!!,
-                    connectorService.seasonScopeKey(seasonEntity.id!!),
-                    round.id!!,
-                )
-            }
             round.matches.forEach { match ->
                 if (match.id != null && match.apiFootballId != null && seasonEntity.id != null) {
                     connectorService.upsertId(
                         connectorName,
                         ApiConnectorEntityType.MATCH,
                         match.apiFootballId!!.toString(),
-                        connectorService.seasonScopeKey(seasonEntity.id!!),
                         match.id!!,
                     )
                 }
@@ -334,7 +331,6 @@ open class CompetitionService(
                 connectorName,
                 ApiConnectorEntityType.TEAM,
                 team.apiFootballId!!.toString(),
-                connectorService.globalScopeKey(),
                 team.id!!,
             )
         }
