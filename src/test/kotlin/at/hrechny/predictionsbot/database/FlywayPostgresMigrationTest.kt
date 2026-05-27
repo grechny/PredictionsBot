@@ -13,24 +13,24 @@ import java.util.UUID
 class FlywayPostgresMigrationTest {
     @Test
     fun baselineMigrationCreatesExpectedPostgresSchema() {
-        val flywayToV4 = Flyway.configure()
+        val flywayToV1 = Flyway.configure()
             .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
             .locations("classpath:db/migration")
-            .target("4")
+            .target("1")
             .baselineOnMigrate(true)
             .validateOnMigrate(true)
             .cleanDisabled(true)
             .load()
 
-        val v4Result = flywayToV4.migrate()
+        val v1Result = flywayToV1.migrate()
 
-        assertThat(v4Result.migrationsExecuted).isEqualTo(4)
+        assertThat(v1Result.migrationsExecuted).isEqualTo(1)
         DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()).use { connection ->
             val legacyAuditId = UUID.randomUUID()
             connection.prepareStatement(
                 """
-                insert into public.audit (id, connector_name, request_uri, request_date, success)
-                values (?, 'API_FOOTBALL', '/fixtures?league=39&season=2025', timestamp '2026-05-26 14:36:39', true)
+                insert into public.audit (id, api_key, api_provider, request_uri, request_date, success)
+                values (?, 'secret-api-key', 'API_FOOTBALL', '/fixtures?league=39&season=2025', timestamp '2026-05-26 14:36:39', true)
                 """.trimIndent(),
             ).use { statement ->
                 statement.setObject(1, legacyAuditId)
@@ -44,9 +44,9 @@ class FlywayPostgresMigrationTest {
                 .validateOnMigrate(true)
                 .cleanDisabled(true)
                 .load()
-            val v5Result = flyway.migrate()
+            val v2Result = flyway.migrate()
 
-            assertThat(v5Result.migrationsExecuted).isEqualTo(1)
+            assertThat(v2Result.migrationsExecuted).isEqualTo(1)
 
             connection.prepareStatement(
                 """
