@@ -24,7 +24,7 @@ open class ApiFootballQuotaGuard(
 ) {
     private var billingStart: Instant = currentBillingStart(Instant.now(clock))
     private var requestCount: Int =
-        apiConnectorAuditService.countRequestsSince(ApiFootballConnector.NAME, billingStart)
+        apiConnectorAuditService.countRequestsSince(ApiFootballConnector.connectorName(), billingStart)
     private var retryBlockedUntil: Instant? = null
 
     @Synchronized
@@ -35,7 +35,7 @@ open class ApiFootballQuotaGuard(
 
         if (maxAttempts > 0 && requestCount >= maxAttempts) {
             throw ApiConnectorException(
-                ApiFootballConnector.NAME,
+                ApiFootballConnector.connectorName(),
                 Reason.QUOTA_EXCEEDED,
                 "API-Football daily request quota is exhausted before $requestUri: ${quotaState()}",
             )
@@ -76,7 +76,7 @@ open class ApiFootballQuotaGuard(
         val currentBillingStart = currentBillingStart(now)
         if (currentBillingStart.isAfter(billingStart)) {
             billingStart = currentBillingStart
-            requestCount = apiConnectorAuditService.countRequestsSince(ApiFootballConnector.NAME, billingStart)
+            requestCount = apiConnectorAuditService.countRequestsSince(ApiFootballConnector.connectorName(), billingStart)
         }
     }
 
@@ -84,7 +84,7 @@ open class ApiFootballQuotaGuard(
         val blockedUntil = retryBlockedUntil ?: return
         if (now.isBefore(blockedUntil)) {
             throw ApiConnectorException(
-                ApiFootballConnector.NAME,
+                ApiFootballConnector.connectorName(),
                 Reason.TOO_OFTEN_REQUESTS,
                 "API-Football retry-after is active until $blockedUntil",
             )
@@ -125,7 +125,7 @@ open class ApiFootballQuotaGuard(
     }
 
     private fun quotaState(): String =
-        "connector=${ApiFootballConnector.NAME};dailyCount=$requestCount;dailyLimit=$maxAttempts;billingStart=$billingStart"
+        "connector=${ApiFootballConnector.connectorName()};dailyCount=$requestCount;dailyLimit=$maxAttempts;billingStart=$billingStart"
 
     private fun logMalformedHeader(headers: Map<String, String>, headerName: String) {
         if (headers.containsKey(headerName)) {
