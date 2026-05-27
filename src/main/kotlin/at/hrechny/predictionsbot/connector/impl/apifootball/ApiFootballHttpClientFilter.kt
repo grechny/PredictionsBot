@@ -54,12 +54,12 @@ open class ApiFootballHttpClientFilter(
 
     private fun isApiFootballRequest(request: HttpRequest<*>): Boolean =
         request.getAttribute(ApiConnector.CONNECTOR_NAME_ATTRIBUTE, String::class.java)
-            .orElse(null) == ApiFootballConnector.connectorName()
+            .orElse(null) == ApiFootballConnector.NAME
 
     private fun parseHost(apiFootballUrl: String): String =
         URI.create(apiFootballUrl).host
             ?: throw ApiConnectorException(
-                ApiFootballConnector.connectorName(),
+                ApiFootballConnector.NAME,
                 Reason.REQUEST_ERROR,
                 "connectors.api-football.url must be an absolute URL with host",
             )

@@ -77,7 +77,7 @@ open class ApiFootballClient(
         } catch (exception: Exception) {
             log.error("Request to API-Football failed", exception)
             val connectorException = ApiConnectorException(
-                ApiFootballConnector.connectorName(),
+                ApiFootballConnector.NAME,
                 Reason.REQUEST_ERROR,
                 apiFootballResponseParser.sanitize(exception.message),
                 exception,
@@ -99,7 +99,7 @@ open class ApiFootballClient(
             null
         }
         return apiFootballResponseParser.validate(
-            ApiFootballConnector.connectorName(),
+            ApiFootballConnector.NAME,
             requestDescription,
             httpResponse.status.code,
             httpResponse.status.reason,

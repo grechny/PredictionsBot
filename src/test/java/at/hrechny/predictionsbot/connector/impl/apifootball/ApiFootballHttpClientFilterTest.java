@@ -89,7 +89,7 @@ class ApiFootballHttpClientFilterTest {
 
   private MutableHttpRequest<?> taggedRequest(String uri) {
     var request = HttpRequest.GET(uri);
-    request.setAttribute(ApiConnector.CONNECTOR_NAME_ATTRIBUTE, ApiFootballConnector.connectorName());
+    request.setAttribute(ApiConnector.CONNECTOR_NAME_ATTRIBUTE, ApiFootballConnector.NAME);
     return request;
   }
 }
