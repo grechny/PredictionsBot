@@ -63,10 +63,19 @@ open class ApiConnectorService(
         connectorCode: String,
         entityType: ApiConnectorEntityType,
         internalId: UUID,
-    ): Optional<String> =
-        apiConnectorIdRepository
-            .findByConnectorCodeAndEntityTypeAndInternalId(connectorCode, entityType, internalId)
-            .map(ApiConnectorIdEntity::connectorEntityId)
+    ): Optional<String> {
+        val mappings = apiConnectorIdRepository
+            .findAllByConnectorCodeAndEntityTypeAndInternalId(connectorCode, entityType, internalId)
+        if (mappings.size > 1) {
+            throw IllegalStateException(
+                "Multiple connector $connectorCode ids found for internal $entityType $internalId",
+            )
+        }
+        return mappings.firstOrNull()
+            ?.connectorEntityId
+            ?.let { Optional.of(it) }
+            ?: Optional.empty()
+    }
 
     open fun requireConnectorEntityId(
         connectorCode: String,
@@ -77,7 +86,9 @@ open class ApiConnectorService(
             NotFoundException("No connector $connectorCode id found for internal $entityType $internalId")
         }
 
-    open fun findConnectorIds(internalId: UUID, entityType: ApiConnectorEntityType): Map<String, String> =
+    open fun findConnectorIdMappings(
+        internalId: UUID,
+        entityType: ApiConnectorEntityType,
+    ): List<ApiConnectorIdEntity> =
         apiConnectorIdRepository.findAllByInternalIdAndEntityType(internalId, entityType)
-            .associate { entity -> entity.connectorCode!! to entity.connectorEntityId!! }
 }

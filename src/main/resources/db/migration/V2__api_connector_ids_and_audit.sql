@@ -15,12 +15,37 @@ ALTER TABLE ONLY public.api_connector_ids
     ADD CONSTRAINT uk_api_connector_ids_connector_entity
     UNIQUE (connector_code, entity_type, connector_entity_id);
 
-ALTER TABLE ONLY public.api_connector_ids
-    ADD CONSTRAINT uk_api_connector_ids_connector_internal
-    UNIQUE (connector_code, entity_type, internal_id);
+CREATE INDEX idx_api_connector_ids_connector_internal
+    ON public.api_connector_ids (connector_code, entity_type, internal_id);
 
 CREATE INDEX idx_api_connector_ids_entity_internal
     ON public.api_connector_ids (entity_type, internal_id);
+
+CREATE TABLE public.api_connector_mapping_candidates (
+    id uuid NOT NULL,
+    connector_code character varying(255) NOT NULL,
+    value_type character varying(255) NOT NULL,
+    raw_value character varying(512) NOT NULL,
+    context_json text,
+    suggested_value character varying(255),
+    suggestion_confidence integer,
+    suggestion_source character varying(255),
+    status character varying(255) NOT NULL,
+    first_seen_at timestamp without time zone NOT NULL,
+    last_seen_at timestamp without time zone NOT NULL,
+    decided_at timestamp without time zone,
+    decided_by character varying(255)
+);
+
+ALTER TABLE ONLY public.api_connector_mapping_candidates
+    ADD CONSTRAINT api_connector_mapping_candidates_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.api_connector_mapping_candidates
+    ADD CONSTRAINT uk_api_connector_mapping_candidates_value
+    UNIQUE (connector_code, value_type, raw_value);
+
+CREATE INDEX idx_api_connector_mapping_candidates_status
+    ON public.api_connector_mapping_candidates (status, last_seen_at);
 
 INSERT INTO public.api_connector_ids (
     id,

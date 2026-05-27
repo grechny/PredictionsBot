@@ -1,10 +1,13 @@
 package at.hrechny.predictionsbot.controller
 
+import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdRequestDto
+import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdResponseDto
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionCreateRequestDto
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto
 import at.hrechny.predictionsbot.controller.model.competition.SeasonCreateRequestDto
 import at.hrechny.predictionsbot.controller.model.competition.SeasonResponseDto
 import at.hrechny.predictionsbot.controller.model.competition.SeasonUpdateRequestDto
+import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType
 import at.hrechny.predictionsbot.exception.RequestValidationException
 import at.hrechny.predictionsbot.service.predictor.CompetitionService
 import at.hrechny.predictionsbot.service.telegram.TelegramService
@@ -45,6 +48,29 @@ open class CompetitionController(
     @Get(value = "/\${secrets.adminKey:}/competitions", produces = [MediaType.APPLICATION_JSON])
     open fun getCompetitions(): HttpResponse<List<CompetitionResponseDto>> =
         HttpResponse.ok(competitionService.getCompetitions())
+
+    @Post(
+        value = "/\${secrets.adminKey:}/api-connectors/{connectorCode}/ids/{entityType}/{internalId}",
+        consumes = [MediaType.APPLICATION_JSON],
+        produces = [MediaType.APPLICATION_JSON],
+    )
+    open fun addConnectorId(
+        @PathVariable("connectorCode") connectorCode: String,
+        @PathVariable("entityType") entityType: ApiConnectorEntityType,
+        @PathVariable("internalId") internalId: UUID,
+        @Valid @Body request: ApiConnectorIdRequestDto,
+    ): HttpResponse<ApiConnectorIdResponseDto> =
+        HttpResponse.ok(competitionService.addConnectorId(connectorCode, entityType, internalId, request))
+
+    @Get(
+        value = "/\${secrets.adminKey:}/api-connectors/ids/{entityType}/{internalId}",
+        produces = [MediaType.APPLICATION_JSON],
+    )
+    open fun getConnectorIds(
+        @PathVariable("entityType") entityType: ApiConnectorEntityType,
+        @PathVariable("internalId") internalId: UUID,
+    ): HttpResponse<List<ApiConnectorIdResponseDto>> =
+        HttpResponse.ok(competitionService.getConnectorIds(entityType, internalId))
 
     @Post(
         value = "/\${secrets.adminKey:}/competitions/{competitionId}/seasons",

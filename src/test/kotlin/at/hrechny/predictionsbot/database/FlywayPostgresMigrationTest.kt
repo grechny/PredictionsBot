@@ -130,6 +130,7 @@ class FlywayPostgresMigrationTest {
                     'matches',
                     'predictions',
                     'api_connector_ids',
+                    'api_connector_mapping_candidates',
                     'rounds',
                     'seasons',
                     'teams',
@@ -146,6 +147,7 @@ class FlywayPostgresMigrationTest {
 
                     assertThat(tableNames).containsExactly(
                         "api_connector_ids",
+                        "api_connector_mapping_candidates",
                         "audit",
                         "competitions",
                         "leagues",
@@ -233,6 +235,52 @@ class FlywayPostgresMigrationTest {
                 }
             }
 
+            connection.prepareStatement(
+                """
+                select column_name
+                from information_schema.columns
+                where table_schema = 'public'
+                  and table_name = 'api_connector_mapping_candidates'
+                order by ordinal_position
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    val columnNames = generateSequence {
+                        if (resultSet.next()) resultSet.getString("column_name") else null
+                    }.toList()
+
+                    assertThat(columnNames).contains(
+                        "id",
+                        "connector_code",
+                        "value_type",
+                        "raw_value",
+                        "context_json",
+                        "suggested_value",
+                        "suggestion_confidence",
+                        "suggestion_source",
+                        "status",
+                        "first_seen_at",
+                        "last_seen_at",
+                        "decided_at",
+                        "decided_by",
+                    )
+                }
+            }
+
+            connection.prepareStatement(
+                """
+                select indexname
+                from pg_indexes
+                where schemaname = 'public'
+                  and tablename = 'api_connector_mapping_candidates'
+                  and indexname = 'idx_api_connector_mapping_candidates_status'
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    assertThat(resultSet.next()).isTrue()
+                }
+            }
+
             listOf("competitions", "matches", "rounds", "teams").forEach { tableName ->
                 connection.prepareStatement(
                     """
@@ -299,12 +347,59 @@ class FlywayPostgresMigrationTest {
                 from information_schema.table_constraints
                 where table_schema = 'public'
                   and table_name = 'api_connector_ids'
-                  and constraint_name = 'uk_api_connector_ids_connector_internal'
+                  and constraint_name = 'uk_api_connector_ids_connector_entity'
                 """.trimIndent(),
             ).use { statement ->
                 statement.executeQuery().use { resultSet ->
                     assertThat(resultSet.next()).isTrue()
                 }
+            }
+
+            connection.prepareStatement(
+                """
+                select constraint_name
+                from information_schema.table_constraints
+                where table_schema = 'public'
+                  and table_name = 'api_connector_ids'
+                  and constraint_name = 'uk_api_connector_ids_connector_internal'
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    assertThat(resultSet.next()).isFalse()
+                }
+            }
+
+            connection.prepareStatement(
+                """
+                select indexname
+                from pg_indexes
+                where schemaname = 'public'
+                  and tablename = 'api_connector_ids'
+                  and indexname = 'idx_api_connector_ids_connector_internal'
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    assertThat(resultSet.next()).isTrue()
+                }
+            }
+
+            connection.prepareStatement(
+                """
+                insert into public.api_connector_ids (
+                    id,
+                    connector_code,
+                    entity_type,
+                    connector_entity_id,
+                    internal_id,
+                    created_at,
+                    updated_at
+                )
+                values (?, 'api-football', 'COMPETITION', 'premier-league', ?, now(), now())
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setObject(1, UUID.randomUUID())
+                statement.setObject(2, competitionId)
+                assertThat(statement.executeUpdate()).isEqualTo(1)
             }
         }
     }

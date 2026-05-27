@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import at.hrechny.predictionsbot.connector.ApiConnector;
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason;
+import at.hrechny.predictionsbot.exception.FixturesSynchronizationException;
 import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncDto;
@@ -27,11 +28,13 @@ import at.hrechny.predictionsbot.database.entity.RoundEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.database.entity.TeamEntity;
 import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType;
+import at.hrechny.predictionsbot.database.model.ApiConnectorValueType;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.database.repository.TeamRepository;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorMappingCandidateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -62,6 +65,9 @@ class CompetitionServiceFixtureRefreshTest {
   @Mock
   private ApiConnectorService apiConnectorService;
 
+  @Mock
+  private ApiConnectorMappingCandidateService apiConnectorMappingCandidateService;
+
   private CompetitionService competitionService;
 
   @BeforeEach
@@ -86,12 +92,20 @@ class CompetitionServiceFixtureRefreshTest {
         teamRepository,
         matchRepository,
         apiConnector,
-        apiConnectorService);
+        apiConnectorService,
+        apiConnectorMappingCandidateService);
   }
 
   @Test
   void refreshActiveFixturesReportsFailuresThroughErrorReportInterceptor() throws Exception {
     var method = CompetitionService.class.getDeclaredMethod("refreshActiveFixtures", UUID.class);
+
+    assertThat(method.getAnnotation(EnableErrorReport.class)).isNotNull();
+  }
+
+  @Test
+  void refreshFixturesReportsFailuresThroughErrorReportInterceptor() throws Exception {
+    var method = CompetitionService.class.getDeclaredMethod("refreshFixtures", SeasonEntity.class);
 
     assertThat(method.getAnnotation(EnableErrorReport.class)).isNotNull();
   }
@@ -221,6 +235,82 @@ class CompetitionServiceFixtureRefreshTest {
     assertThat(unchangedMatch.getHomeTeamScore()).isEqualTo(1);
     assertThat(unchangedMatch.getAwayTeamScore()).isEqualTo(1);
     verify(seasonRepository).save(season);
+  }
+
+  @Test
+  void refreshActiveFixturesDoesNotCreateMatchWhenReturnedFixtureIdIsUnmapped() {
+    var season = season();
+    var round = round(season, "Regular Season - 1");
+    var match = existingMatch(round, 100L, "Arsenal", "Chelsea");
+    round.setMatches(new ArrayList<>(List.of(match)));
+    season.setRounds(new ArrayList<>(List.of(round)));
+
+    var fixture = fixture(
+        999L,
+        "Regular Season - 1",
+        OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC),
+        FixtureSyncStatus.FINISHED,
+        team(1L, "Arsenal", "arsenal.png"),
+        team(2L, "Chelsea", "chelsea.png"),
+        2,
+        0);
+
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
+    when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
+    when(apiConnector.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of(fixture));
+
+    assertThatThrownBy(() -> competitionService.refreshActiveFixtures(season.getId()))
+        .isInstanceOf(FixturesSynchronizationException.class)
+        .hasMessageContaining("No internal match found");
+
+    verify(apiConnectorMappingCandidateService).recordCandidate(
+        "api-football",
+        ApiConnectorValueType.MATCH_ID,
+        "999",
+        null,
+        null,
+        null,
+        null);
+    verify(teamRepository, never()).save(any(TeamEntity.class));
+    verify(seasonRepository, never()).save(season);
+  }
+
+  @Test
+  void refreshActiveFixturesDoesNotCreateRoundsInUpdateOnlyMode() {
+    var season = season();
+    var round = round(season, "Regular Season - 1");
+    var match = existingMatch(round, 100L, "Arsenal", "Chelsea");
+    round.setMatches(new ArrayList<>(List.of(match)));
+    season.setRounds(new ArrayList<>(List.of(round)));
+
+    var fixture = fixture(
+        100L,
+        "Regular Season - 2",
+        OffsetDateTime.of(2026, 5, 28, 18, 30, 0, 0, ZoneOffset.UTC),
+        FixtureSyncStatus.FINISHED,
+        team(1L, "Arsenal", "arsenal.png"),
+        team(2L, "Chelsea", "chelsea.png"),
+        2,
+        0);
+
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
+    when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
+    when(apiConnector.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of(fixture));
+
+    assertThatThrownBy(() -> competitionService.refreshActiveFixtures(season.getId()))
+        .isInstanceOf(FixturesSynchronizationException.class)
+        .hasMessageContaining("No internal round found");
+
+    verify(apiConnectorMappingCandidateService).recordCandidate(
+        "api-football",
+        ApiConnectorValueType.ROUND_LABEL,
+        "Regular Season - 2",
+        null,
+        null,
+        null,
+        null);
+    verify(apiConnector, never()).getRounds(anyString(), anyString());
+    verify(seasonRepository, never()).save(season);
   }
 
   @Test

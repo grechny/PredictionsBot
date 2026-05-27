@@ -55,11 +55,11 @@ class ApiConnectorIdRepository(
         .setParameter("entityType", entityType)
         .resultList
 
-    fun findByConnectorCodeAndEntityTypeAndInternalId(
+    fun findAllByConnectorCodeAndEntityTypeAndInternalId(
         connectorCode: String,
         entityType: ApiConnectorEntityType,
         internalId: UUID,
-    ): Optional<ApiConnectorIdEntity> = entityManager
+    ): List<ApiConnectorIdEntity> = entityManager
         .createQuery(
             """
             select p
@@ -73,7 +73,5 @@ class ApiConnectorIdRepository(
         .setParameter("connectorCode", connectorCode)
         .setParameter("entityType", entityType)
         .setParameter("internalId", internalId)
-        .setMaxResults(1)
-        .resultStream
-        .findFirst()
+        .resultList
 }

@@ -44,33 +44,6 @@ caches:
   api-football:
     expire-after-write: ${connectors.api-football.minInterval:60}s
 
-connectors:
-  api-football:
-    url: ${connectors.api-football.url}
-    apiKey: ${connectors.api-football.apiKey}
-    fixtureBatchSize: ${connectors.api-football.fixtureBatchSize:20}
-    minInterval: ${connectors.api-football.minInterval:60}
-    maxAttempts: ${connectors.api-football.maxAttempts}
-    dayStarts: ${connectors.api-football.dayStarts}
-  proxy:
-    host: ${connectors.proxy.host:}
-    port: ${connectors.proxy.port:0}
-    username: ${connectors.proxy.username:}
-    password: ${connectors.proxy.password:}
-
-secrets:
-  adminKey: ${secrets.adminKey}
-  telegramKey: ${secrets.telegramKey}
-
-telegram:
-  token: ${telegram.token}
-  reportTo: ${telegram.reportTo:}
-
-schedulers:
-  fixtures:
-    enabled: ${schedulers.fixtures.enabled:true}
-    cron: ${schedulers.fixtures.cron:0 0 0 * * *}
-
 api-connectors:
   connectors:
     api-football:

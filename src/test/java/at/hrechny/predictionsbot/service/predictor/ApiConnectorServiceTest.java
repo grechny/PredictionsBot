@@ -3,6 +3,7 @@ package at.hrechny.predictionsbot.service.predictor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,11 +58,11 @@ class ApiConnectorServiceTest {
   void requireConnectorEntityIdReturnsReverseMapping() {
     var internalId = UUID.randomUUID();
     var mapping = mapping("api-football", ApiConnectorEntityType.COMPETITION, "39", internalId);
-    when(apiConnectorIdRepository.findByConnectorCodeAndEntityTypeAndInternalId(
+    when(apiConnectorIdRepository.findAllByConnectorCodeAndEntityTypeAndInternalId(
         "api-football",
         ApiConnectorEntityType.COMPETITION,
         internalId))
-        .thenReturn(Optional.of(mapping));
+        .thenReturn(List.of(mapping));
 
     assertThat(apiConnectorService.requireConnectorEntityId(
         "api-football",
@@ -73,11 +74,11 @@ class ApiConnectorServiceTest {
   @Test
   void requireConnectorEntityIdFailsWhenMappingIsMissing() {
     var internalId = UUID.randomUUID();
-    when(apiConnectorIdRepository.findByConnectorCodeAndEntityTypeAndInternalId(
+    when(apiConnectorIdRepository.findAllByConnectorCodeAndEntityTypeAndInternalId(
         "api-football",
         ApiConnectorEntityType.MATCH,
         internalId))
-        .thenReturn(Optional.empty());
+        .thenReturn(List.of());
 
     assertThatThrownBy(() -> apiConnectorService.requireConnectorEntityId(
         "api-football",
@@ -89,18 +90,43 @@ class ApiConnectorServiceTest {
   }
 
   @Test
-  void findConnectorIdsReturnsMapByConnectorCode() {
+  void requireConnectorEntityIdFailsWhenReverseMappingIsAmbiguous() {
+    var internalId = UUID.randomUUID();
+    when(apiConnectorIdRepository.findAllByConnectorCodeAndEntityTypeAndInternalId(
+        "api-football",
+        ApiConnectorEntityType.TEAM,
+        internalId))
+        .thenReturn(List.of(
+            mapping("api-football", ApiConnectorEntityType.TEAM, "1", internalId),
+            mapping("api-football", ApiConnectorEntityType.TEAM, "old-1", internalId)));
+
+    assertThatThrownBy(() -> apiConnectorService.requireConnectorEntityId(
+        "api-football",
+        ApiConnectorEntityType.TEAM,
+        internalId))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Multiple connector api-football ids")
+        .hasMessageContaining(internalId.toString());
+  }
+
+  @Test
+  void findConnectorIdMappingsAllowsMultipleMappingsForOneConnector() {
     var internalId = UUID.randomUUID();
     when(apiConnectorIdRepository.findAllByInternalIdAndEntityType(internalId, ApiConnectorEntityType.COMPETITION))
         .thenReturn(List.of(
             mapping("api-football", ApiConnectorEntityType.COMPETITION, "39", internalId),
+            mapping("api-football", ApiConnectorEntityType.COMPETITION, "premier-league", internalId),
             mapping("mock", ApiConnectorEntityType.COMPETITION, "premier-league", internalId)));
 
-    assertThat(apiConnectorService.findConnectorIds(internalId, ApiConnectorEntityType.COMPETITION))
-        .containsEntry("api-football", "39")
-        .containsEntry("mock", "premier-league");
+    assertThat(apiConnectorService.findConnectorIdMappings(internalId, ApiConnectorEntityType.COMPETITION))
+        .extracting(ApiConnectorIdEntity::getConnectorCode, ApiConnectorIdEntity::getConnectorEntityId)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("api-football", "39"),
+            org.assertj.core.groups.Tuple.tuple("api-football", "premier-league"),
+            org.assertj.core.groups.Tuple.tuple("mock", "premier-league"));
 
     verify(apiConnectorIdRepository).findAllByInternalIdAndEntityType(internalId, ApiConnectorEntityType.COMPETITION);
+    verifyNoMoreInteractions(apiConnectorIdRepository);
   }
 
   private ApiConnectorIdEntity mapping(

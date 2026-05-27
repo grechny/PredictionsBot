@@ -19,6 +19,7 @@ import at.hrechny.predictionsbot.connector.impl.apifootball.model.Team;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.TeamsData;
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorMappingCandidateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -34,11 +35,16 @@ class ApiFootballConnectorTest {
   @Mock
   private ApiFootballClient apiFootballClient;
 
+  @Mock
+  private ApiConnectorMappingCandidateService apiConnectorMappingCandidateService;
+
   private ApiFootballConnector connector;
 
   @BeforeEach
   void setUp() {
-    connector = new ApiFootballConnector(apiFootballClient, new ApiFootballFixtureMapper());
+    connector = new ApiFootballConnector(
+        apiFootballClient,
+        new ApiFootballFixtureMapper(apiConnectorMappingCandidateService));
   }
 
   @Test

@@ -11,11 +11,15 @@ import at.hrechny.predictionsbot.connector.model.RoundSyncDto
 import at.hrechny.predictionsbot.connector.model.RoundSyncType
 import at.hrechny.predictionsbot.connector.model.ScoreSyncDto
 import at.hrechny.predictionsbot.connector.model.TeamSyncDto
+import at.hrechny.predictionsbot.database.model.ApiConnectorValueType
+import at.hrechny.predictionsbot.service.connector.ApiConnectorMappingCandidateService
 import jakarta.inject.Singleton
 import java.util.regex.Pattern
 
 @Singleton
-class ApiFootballFixtureMapper {
+class ApiFootballFixtureMapper(
+    private val apiConnectorMappingCandidateService: ApiConnectorMappingCandidateService,
+) {
     fun toFixtureSyncDto(fixture: Fixture): FixtureSyncDto {
         val fixtureData = requireNotNull(fixture.fixture) { "Fixture data is missing" }
         val fixtureId = requireNotNull(fixtureData.id) { "Fixture id is missing" }
@@ -54,8 +58,25 @@ class ApiFootballFixtureMapper {
             matches(round, "Semi-finals") -> listOf(RoundSyncType.SEMI_FINAL, RoundSyncType.SEMI_FINAL_RETURN)
             matches(round, "3rd Place Final") -> listOf(RoundSyncType.THIRD_PLACE_FINAL)
             matches(round, "Final") -> listOf(RoundSyncType.FINAL)
-            else -> throw IllegalArgumentException("Unsupported API-Football round: $round")
+            else -> apiConnectorMappingCandidateService.findApprovedValue(
+                ApiFootballConnector.NAME,
+                ApiConnectorValueType.ROUND_LABEL,
+                round,
+            ).map(::parseApprovedRoundTypes).orElseGet {
+                apiConnectorMappingCandidateService.recordCandidate(
+                    ApiFootballConnector.NAME,
+                    ApiConnectorValueType.ROUND_LABEL,
+                    round,
+                )
+                throw IllegalArgumentException("Unsupported API-Football round: $round")
+            }
         }
+
+    private fun parseApprovedRoundTypes(value: String): List<RoundSyncType> =
+        value.split(',')
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .map(RoundSyncType::valueOf)
 
     private fun matches(value: String, vararg patterns: String): Boolean =
         patterns.any { pattern -> Regex(pattern).matches(value) }
