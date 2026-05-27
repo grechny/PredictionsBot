@@ -14,23 +14,23 @@ open class ApiFootballConnector(
     override val name: String = NAME
 
     override fun getRounds(competitionExternalId: String, seasonYear: String): List<RoundSyncDto> =
-        translateConnectorFailures {
+        execute {
             apiFootballClient
                 .getRounds(parseNumericExternalId("competition", competitionExternalId), seasonYear)
                 .map(apiFootballFixtureMapper::toRoundSyncDto)
         }
 
     override fun getSeasonFixtures(competitionExternalId: String, seasonYear: String): List<FixtureSyncDto> =
-        translateConnectorFailures {
+        execute {
             apiFootballClient
                 .getFixtures(parseNumericExternalId("competition", competitionExternalId), seasonYear)
                 .map(apiFootballFixtureMapper::toFixtureSyncDto)
         }
 
     override fun getFixturesByExternalIds(fixtureExternalIds: List<String>): List<FixtureSyncDto> =
-        translateConnectorFailures {
+        execute {
             if (fixtureExternalIds.isEmpty()) {
-                return@translateConnectorFailures emptyList()
+                return@execute emptyList()
             }
             val fixtureIds = fixtureExternalIds.map { externalId -> parseNumericExternalId("fixture", externalId) }
             apiFootballClient.getFixtures(fixtureIds).map(apiFootballFixtureMapper::toFixtureSyncDto)
@@ -44,19 +44,12 @@ open class ApiFootballConnector(
                 "API-Football $entityName external id must be numeric: $externalId",
             )
 
-    private fun <T> translateConnectorFailures(action: () -> T): T =
+    private fun <T> execute(action: () -> T): T =
         try {
             action()
         } catch (exception: ApiConnectorException) {
             throw exception
-        } catch (exception: IllegalArgumentException) {
-            throw ApiConnectorException(
-                name,
-                ApiConnectorException.Reason.INVALID_RESPONSE,
-                exception.message,
-                exception,
-            )
-        } catch (exception: NullPointerException) {
+        } catch (exception: Exception) {
             throw ApiConnectorException(
                 name,
                 ApiConnectorException.Reason.INVALID_RESPONSE,
