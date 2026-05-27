@@ -2,7 +2,7 @@ package at.hrechny.predictionsbot.connector.impl.apifootball
 
 import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason
-import at.hrechny.predictionsbot.service.connector.ApiConnectorRequestAuditService
+import at.hrechny.predictionsbot.service.connector.ApiConnectorAuditService
 import io.micronaut.context.annotation.Value
 import jakarta.inject.Singleton
 import java.time.Clock
@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory
 
 @Singleton
 open class ApiFootballQuotaGuard(
-    private val apiConnectorRequestAuditService: ApiConnectorRequestAuditService,
+    private val apiConnectorAuditService: ApiConnectorAuditService,
     private val clock: Clock,
     @param:Value("\${connectors.api-football.maxAttempts}")
     private val maxAttempts: Int,
@@ -24,7 +24,7 @@ open class ApiFootballQuotaGuard(
 ) {
     private var billingStart: Instant = currentBillingStart(Instant.now(clock))
     private var requestCount: Int =
-        apiConnectorRequestAuditService.countRequestsSince(CONNECTOR_NAME, billingStart)
+        apiConnectorAuditService.countRequestsSince(CONNECTOR_NAME, billingStart)
     private var retryBlockedUntil: Instant? = null
 
     @Synchronized
@@ -76,7 +76,7 @@ open class ApiFootballQuotaGuard(
         val currentBillingStart = currentBillingStart(now)
         if (currentBillingStart.isAfter(billingStart)) {
             billingStart = currentBillingStart
-            requestCount = apiConnectorRequestAuditService.countRequestsSince(CONNECTOR_NAME, billingStart)
+            requestCount = apiConnectorAuditService.countRequestsSince(CONNECTOR_NAME, billingStart)
         }
     }
 

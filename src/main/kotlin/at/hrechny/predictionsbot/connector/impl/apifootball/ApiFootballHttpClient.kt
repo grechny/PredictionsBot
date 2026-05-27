@@ -1,14 +1,17 @@
 package at.hrechny.predictionsbot.connector.impl.apifootball
 
+import at.hrechny.predictionsbot.connector.ApiConnectorHttpAttributes
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesResponse
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.RoundsResponse
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.Get
 import io.micronaut.http.annotation.Header
 import io.micronaut.http.annotation.QueryValue
+import io.micronaut.http.annotation.RequestAttribute
 import io.micronaut.http.client.annotation.Client
 
 @Client(value = "\${connectors.api-football.url}", path = "/v3")
+@RequestAttribute(name = ApiConnectorHttpAttributes.CONNECTOR_NAME, value = "api-football")
 interface ApiFootballHttpClient {
     @Get("/fixtures/rounds{?league,season}")
     fun getRounds(

@@ -9,7 +9,7 @@ import java.time.Clock
 import java.time.Instant
 
 @Singleton
-open class ApiConnectorRequestAuditService(
+open class ApiConnectorAuditService(
     private val auditRepository: AuditRepository,
     private val clock: Clock,
 ) {

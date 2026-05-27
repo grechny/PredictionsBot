@@ -19,7 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ApiConnectorRequestAuditServiceTest {
+class ApiConnectorAuditServiceTest {
 
   private static final Instant NOW = Instant.parse("2026-05-26T17:00:00Z");
 
@@ -28,7 +28,7 @@ class ApiConnectorRequestAuditServiceTest {
 
   @Test
   void recordRequestUsesNewTransactionSoFailuresSurviveCallerRollback() throws Exception {
-    Method method = ApiConnectorRequestAuditService.class.getDeclaredMethod(
+    Method method = ApiConnectorAuditService.class.getDeclaredMethod(
         "recordRequest",
         String.class,
         String.class,
@@ -41,7 +41,7 @@ class ApiConnectorRequestAuditServiceTest {
 
   @Test
   void recordRequestSavesConnectorAuditWithoutApiKey() {
-    var service = new ApiConnectorRequestAuditService(
+    var service = new ApiConnectorAuditService(
         auditRepository,
         Clock.fixed(NOW, ZoneOffset.UTC));
     var captor = ArgumentCaptor.forClass(AuditEntity.class);
@@ -63,7 +63,7 @@ class ApiConnectorRequestAuditServiceTest {
 
   @Test
   void countRequestsSinceDelegatesToRepository() {
-    var service = new ApiConnectorRequestAuditService(
+    var service = new ApiConnectorAuditService(
         auditRepository,
         Clock.fixed(NOW, ZoneOffset.UTC));
     var since = Instant.parse("2026-05-25T22:00:00Z");

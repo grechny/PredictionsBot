@@ -4,7 +4,6 @@ import at.hrechny.predictionsbot.connector.impl.apifootball.model.ApiFootballRes
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.Fixture
 import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason
-import at.hrechny.predictionsbot.service.connector.ApiConnectorRequestAuditService
 import io.micronaut.cache.annotation.Cacheable
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpResponse
@@ -18,7 +17,6 @@ import org.slf4j.LoggerFactory
 open class ApiFootballClient(
     private val apiFootballHttpClient: ApiFootballHttpClient,
     private val apiFootballResponseParser: ApiFootballResponseParser,
-    private val apiConnectorRequestAuditService: ApiConnectorRequestAuditService,
     private val apiFootballQuotaGuard: ApiFootballQuotaGuard,
     @param:Value("\${connectors.api-football.apiKey}")
     private val apiKey: String,
@@ -82,12 +80,7 @@ open class ApiFootballClient(
         requestUri: String,
         httpRequest: () -> HttpResponse<G>,
     ): G {
-        try {
-            apiFootballQuotaGuard.checkRequestAllowed(requestUri)
-        } catch (exception: ApiConnectorException) {
-            recordFailedRequest(requestUri, exception.message)
-            throw exception
-        }
+        apiFootballQuotaGuard.checkRequestAllowed(requestUri)
         apiFootballQuotaGuard.markRequestAttempted()
 
         val httpResponse = try {
@@ -102,52 +95,30 @@ open class ApiFootballClient(
                 apiFootballResponseParser.sanitize(exception.message),
                 exception,
             )
-            recordFailedRequest(requestUri, connectorException.message)
             throw connectorException
         }
-        return parseAndAudit(requestUri, httpResponse)
+        return parseResponse(requestUri, httpResponse)
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun <T, G : ApiFootballResponse<T>> parseAndAudit(
+    private fun <T, G : ApiFootballResponse<T>> parseResponse(
         requestUri: String,
         httpResponse: HttpResponse<*>,
     ): G {
         val headers = safeRateLimitHeaders(httpResponse)
         apiFootballQuotaGuard.updateFromHeaders(headers)
-        return try {
-            val responseBody = if (httpResponse.status.code in 200..299) {
-                httpResponse.body.orElse(null) as G?
-            } else {
-                null
-            }
-            val response = apiFootballResponseParser.validate(
-                CONNECTOR_NAME,
-                requestUri,
-                httpResponse.status.code,
-                httpResponse.status.reason,
-                headers,
-                responseBody,
-            )
-            apiConnectorRequestAuditService.recordRequest(
-                CONNECTOR_NAME,
-                requestUri,
-                true,
-                null,
-            )
-            response
-        } catch (exception: ApiConnectorException) {
-            recordFailedRequest(requestUri, exception.message)
-            throw exception
+        val responseBody = if (httpResponse.status.code in 200..299) {
+            httpResponse.body.orElse(null) as G?
+        } else {
+            null
         }
-    }
-
-    private fun recordFailedRequest(requestUri: String, failureReason: String?) {
-        apiConnectorRequestAuditService.recordRequest(
+        return apiFootballResponseParser.validate(
             CONNECTOR_NAME,
             requestUri,
-            false,
-            failureReason,
+            httpResponse.status.code,
+            httpResponse.status.reason,
+            headers,
+            responseBody,
         )
     }
 

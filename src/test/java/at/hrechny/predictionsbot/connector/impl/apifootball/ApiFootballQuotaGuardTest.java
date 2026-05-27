@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
-import at.hrechny.predictionsbot.service.connector.ApiConnectorRequestAuditService;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorAuditService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -22,7 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ApiFootballQuotaGuardTest {
 
   @Mock
-  private ApiConnectorRequestAuditService auditService;
+  private ApiConnectorAuditService auditService;
 
   @Test
   void startupHydrationAtDailyLimitBlocksNextRequest() {

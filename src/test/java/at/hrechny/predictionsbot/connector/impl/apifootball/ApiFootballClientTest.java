@@ -2,9 +2,7 @@ package at.hrechny.predictionsbot.connector.impl.apifootball;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -14,7 +12,7 @@ import at.hrechny.predictionsbot.connector.impl.apifootball.model.Fixture;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixtureData;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesResponse;
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
-import at.hrechny.predictionsbot.service.connector.ApiConnectorRequestAuditService;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorAuditService;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpResponse;
@@ -41,7 +39,7 @@ class ApiFootballClientTest {
   private ApiFootballHttpClient httpClient;
 
   @Mock
-  private ApiConnectorRequestAuditService auditService;
+  private ApiConnectorAuditService auditService;
 
   private ApiFootballClient client;
 
@@ -53,18 +51,12 @@ class ApiFootballClientTest {
   }
 
   @Test
-  void getFixturesRecordsSuccessfulAudit() {
+  void getFixturesReturnsSuccessfulResponse() {
     when(httpClient.getSeasonFixtures(API_KEY, RAPID_API_HOST, 39L, "2025"))
         .thenReturn(ok(fixtures())
             .header("x-ratelimit-requests-remaining", "98"));
 
     assertThat(client.getFixtures(39L, "2025")).isEmpty();
-
-    verify(auditService).recordRequest(
-        eq("api-football"),
-        eq("/fixtures?league=39&season=2025"),
-        eq(true),
-        isNull());
   }
 
   @Test
@@ -80,12 +72,6 @@ class ApiFootballClientTest {
         .hasMessageContaining("HTTP 429")
         .hasMessageContaining("x-ratelimit-requests-remaining=98")
         .hasMessageNotContaining(API_KEY);
-
-    verify(auditService).recordRequest(
-        eq("api-football"),
-        eq("/fixtures?league=39&season=2025"),
-        eq(false),
-        contains("HTTP 429"));
   }
 
   @Test
@@ -101,12 +87,6 @@ class ApiFootballClientTest {
           assertThat(connectorException.getReason()).isEqualTo(ApiConnectorException.Reason.TOO_OFTEN_REQUESTS);
           assertThat(connectorException.getMessage()).contains("retry-after=60");
         });
-
-    verify(auditService).recordRequest(
-        eq("api-football"),
-        eq("/fixtures?league=39&season=2025"),
-        eq(false),
-        contains("HTTP 429"));
   }
 
   @Test
@@ -118,12 +98,6 @@ class ApiFootballClientTest {
         .isInstanceOf(ApiConnectorException.class)
         .hasMessageContaining("REQUEST_ERROR")
         .hasMessageNotContaining(API_KEY);
-
-    verify(auditService).recordRequest(
-        eq("api-football"),
-        eq("/fixtures?league=39&season=2025"),
-        eq(false),
-        contains("<redacted>"));
   }
 
   @Test
@@ -196,7 +170,7 @@ class ApiFootballClientTest {
   }
 
   @Test
-  void quotaBlockedRequestDoesNotCallProviderAndRecordsAudit() {
+  void quotaBlockedRequestDoesNotCallProvider() {
     when(auditService.countRequestsSince(eq("api-football"), org.mockito.ArgumentMatchers.any(Instant.class))).thenReturn(100);
     var quotaBlockedClient = clientWithDailyLimit(100);
     org.mockito.Mockito.clearInvocations(auditService);
@@ -206,11 +180,7 @@ class ApiFootballClientTest {
             assertThat(exception.getReason()).isEqualTo(ApiConnectorException.Reason.QUOTA_EXCEEDED));
 
     verifyNoInteractions(httpClient);
-    verify(auditService).recordRequest(
-        eq("api-football"),
-        eq("/fixtures?league=39&season=2025"),
-        eq(false),
-        contains("QUOTA_EXCEEDED"));
+    verifyNoInteractions(auditService);
   }
 
   @Test
@@ -232,7 +202,6 @@ class ApiFootballClientTest {
     return new ApiFootballClient(
         httpClient,
         new ApiFootballResponseParser(API_KEY),
-        auditService,
         new ApiFootballQuotaGuard(
             auditService,
             Clock.fixed(Instant.parse("2026-05-26T23:30:00Z"), ZoneOffset.UTC),
