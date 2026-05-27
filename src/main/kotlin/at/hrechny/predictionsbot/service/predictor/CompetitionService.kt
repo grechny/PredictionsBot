@@ -114,23 +114,17 @@ open class CompetitionService(
     }
 
     @EnableErrorReport
-    open fun refreshActiveFixtures(seasonId: UUID): Boolean {
+    open fun refreshActiveFixtures(seasonId: UUID) {
         val seasonEntity = getSeason(seasonId)
         val activeMatches = matchRepository!!.findAllActive(seasonEntity)
         if (activeMatches.isEmpty()) {
-            return true
+            return
         }
 
         val fixtureIds = activeMatches.map { match -> match.apiFootballId!!.toString() }
         val fixtures = apiConnector!!.getFixturesByExternalIds(fixtureIds)
         refreshFixtures(fixtures, seasonEntity)
-        return true
     }
-
-    open fun hasNonFinishedMatches(seasonEntity: SeasonEntity): Boolean =
-        seasonEntity.rounds
-            .flatMap { round -> round.matches }
-            .any { match -> match.status in ACTIVE_REFRESH_STATUSES }
 
     open fun refreshFixtures(seasonEntity: SeasonEntity) {
         val managedSeasonEntity = getSeason(seasonEntity.id!!)
@@ -291,7 +285,7 @@ open class CompetitionService(
                 connectorName,
                 ApiConnectorEntityType.COMPETITION,
                 competition.apiFootballId!!.toString(),
-                scopeGlobal(connectorService),
+                connectorService.globalScopeKey(),
                 competition.id!!,
             )
         }
@@ -300,7 +294,7 @@ open class CompetitionService(
                 connectorName,
                 ApiConnectorEntityType.SEASON,
                 seasonEntity.year!!,
-                scopeCompetition(connectorService, competition.id!!),
+                connectorService.competitionScopeKey(competition.id!!),
                 seasonEntity.id!!,
             )
         }
@@ -310,7 +304,7 @@ open class CompetitionService(
                     connectorName,
                     ApiConnectorEntityType.ROUND,
                     round.apiFootballId!!,
-                    scopeSeason(connectorService, seasonEntity.id!!),
+                    connectorService.seasonScopeKey(seasonEntity.id!!),
                     round.id!!,
                 )
             }
@@ -320,7 +314,7 @@ open class CompetitionService(
                         connectorName,
                         ApiConnectorEntityType.MATCH,
                         match.apiFootballId!!.toString(),
-                        scopeSeason(connectorService, seasonEntity.id!!),
+                        connectorService.seasonScopeKey(seasonEntity.id!!),
                         match.id!!,
                     )
                 }
@@ -340,28 +334,13 @@ open class CompetitionService(
                 connectorName,
                 ApiConnectorEntityType.TEAM,
                 team.apiFootballId!!.toString(),
-                scopeGlobal(connectorService),
+                connectorService.globalScopeKey(),
                 team.id!!,
             )
         }
     }
 
     private fun connectorName(): String = apiConnector!!.name
-
-    private fun scopeGlobal(connectorService: ApiConnectorService): String {
-        val scope: String? = connectorService.scopeGlobal()
-        return scope ?: GLOBAL_SCOPE
-    }
-
-    private fun scopeCompetition(connectorService: ApiConnectorService, competitionId: UUID): String {
-        val scope: String? = connectorService.scopeCompetition(competitionId)
-        return scope ?: "competition:$competitionId"
-    }
-
-    private fun scopeSeason(connectorService: ApiConnectorService, seasonId: UUID): String {
-        val scope: String? = connectorService.scopeSeason(seasonId)
-        return scope ?: "season:$seasonId"
-    }
 
     private fun getRound(roundList: List<RoundEntity>, homeTeam: TeamEntity, awayTeam: TeamEntity): RoundEntity {
         if (roundList.isEmpty()) {
@@ -396,7 +375,5 @@ open class CompetitionService(
 
     private companion object {
         val log = LoggerFactory.getLogger(CompetitionService::class.java)
-        const val GLOBAL_SCOPE = "global"
-        val ACTIVE_REFRESH_STATUSES = setOf(MatchStatus.PLANNED, MatchStatus.STARTED)
     }
 }

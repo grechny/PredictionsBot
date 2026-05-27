@@ -7,11 +7,11 @@ import io.micronaut.context.annotation.Value
 import jakarta.inject.Singleton
 
 @Singleton
-open class ApiFootballResponseParser(
+class ApiFootballResponseParser(
     @param:Value("\${connectors.api-football.apiKey}")
     private val apiKey: String,
 ) {
-    open fun <T, G : ApiFootballResponse<T>> validate(
+    fun <T, G : ApiFootballResponse<T>> validate(
         connectorName: String,
         requestDescription: String,
         statusCode: Int,

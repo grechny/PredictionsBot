@@ -26,7 +26,6 @@ import at.hrechny.predictionsbot.controller.model.league.LeagueResponseDto;
 import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto;
 import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto;
 import at.hrechny.predictionsbot.controller.model.user.UserResponseDto;
-import at.hrechny.predictionsbot.exception.ApiConnectorException;
 import at.hrechny.predictionsbot.exception.InputValidationException;
 import at.hrechny.predictionsbot.exception.LimitExceededException;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
@@ -157,7 +156,6 @@ class TelegramWebAppControllerTest {
 
     when(userService.getUser(USER_ID)).thenReturn(user);
     when(competitionService.getCurrentSeason(competitionId)).thenReturn(season);
-    when(competitionService.hasNonFinishedMatches(season)).thenReturn(true);
     when(competitionService.getCompetition(competitionId)).thenReturn(competition("Premier League"));
     when(predictionService.getResults(season.getId())).thenReturn(List.of(result(USER_ID, "Alice", 2, 2, 10, null)));
     when(predictionService.getResults(anyList())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 0, 5)));
@@ -179,57 +177,6 @@ class TelegramWebAppControllerTest {
   }
 
   @Test
-  void resultsRouteDoesNotRefreshWhenSeasonOnlyHasFinishedMatches() {
-    var competitionId = UUID.randomUUID();
-    var user = userEntity();
-    var season = season(competitionId, "Premier League");
-    var round = round(season, 1);
-    var finishedMatch = match(round, "Arsenal", "Chelsea", Instant.parse("2026-05-20T17:00:00Z"), MatchStatus.FINISHED);
-    finishedMatch.getPredictions().add(prediction(finishedMatch, user, 2, 1, false));
-    round.setMatches(List.of(finishedMatch));
-    season.setRounds(List.of(round));
-
-    when(userService.getUser(USER_ID)).thenReturn(user);
-    when(competitionService.getCurrentSeason(competitionId)).thenReturn(season);
-    when(competitionService.hasNonFinishedMatches(season)).thenReturn(false);
-    when(competitionService.getCompetition(competitionId)).thenReturn(competition("Premier League"));
-    when(predictionService.getResults(season.getId())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
-    when(predictionService.getResults(anyList())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
-
-    var response = controller.getResults(HASH, USER_ID, competitionId, null, null);
-
-    assertThat(view(response)).isEqualTo("results");
-    verify(competitionService, never()).refreshActiveFixtures(season.getId());
-  }
-
-  @Test
-  void resultsRouteRendersStoredDataWhenRefreshFailureWasReportedByServiceInterceptor() {
-    var competitionId = UUID.randomUUID();
-    var user = userEntity();
-    var season = season(competitionId, "Premier League");
-    var round = round(season, 1);
-    var startedMatch = match(round, "Liverpool", "Everton", Instant.parse("2026-05-21T17:00:00Z"), MatchStatus.STARTED);
-    startedMatch.getPredictions().add(prediction(startedMatch, user, 1, 1, false));
-    round.setMatches(List.of(startedMatch));
-    season.setRounds(List.of(round));
-
-    when(userService.getUser(USER_ID)).thenReturn(user);
-    when(competitionService.getCurrentSeason(competitionId)).thenReturn(season);
-    when(competitionService.hasNonFinishedMatches(season)).thenReturn(true);
-    when(competitionService.refreshActiveFixtures(season.getId())).thenThrow(
-        new ApiConnectorException("api-football", ApiConnectorException.Reason.REQUEST_ERROR, "boom", null));
-    when(competitionService.getCompetition(competitionId)).thenReturn(competition("Premier League"));
-    when(predictionService.getResults(season.getId())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
-    when(predictionService.getResults(anyList())).thenReturn(List.of(result(USER_ID, "Alice", 1, 1, 3, null)));
-
-    var response = controller.getResults(HASH, USER_ID, competitionId, null, null);
-
-    assertThat(view(response)).isEqualTo("results");
-    assertThat(model(response)).doesNotContainKey("warning");
-    verify(competitionService).refreshActiveFixtures(season.getId());
-  }
-
-  @Test
   void resultsRouteBuildsNoResultsModel() {
     var competitionId = UUID.randomUUID();
     var season = season(competitionId, "Premier League");
@@ -244,7 +191,7 @@ class TelegramWebAppControllerTest {
 
     assertThat(view(response)).isEqualTo("no-results");
     assertThat(model(response)).containsEntry("competitionName", "Premier League");
-    verify(competitionService, never()).refreshActiveFixtures(season.getId());
+    verify(competitionService).refreshActiveFixtures(season.getId());
   }
 
   @Test

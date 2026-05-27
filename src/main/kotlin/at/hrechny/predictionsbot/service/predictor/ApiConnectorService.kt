@@ -13,11 +13,11 @@ import java.util.UUID
 open class ApiConnectorService(
     private val apiConnectorIdRepository: ApiConnectorIdRepository,
 ) {
-    open fun scopeGlobal(): String = GLOBAL_SCOPE
+    open fun globalScopeKey(): String = GLOBAL_SCOPE
 
-    open fun scopeCompetition(competitionId: UUID): String = "competition:$competitionId"
+    open fun competitionScopeKey(competitionId: UUID): String = "competition:$competitionId"
 
-    open fun scopeSeason(seasonId: UUID): String = "season:$seasonId"
+    open fun seasonScopeKey(seasonId: UUID): String = "season:$seasonId"
 
     open fun upsertId(
         connectorCode: String,

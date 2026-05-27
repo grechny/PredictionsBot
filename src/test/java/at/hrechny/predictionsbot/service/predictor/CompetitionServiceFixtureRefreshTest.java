@@ -211,27 +211,6 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
-  void hasNonFinishedMatchesReturnsTrueOnlyForRefreshableStatuses() {
-    var season = season();
-    var round = round(season, "Regular Season - 1");
-    var finished = existingMatch(round, 100L, "Arsenal", "Chelsea");
-    finished.setStatus(MatchStatus.FINISHED);
-    round.setMatches(new ArrayList<>(List.of(finished)));
-    season.setRounds(new ArrayList<>(List.of(round)));
-
-    assertThat(competitionService.hasNonFinishedMatches(season)).isFalse();
-
-    finished.setStatus(MatchStatus.STARTED);
-    assertThat(competitionService.hasNonFinishedMatches(season)).isTrue();
-
-    finished.setStatus(MatchStatus.PLANNED);
-    assertThat(competitionService.hasNonFinishedMatches(season)).isTrue();
-
-    finished.setStatus(MatchStatus.NOT_DEFINED);
-    assertThat(competitionService.hasNonFinishedMatches(season)).isFalse();
-  }
-
-  @Test
   void refreshFixturesCreatesTeamsAndMatchForNewConnectorFixture() {
     var season = season();
     var round = round(season, "Regular Season - 1");

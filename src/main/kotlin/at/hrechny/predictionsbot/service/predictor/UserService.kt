@@ -38,12 +38,12 @@ open class UserService(
         log.info("Added/updated user {} with id {}", userEntity.username, userEntity.id)
     }
 
-    open fun getUser(userId: Long): UserEntity =
+    fun getUser(userId: Long): UserEntity =
         userRepository.findByIdAndActiveIsTrue(userId).orElseThrow { NotFoundException("User not found") }
 
-    open fun getUsers(): List<UserEntity> = userRepository.findAllByActiveIsTrue()
+    fun getUsers(): List<UserEntity> = userRepository.findAllByActiveIsTrue()
 
-    open fun getUsers(competitionId: UUID): List<UserEntity> = userRepository.findAllActiveByCompetitionsId(competitionId)
+    fun getUsers(competitionId: UUID): List<UserEntity> = userRepository.findAllActiveByCompetitionsId(competitionId)
 
     @Transactional
     open fun updateUsername(userId: Long, username: String?) {

@@ -7,7 +7,7 @@ import at.hrechny.predictionsbot.exception.ApiConnectorException
 import jakarta.inject.Singleton
 
 @Singleton
-open class ApiFootballConnector(
+class ApiFootballConnector(
     private val apiFootballClient: ApiFootballClient,
     private val apiFootballFixtureMapper: ApiFootballFixtureMapper,
 ) : ApiConnector {

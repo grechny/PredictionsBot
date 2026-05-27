@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory
 
 @Singleton
 @Context
-open class MessageListener(
+class MessageListener(
     private val telegramService: TelegramService,
     private val predictionService: PredictionService,
     private val userService: UserService,

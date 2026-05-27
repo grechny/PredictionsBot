@@ -8,11 +8,11 @@ import io.micronaut.http.annotation.ResponseFilter
 import io.micronaut.http.client.exceptions.HttpClientResponseException
 
 @ClientFilter(ClientFilter.MATCH_ALL_PATTERN)
-open class ConnectorHttpClientAuditFilter(
+class ConnectorHttpClientAuditFilter(
     private val apiConnectorAuditService: ApiConnectorAuditService,
 ) {
     @ResponseFilter
-    open fun recordResponse(request: HttpRequest<*>, response: HttpResponse<*>) {
+    fun recordResponse(request: HttpRequest<*>, response: HttpResponse<*>) {
         val connectorName = connectorName(request) ?: return
         apiConnectorAuditService.recordRequest(
             connectorName,
@@ -23,7 +23,7 @@ open class ConnectorHttpClientAuditFilter(
     }
 
     @ResponseFilter
-    open fun recordFailure(request: HttpRequest<*>, exception: Throwable) {
+    fun recordFailure(request: HttpRequest<*>, exception: Throwable) {
         val connectorName = connectorName(request) ?: return
         val response = (exception as? HttpClientResponseException)?.response
         apiConnectorAuditService.recordRequest(

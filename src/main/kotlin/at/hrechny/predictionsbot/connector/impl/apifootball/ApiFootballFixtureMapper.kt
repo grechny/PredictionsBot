@@ -13,8 +13,8 @@ import at.hrechny.predictionsbot.connector.model.TeamSyncDto
 import jakarta.inject.Singleton
 
 @Singleton
-open class ApiFootballFixtureMapper {
-    open fun toFixtureSyncDto(fixture: Fixture): FixtureSyncDto {
+class ApiFootballFixtureMapper {
+    fun toFixtureSyncDto(fixture: Fixture): FixtureSyncDto {
         val fixtureData = requireNotNull(fixture.fixture) { "Fixture data is missing" }
         val fixtureId = requireNotNull(fixtureData.id) { "Fixture id is missing" }
         val connectorFixtureId = fixtureId.toString()
@@ -32,7 +32,7 @@ open class ApiFootballFixtureMapper {
         )
     }
 
-    open fun toRoundSyncDto(round: String) =
+    fun toRoundSyncDto(round: String) =
         RoundSyncDto(
             externalId = round,
             name = round,

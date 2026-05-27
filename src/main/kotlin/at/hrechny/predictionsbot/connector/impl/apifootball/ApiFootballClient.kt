@@ -18,13 +18,13 @@ open class ApiFootballClient(
     @param:Value("\${connectors.api-football.fixtureBatchSize:20}")
     private val fixtureBatchSize: Int,
 ) {
-    open fun getRounds(leagueId: Long, seasonYear: String): List<String> {
+    fun getRounds(leagueId: Long, seasonYear: String): List<String> {
         return sendRequest("rounds for league=$leagueId season=$seasonYear") {
             apiFootballHttpClient.getRounds(leagueId, seasonYear)
         }.response!!
     }
 
-    open fun getFixtures(leagueId: Long, seasonYear: String): List<Fixture> {
+    fun getFixtures(leagueId: Long, seasonYear: String): List<Fixture> {
         return sendRequest("fixtures for league=$leagueId season=$seasonYear") {
             apiFootballHttpClient.getSeasonFixtures(leagueId, seasonYear)
         }.response!!
@@ -92,7 +92,7 @@ open class ApiFootballClient(
         requestDescription: String,
         httpResponse: HttpResponse<*>,
     ): G {
-        val headers = ApiFootballResponseHeaders.safeRateLimitHeaders(httpResponse)
+        val headers = safeRateLimitHeaders(httpResponse)
         val responseBody = if (httpResponse.status.code in 200..299) {
             httpResponse.body.orElse(null) as G?
         } else {
@@ -108,7 +108,24 @@ open class ApiFootballClient(
         )
     }
 
+    private fun safeRateLimitHeaders(httpResponse: HttpResponse<*>): Map<String, String> =
+        httpResponse.headers.names()
+            .map { name -> name.lowercase() to (httpResponse.headers.get(name) ?: "") }
+            .filter { (name, _) -> SAFE_RESPONSE_HEADERS.contains(name) || name.startsWith("x-ratelimit-") }
+            .toMap()
+
     private companion object {
+        const val RETRY_AFTER_HEADER = "retry-after"
+        const val REQUESTS_REMAINING_HEADER = "x-ratelimit-requests-remaining"
+        val SAFE_RESPONSE_HEADERS = setOf(
+            RETRY_AFTER_HEADER,
+            "x-ratelimit-requests-limit",
+            REQUESTS_REMAINING_HEADER,
+            "x-ratelimit-requests-reset",
+            "x-ratelimit-requests-used",
+            "x-ratelimit-subscription-limit",
+            "x-ratelimit-subscription-remaining",
+        )
         val PARTIAL_BATCH_STOP_REASONS = setOf(
             Reason.QUOTA_EXCEEDED,
             Reason.TOO_OFTEN_REQUESTS,

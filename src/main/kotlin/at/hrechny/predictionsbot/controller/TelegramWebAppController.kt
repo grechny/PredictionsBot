@@ -12,7 +12,6 @@ import at.hrechny.predictionsbot.controller.model.league.LeagueCreateRequestDto
 import at.hrechny.predictionsbot.controller.model.league.LeagueResponseDto
 import at.hrechny.predictionsbot.controller.model.league.LeagueUpdateRequestDto
 import at.hrechny.predictionsbot.controller.model.prediction.ResultResponseDto
-import at.hrechny.predictionsbot.database.entity.SeasonEntity
 import at.hrechny.predictionsbot.service.predictor.CompetitionService
 import at.hrechny.predictionsbot.service.predictor.LeagueService
 import at.hrechny.predictionsbot.service.predictor.PredictionService
@@ -112,7 +111,7 @@ open class TelegramWebAppController(
         } else {
             competitionService.getCurrentSeason(competitionId)
         }
-        refreshResultsFixtures(season)
+        competitionService.refreshActiveFixtures(season.id!!)
 
         val results: List<ResultResponseDto>
         val matches: List<MatchEntity>
@@ -168,18 +167,6 @@ open class TelegramWebAppController(
         model["baseUrl"] = buildBaseUrl("results", userId, competitionId, seasonId)
 
         return ModelAndView("results", model)
-    }
-
-    private fun refreshResultsFixtures(season: SeasonEntity) {
-        if (!competitionService.hasNonFinishedMatches(season)) {
-            return
-        }
-
-        try {
-            competitionService.refreshActiveFixtures(season.id!!)
-        } catch (_: RuntimeException) {
-            // refreshActiveFixtures reports through @EnableErrorReport; keep rendering stored results here.
-        }
     }
 
     @Get(value = "/webapp/{hash}/users/{userId}/leagues", produces = [MediaType.TEXT_HTML])
