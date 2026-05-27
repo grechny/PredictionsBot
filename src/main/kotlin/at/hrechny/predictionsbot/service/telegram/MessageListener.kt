@@ -16,6 +16,7 @@ import com.github.kotlintelegrambot.entities.Message
 import com.github.kotlintelegrambot.entities.Update
 import com.github.kotlintelegrambot.entities.User
 import io.micronaut.context.annotation.Context
+import io.micronaut.context.annotation.Value
 import jakarta.annotation.PostConstruct
 import jakarta.inject.Singleton
 import java.util.UUID
@@ -28,12 +29,18 @@ class MessageListener(
     private val telegramService: TelegramService,
     private val predictionService: PredictionService,
     private val userService: UserService,
+    @param:Value("\${telegram.polling.enabled:true}")
+    private val pollingEnabled: Boolean,
 ) : TelegramUpdateListener {
     private lateinit var objectMapper: ObjectMapper
 
     @PostConstruct
     fun init() {
         initObjectMapper()
+        if (!pollingEnabled) {
+            log.info("Telegram message listener polling is disabled")
+            return
+        }
         log.info("Starting Telegram message listener")
         telegramService.setUpListener(this)
     }
