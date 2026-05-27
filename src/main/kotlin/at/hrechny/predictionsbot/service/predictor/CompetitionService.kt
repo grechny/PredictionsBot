@@ -30,7 +30,6 @@ import at.hrechny.predictionsbot.database.repository.TeamRepository
 import at.hrechny.predictionsbot.exception.FixturesSynchronizationException
 import at.hrechny.predictionsbot.exception.NotFoundException
 import at.hrechny.predictionsbot.exception.RequestValidationException
-import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport
 import at.hrechny.predictionsbot.mapper.CompetitionMapper
 import at.hrechny.predictionsbot.mapper.SeasonMapper
 import at.hrechny.predictionsbot.service.connector.ApiConnectorMappingCandidateService
@@ -144,7 +143,6 @@ open class CompetitionService(
         return seasonRepository!!.findAllByActiveIsTrue()
     }
 
-    @EnableErrorReport
     open fun refreshActiveFixtures(seasonId: UUID) {
         val seasonEntity = getSeason(seasonId)
         val activeMatches = matchRepository!!.findAllActive(seasonEntity)
@@ -164,7 +162,6 @@ open class CompetitionService(
         refreshFixtures(fixtures, seasonEntity, FixtureSyncPolicy.UPDATE_ONLY)
     }
 
-    @EnableErrorReport
     open fun refreshFixtures(seasonEntity: SeasonEntity) {
         val managedSeasonEntity = getSeason(seasonEntity.id!!)
         log.info("Start refreshing fixtures data for the season {}", managedSeasonEntity.id)

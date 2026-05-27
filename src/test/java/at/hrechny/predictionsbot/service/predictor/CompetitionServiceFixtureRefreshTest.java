@@ -15,7 +15,6 @@ import at.hrechny.predictionsbot.connector.ApiConnector;
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason;
 import at.hrechny.predictionsbot.exception.FixturesSynchronizationException;
-import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncStatus;
 import at.hrechny.predictionsbot.connector.model.FixtureSyncDto;
 import at.hrechny.predictionsbot.connector.model.RoundSyncDto;
@@ -94,20 +93,6 @@ class CompetitionServiceFixtureRefreshTest {
         apiConnector,
         apiConnectorService,
         apiConnectorMappingCandidateService);
-  }
-
-  @Test
-  void refreshActiveFixturesReportsFailuresThroughErrorReportInterceptor() throws Exception {
-    var method = CompetitionService.class.getDeclaredMethod("refreshActiveFixtures", UUID.class);
-
-    assertThat(method.getAnnotation(EnableErrorReport.class)).isNotNull();
-  }
-
-  @Test
-  void refreshFixturesReportsFailuresThroughErrorReportInterceptor() throws Exception {
-    var method = CompetitionService.class.getDeclaredMethod("refreshFixtures", SeasonEntity.class);
-
-    assertThat(method.getAnnotation(EnableErrorReport.class)).isNotNull();
   }
 
   @Test

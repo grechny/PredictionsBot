@@ -17,6 +17,7 @@ import at.hrechny.predictionsbot.database.model.ApiConnectorMappingCandidateStat
 import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType;
 import at.hrechny.predictionsbot.database.model.ApiConnectorValueType;
 import at.hrechny.predictionsbot.exception.RequestValidationException;
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdRequestDto;
 import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdResponseDto;
 import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorMappingCandidateDecisionRequestDto;
@@ -80,6 +81,11 @@ class AdminControllerTest {
   void competitionControllerRunsOnBlockingExecutor() {
     assertThat(CompetitionController.class.getAnnotation(ExecuteOn.class).value())
         .isEqualTo(TaskExecutors.BLOCKING);
+  }
+
+  @Test
+  void competitionControllerReportsFailuresThroughErrorReportInterceptor() {
+    assertThat(CompetitionController.class.getAnnotation(EnableErrorReport.class)).isNotNull();
   }
 
   @Test

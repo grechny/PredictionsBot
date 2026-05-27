@@ -9,6 +9,7 @@ import at.hrechny.predictionsbot.controller.model.competition.SeasonResponseDto
 import at.hrechny.predictionsbot.controller.model.competition.SeasonUpdateRequestDto
 import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType
 import at.hrechny.predictionsbot.exception.RequestValidationException
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport
 import at.hrechny.predictionsbot.service.predictor.CompetitionService
 import at.hrechny.predictionsbot.service.telegram.TelegramService
 import io.micronaut.http.HttpResponse
@@ -26,6 +27,7 @@ import java.util.UUID
 
 @Controller
 @ExecuteOn(TaskExecutors.BLOCKING)
+@EnableErrorReport
 open class CompetitionController(
     private val competitionService: CompetitionService,
     private val telegramService: TelegramService,
