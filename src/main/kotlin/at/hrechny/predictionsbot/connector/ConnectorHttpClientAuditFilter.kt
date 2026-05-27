@@ -35,7 +35,7 @@ open class ConnectorHttpClientAuditFilter(
     }
 
     private fun connectorName(request: HttpRequest<*>): String? =
-        request.getAttribute(ApiConnectorHttpAttributes.CONNECTOR_NAME, String::class.java).orElse(null)
+        request.getAttribute(ApiConnector.CONNECTOR_NAME_ATTRIBUTE, String::class.java).orElse(null)
 
     private fun failureReason(response: HttpResponse<*>): String? =
         if (response.status.code in 200..299) {

@@ -90,7 +90,7 @@ class ConnectorHttpClientAuditFilterTest {
 
   private HttpRequest<?> taggedRequest(String uri) {
     var request = HttpRequest.GET(uri);
-    request.setAttribute(ApiConnectorHttpAttributes.CONNECTOR_NAME, "api-football");
+    request.setAttribute(ApiConnector.CONNECTOR_NAME_ATTRIBUTE, "api-football");
     return request;
   }
 }

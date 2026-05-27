@@ -11,7 +11,7 @@ open class ApiFootballConnector(
     private val apiFootballClient: ApiFootballClient,
     private val apiFootballFixtureMapper: ApiFootballFixtureMapper,
 ) : ApiConnector {
-    override val name: String = CONNECTOR_NAME
+    override val name: String = NAME
 
     override fun getRounds(competitionExternalId: String, seasonYear: String): List<RoundSyncDto> =
         translateConnectorFailures {
@@ -65,7 +65,7 @@ open class ApiFootballConnector(
             )
         }
 
-    private companion object {
-        const val CONNECTOR_NAME = "api-football"
+    companion object {
+        const val NAME = "api-football"
     }
 }

@@ -1,5 +1,6 @@
 package at.hrechny.predictionsbot.config;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import at.hrechny.predictionsbot.connector.impl.apifootball.ApiFootballHttpClient;
@@ -47,13 +48,12 @@ class ConnectorHttpClientProxyConfigurationTest {
   }
 
   @Test
-  void ignoresProxyHostWhenPortIsInvalid() {
+  void rejectsProxyHostWhenPortIsInvalid() {
     var configuration = new DefaultHttpClientConfiguration();
     var proxyConfiguration = new ConnectorHttpClientProxyConfiguration("proxy.local", 0, "proxy-user", "proxy-pass");
 
-    proxyConfiguration.configure(configuration);
-
-    assertThat(configuration.getProxyType()).isEqualTo(Proxy.Type.DIRECT);
-    assertThat(configuration.getProxyAddress()).isEmpty();
+    assertThatThrownBy(() -> proxyConfiguration.configure(configuration))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("proxy port must be positive");
   }
 }

@@ -9,37 +9,28 @@ import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.client.exceptions.HttpClientResponseException
 import jakarta.inject.Singleton
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import org.slf4j.LoggerFactory
 
 @Singleton
 open class ApiFootballClient(
     private val apiFootballHttpClient: ApiFootballHttpClient,
     private val apiFootballResponseParser: ApiFootballResponseParser,
-    private val apiFootballQuotaGuard: ApiFootballQuotaGuard,
-    @param:Value("\${connectors.api-football.apiKey}")
-    private val apiKey: String,
-    @param:Value("\${connectors.api-football.rapidApiHost:api-football-v1.p.rapidapi.com}")
-    private val rapidApiHost: String,
     @param:Value("\${connectors.api-football.fixtureBatchSize:20}")
     private val fixtureBatchSize: Int,
 ) {
     open fun getRounds(leagueId: Long, seasonYear: String): List<String> {
-        val requestUri = buildRequestUri("/fixtures/rounds", mapOf("league" to leagueId, "season" to seasonYear))
-        return sendRequest(requestUri) {
-            apiFootballHttpClient.getRounds(apiKey, rapidApiHost, leagueId, seasonYear)
+        return sendRequest("rounds for league=$leagueId season=$seasonYear") {
+            apiFootballHttpClient.getRounds(leagueId, seasonYear)
         }.response!!
     }
 
     open fun getFixtures(leagueId: Long, seasonYear: String): List<Fixture> {
-        val requestUri = buildRequestUri("/fixtures", mapOf("league" to leagueId, "season" to seasonYear))
-        return sendRequest(requestUri) {
-            apiFootballHttpClient.getSeasonFixtures(apiKey, rapidApiHost, leagueId, seasonYear)
+        return sendRequest("fixtures for league=$leagueId season=$seasonYear") {
+            apiFootballHttpClient.getSeasonFixtures(leagueId, seasonYear)
         }.response!!
     }
 
-    @Cacheable(value = ["api-football"])
+    @Cacheable(value = [ApiFootballConnector.NAME])
     open fun getFixtures(fixtureIds: List<Long>): List<Fixture> {
         if (fixtureIds.isEmpty()) {
             return emptyList()
@@ -48,11 +39,10 @@ open class ApiFootballClient(
         val fixtures = mutableListOf<Fixture>()
         fixtureIds.chunked(fixtureBatchSize.coerceAtLeast(1)).forEachIndexed { batchIndex, batch ->
             val fixtureIdsString = batch.map(Long::toString).joinToString("-")
-            val requestUri = buildRequestUri("/fixtures", mapOf("ids" to fixtureIdsString))
             try {
                 fixtures.addAll(
-                    sendRequest(requestUri) {
-                        apiFootballHttpClient.getFixturesByIds(apiKey, rapidApiHost, fixtureIdsString)
+                    sendRequest("fixtures by ids batch ${batchIndex + 1}") {
+                        apiFootballHttpClient.getFixturesByIds(fixtureIdsString)
                     }.response!!,
                 )
             } catch (exception: ApiConnectorException) {
@@ -77,12 +67,9 @@ open class ApiFootballClient(
 
     @Synchronized
     private fun <T, G : ApiFootballResponse<T>> sendRequest(
-        requestUri: String,
+        requestDescription: String,
         httpRequest: () -> HttpResponse<G>,
     ): G {
-        apiFootballQuotaGuard.checkRequestAllowed(requestUri)
-        apiFootballQuotaGuard.markRequestAttempted()
-
         val httpResponse = try {
             httpRequest()
         } catch (exception: HttpClientResponseException) {
@@ -90,31 +77,30 @@ open class ApiFootballClient(
         } catch (exception: Exception) {
             log.error("Request to API-Football failed", exception)
             val connectorException = ApiConnectorException(
-                CONNECTOR_NAME,
+                ApiFootballConnector.NAME,
                 Reason.REQUEST_ERROR,
                 apiFootballResponseParser.sanitize(exception.message),
                 exception,
             )
             throw connectorException
         }
-        return parseResponse(requestUri, httpResponse)
+        return parseResponse(requestDescription, httpResponse)
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun <T, G : ApiFootballResponse<T>> parseResponse(
-        requestUri: String,
+        requestDescription: String,
         httpResponse: HttpResponse<*>,
     ): G {
-        val headers = safeRateLimitHeaders(httpResponse)
-        apiFootballQuotaGuard.updateFromHeaders(headers)
+        val headers = ApiFootballResponseHeaders.safeRateLimitHeaders(httpResponse)
         val responseBody = if (httpResponse.status.code in 200..299) {
             httpResponse.body.orElse(null) as G?
         } else {
             null
         }
         return apiFootballResponseParser.validate(
-            CONNECTOR_NAME,
-            requestUri,
+            ApiFootballConnector.NAME,
+            requestDescription,
             httpResponse.status.code,
             httpResponse.status.reason,
             headers,
@@ -122,37 +108,11 @@ open class ApiFootballClient(
         )
     }
 
-    private fun safeRateLimitHeaders(httpResponse: HttpResponse<*>): Map<String, String> =
-        httpResponse.headers.names()
-            .map { name -> name.lowercase() to (httpResponse.headers.get(name) ?: "") }
-            .filter { (name, _) -> SAFE_RESPONSE_HEADERS.contains(name) || name.startsWith("x-ratelimit-") }
-            .toMap()
-
-    private fun buildRequestUri(path: String, queryParams: Map<String, Any>): String {
-        val query = queryParams.entries.map { entry -> "${encode(entry.key)}=${encode(entry.value.toString())}" }
-        return "$path?${query.joinToString("&")}"
-    }
-
-    private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
-
     private companion object {
-        const val CONNECTOR_NAME = "api-football"
-        const val RETRY_AFTER_HEADER = "retry-after"
-        const val REQUESTS_REMAINING_HEADER = "x-ratelimit-requests-remaining"
-        const val REQUESTS_RESET_HEADER = "x-ratelimit-requests-reset"
         val PARTIAL_BATCH_STOP_REASONS = setOf(
             Reason.QUOTA_EXCEEDED,
             Reason.TOO_OFTEN_REQUESTS,
             Reason.REQUEST_ERROR,
-        )
-        val SAFE_RESPONSE_HEADERS = setOf(
-            RETRY_AFTER_HEADER,
-            "x-ratelimit-requests-limit",
-            REQUESTS_REMAINING_HEADER,
-            REQUESTS_RESET_HEADER,
-            "x-ratelimit-requests-used",
-            "x-ratelimit-subscription-limit",
-            "x-ratelimit-subscription-remaining",
         )
         val log = LoggerFactory.getLogger(ApiFootballClient::class.java)
     }

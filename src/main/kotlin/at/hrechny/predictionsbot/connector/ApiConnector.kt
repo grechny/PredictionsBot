@@ -11,4 +11,8 @@ interface ApiConnector {
     fun getSeasonFixtures(competitionExternalId: String, seasonYear: String): List<FixtureSyncDto>
 
     fun getFixturesByExternalIds(fixtureExternalIds: List<String>): List<FixtureSyncDto>
+
+    companion object {
+        const val CONNECTOR_NAME_ATTRIBUTE = "apiConnectorName"
+    }
 }

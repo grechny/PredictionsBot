@@ -13,7 +13,7 @@ open class ApiFootballResponseParser(
 ) {
     open fun <T, G : ApiFootballResponse<T>> validate(
         connectorName: String,
-        requestUri: String,
+        requestDescription: String,
         statusCode: Int,
         reasonPhrase: String?,
         headers: Map<String, String>,
@@ -24,25 +24,29 @@ open class ApiFootballResponseParser(
             throw ApiConnectorException(
                 connectorName,
                 reasonFor(statusCode, normalizedHeaders),
-                responseDetails(requestUri, statusCode, reasonPhrase, normalizedHeaders),
+                responseDetails(requestDescription, statusCode, reasonPhrase, normalizedHeaders),
             )
         }
 
         if (response == null) {
-            throw ApiConnectorException(connectorName, Reason.INVALID_RESPONSE, "API-Football response is null for $requestUri")
+            throw ApiConnectorException(
+                connectorName,
+                Reason.INVALID_RESPONSE,
+                "API-Football response is null for $requestDescription",
+            )
         }
         if (response.errors.isNotEmpty()) {
             throw ApiConnectorException(
                 connectorName,
                 Reason.INVALID_RESPONSE,
-                "API-Football response contains errors for $requestUri: ${response.errors}",
+                "API-Football response contains errors for $requestDescription: ${response.errors}",
             )
         }
         if (response.response == null) {
             throw ApiConnectorException(
                 connectorName,
                 Reason.INVALID_RESPONSE,
-                "API-Football response has null response field for $requestUri",
+                "API-Football response has null response field for $requestDescription",
             )
         }
         return response
@@ -56,12 +60,12 @@ open class ApiFootballResponseParser(
         }
 
     private fun responseDetails(
-        requestUri: String,
+        requestDescription: String,
         statusCode: Int,
         reasonPhrase: String?,
         headers: Map<String, String>,
     ): String =
-        "HTTP $statusCode ${reasonPhrase.orEmpty()}; request=$requestUri; headers=$headers"
+        "HTTP $statusCode ${reasonPhrase.orEmpty()}; request=$requestDescription; headers=$headers"
 
     fun sanitize(value: String?): String? {
         if (value.isNullOrBlank()) {

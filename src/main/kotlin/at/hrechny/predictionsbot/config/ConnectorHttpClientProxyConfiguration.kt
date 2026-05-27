@@ -7,7 +7,6 @@ import io.micronaut.http.client.HttpClientConfiguration
 import jakarta.inject.Singleton
 import java.net.InetSocketAddress
 import java.net.Proxy
-import org.slf4j.LoggerFactory
 
 @Singleton
 class ConnectorHttpClientProxyConfiguration(
@@ -28,8 +27,7 @@ class ConnectorHttpClientProxyConfiguration(
             return configuration
         }
         if (proxyPort <= 0) {
-            log.warn("Connector HTTP proxy host is configured but proxy port is not valid")
-            return configuration
+            throw IllegalStateException("Connector HTTP proxy port must be positive when proxy host is configured")
         }
 
         configuration.setProxyType(Proxy.Type.HTTP)
@@ -41,7 +39,4 @@ class ConnectorHttpClientProxyConfiguration(
         return configuration
     }
 
-    private companion object {
-        val log = LoggerFactory.getLogger(ConnectorHttpClientProxyConfiguration::class.java)
-    }
 }

@@ -24,7 +24,7 @@ open class ApiFootballQuotaGuard(
 ) {
     private var billingStart: Instant = currentBillingStart(Instant.now(clock))
     private var requestCount: Int =
-        apiConnectorAuditService.countRequestsSince(CONNECTOR_NAME, billingStart)
+        apiConnectorAuditService.countRequestsSince(ApiFootballConnector.NAME, billingStart)
     private var retryBlockedUntil: Instant? = null
 
     @Synchronized
@@ -35,7 +35,7 @@ open class ApiFootballQuotaGuard(
 
         if (maxAttempts > 0 && requestCount >= maxAttempts) {
             throw ApiConnectorException(
-                CONNECTOR_NAME,
+                ApiFootballConnector.NAME,
                 Reason.QUOTA_EXCEEDED,
                 "API-Football daily request quota is exhausted before $requestUri: ${quotaState()}",
             )
@@ -76,7 +76,7 @@ open class ApiFootballQuotaGuard(
         val currentBillingStart = currentBillingStart(now)
         if (currentBillingStart.isAfter(billingStart)) {
             billingStart = currentBillingStart
-            requestCount = apiConnectorAuditService.countRequestsSince(CONNECTOR_NAME, billingStart)
+            requestCount = apiConnectorAuditService.countRequestsSince(ApiFootballConnector.NAME, billingStart)
         }
     }
 
@@ -84,7 +84,7 @@ open class ApiFootballQuotaGuard(
         val blockedUntil = retryBlockedUntil ?: return
         if (now.isBefore(blockedUntil)) {
             throw ApiConnectorException(
-                CONNECTOR_NAME,
+                ApiFootballConnector.NAME,
                 Reason.TOO_OFTEN_REQUESTS,
                 "API-Football retry-after is active until $blockedUntil",
             )
@@ -125,7 +125,7 @@ open class ApiFootballQuotaGuard(
     }
 
     private fun quotaState(): String =
-        "connector=$CONNECTOR_NAME;dailyCount=$requestCount;dailyLimit=$maxAttempts;billingStart=$billingStart"
+        "connector=${ApiFootballConnector.NAME};dailyCount=$requestCount;dailyLimit=$maxAttempts;billingStart=$billingStart"
 
     private fun logMalformedHeader(headers: Map<String, String>, headerName: String) {
         if (headers.containsKey(headerName)) {
@@ -134,7 +134,6 @@ open class ApiFootballQuotaGuard(
     }
 
     private companion object {
-        const val CONNECTOR_NAME = "api-football"
         const val RETRY_AFTER_HEADER = "retry-after"
         const val REQUESTS_LIMIT_HEADER = "x-ratelimit-requests-limit"
         const val REQUESTS_REMAINING_HEADER = "x-ratelimit-requests-remaining"

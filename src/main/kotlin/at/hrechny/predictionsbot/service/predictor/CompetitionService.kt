@@ -346,10 +346,7 @@ open class CompetitionService(
         }
     }
 
-    private fun connectorName(): String {
-        val connectorName: String? = apiConnector!!.name
-        return connectorName?.takeIf(String::isNotBlank) ?: API_FOOTBALL_CONNECTOR_NAME
-    }
+    private fun connectorName(): String = apiConnector!!.name
 
     private fun scopeGlobal(connectorService: ApiConnectorService): String {
         val scope: String? = connectorService.scopeGlobal()
@@ -400,7 +397,6 @@ open class CompetitionService(
     private companion object {
         val log = LoggerFactory.getLogger(CompetitionService::class.java)
         const val GLOBAL_SCOPE = "global"
-        const val API_FOOTBALL_CONNECTOR_NAME = "api-football"
         val ACTIVE_REFRESH_STATUSES = setOf(MatchStatus.PLANNED, MatchStatus.STARTED)
     }
 }
