@@ -182,8 +182,9 @@ open class CompetitionService(
         seasonEntity: SeasonEntity,
         syncPolicy: FixtureSyncPolicy,
     ) {
-        val rounds = seasonEntity.rounds
-        val matches = rounds.flatMap { round -> round.matches }
+        var rounds = distinctRoundEntities(seasonEntity.rounds)
+        val matches = rounds.flatMap { round -> distinctMatchEntities(round.matches) }
+            .distinctBy(::matchEntityKey)
         val matchConnectorIds = mutableMapOf<MatchEntity, String>()
 
         fixtures.forEach { fixture ->
@@ -196,6 +197,7 @@ open class CompetitionService(
                     )
                 }
                 refreshRounds(seasonEntity)
+                rounds = distinctRoundEntities(seasonEntity.rounds)
                 roundList = getRound(rounds, fixture.round)
                 if (roundList.isEmpty()) {
                     throw FixturesSynchronizationException(
@@ -221,7 +223,7 @@ open class CompetitionService(
                         }
                 }
 
-            val round = getRound(roundList, matchEntity.homeTeam!!, matchEntity.awayTeam!!)
+            val round = getRound(roundList, matchEntity)
             if (matchEntity.round == null) {
                 matchEntity.round = round
                 round.matches.add(matchEntity)
@@ -354,7 +356,7 @@ open class CompetitionService(
         val roundTypes = round.types.map(::mapRoundType).toSet()
         return rounds.filter { roundEntity ->
             roundEntity.type in roundTypes && (round.orderNumber == null || roundEntity.orderNumber == round.orderNumber)
-        }
+        }.distinctBy(::roundEntityKey)
     }
 
     private fun sameRound(
@@ -446,6 +448,14 @@ open class CompetitionService(
         }
     }
 
+    private fun getRound(roundList: List<RoundEntity>, match: MatchEntity): RoundEntity {
+        val existingRound = match.round
+        if (existingRound != null && roundList.any { round -> sameRoundEntity(round, existingRound) }) {
+            return existingRound
+        }
+        return getRound(roundList, match.homeTeam!!, match.awayTeam!!)
+    }
+
     private fun getRound(roundList: List<RoundEntity>, homeTeam: TeamEntity, awayTeam: TeamEntity): RoundEntity {
         if (roundList.isEmpty()) {
             throw FixturesSynchronizationException("Round could not be find for the match between ${homeTeam.name} and ${awayTeam.name}")
@@ -476,6 +486,25 @@ open class CompetitionService(
             "Unexpected number of rounds found for the match between ${homeTeam.name} and ${awayTeam.name}: $roundList",
         )
     }
+
+    private fun distinctRoundEntities(rounds: Collection<RoundEntity>): List<RoundEntity> =
+        rounds.distinctBy(::roundEntityKey)
+
+    private fun distinctMatchEntities(matches: Collection<MatchEntity>): List<MatchEntity> =
+        matches.distinctBy(::matchEntityKey)
+
+    private fun sameRoundEntity(left: RoundEntity, right: RoundEntity): Boolean =
+        if (left.id != null && right.id != null) {
+            left.id == right.id
+        } else {
+            left === right
+        }
+
+    private fun roundEntityKey(round: RoundEntity): Any =
+        round.id ?: System.identityHashCode(round)
+
+    private fun matchEntityKey(match: MatchEntity): Any =
+        match.id ?: System.identityHashCode(match)
 
     private companion object {
         val log = LoggerFactory.getLogger(CompetitionService::class.java)

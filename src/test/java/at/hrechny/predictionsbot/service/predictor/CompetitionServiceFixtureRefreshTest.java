@@ -420,6 +420,38 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
+  void refreshFixturesKeepsExistingRoundWhenConnectorRoundMapsToMultipleInternalRounds() {
+    var season = season();
+    var firstQualifyingRound = qualifyingRound(season);
+    var secondQualifyingRound = qualifyingRound(season);
+    firstQualifyingRound.setMatches(new ArrayList<>());
+    var match = existingMatch(secondQualifyingRound, 100L, "KuPS", "Milsami Orhei");
+    secondQualifyingRound.setMatches(new ArrayList<>(List.of(match)));
+    season.setRounds(new ArrayList<>(List.of(firstQualifyingRound, secondQualifyingRound)));
+
+    var fixture = fixture(
+        100L,
+        new RoundSyncDto("1st Qualifying Round", null, List.of(RoundSyncType.QUALIFYING)),
+        OffsetDateTime.of(2026, 5, 28, 18, 30, 0, 0, ZoneOffset.UTC),
+        FixtureSyncStatus.FINISHED,
+        team(1L, "KuPS", "kups.png"),
+        team(2L, "Milsami Orhei", "milsami.png"),
+        2,
+        0);
+
+    when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
+
+    competitionService.refreshFixtures(season);
+
+    assertThat(match.getRound()).isEqualTo(secondQualifyingRound);
+    assertThat(firstQualifyingRound.getMatches()).isEmpty();
+    assertThat(secondQualifyingRound.getMatches()).containsExactly(match);
+    assertThat(match.getStatus()).isEqualTo(MatchStatus.FINISHED);
+    verify(seasonRepository).save(season);
+  }
+
+  @Test
   void refreshFixturesMapsConnectorStatusesToMatchStatuses() {
     var season = season();
     var round = round(season, "Regular Season - 1");
@@ -472,6 +504,13 @@ class CompetitionServiceFixtureRefreshTest {
     round.setSeason(season);
     round.setType(RoundType.SEASON);
     round.setOrderNumber(orderNumber(roundName));
+    return round;
+  }
+
+  private RoundEntity qualifyingRound(SeasonEntity season) {
+    var round = round(season, "Regular Season - 1");
+    round.setType(RoundType.QUALIFYING);
+    round.setOrderNumber(0);
     return round;
   }
 
@@ -528,6 +567,25 @@ class CompetitionServiceFixtureRefreshTest {
     return new FixtureSyncDto(
         id.toString(),
         roundDto(round),
+        kickoff == null ? null : kickoff.toInstant(),
+        status,
+        homeTeam,
+        awayTeam,
+        new ScoreSyncDto(homeScore, awayScore));
+  }
+
+  private FixtureSyncDto fixture(
+      Long id,
+      RoundSyncDto round,
+      OffsetDateTime kickoff,
+      FixtureSyncStatus status,
+      TeamSyncDto homeTeam,
+      TeamSyncDto awayTeam,
+      Integer homeScore,
+      Integer awayScore) {
+    return new FixtureSyncDto(
+        id.toString(),
+        round,
         kickoff == null ? null : kickoff.toInstant(),
         status,
         homeTeam,
