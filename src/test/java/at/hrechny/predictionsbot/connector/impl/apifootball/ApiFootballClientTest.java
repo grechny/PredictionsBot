@@ -11,6 +11,8 @@ import at.hrechny.predictionsbot.connector.impl.apifootball.model.Fixture;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixtureData;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesResponse;
 import at.hrechny.predictionsbot.exception.ApiConnectorException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpResponse;
@@ -111,6 +113,80 @@ class ApiFootballClientTest {
         .isInstanceOf(ApiConnectorException.class)
         .hasMessageContaining("INVALID_RESPONSE")
         .hasMessageContaining("null response field");
+  }
+
+  @Test
+  void fixturesResponseIgnoresApiFootballMetadataFields() throws Exception {
+    var objectMapper = new ObjectMapper();
+    objectMapper.registerModule(new JavaTimeModule());
+
+    var response = objectMapper.readValue("""
+        {
+          "get": "fixtures",
+          "parameters": {
+            "league": "39",
+            "season": "2025"
+          },
+          "errors": [],
+          "results": 1,
+          "paging": {
+            "current": 1,
+            "total": 1
+          },
+          "response": [
+            {
+              "fixture": {
+                "id": 1379342,
+                "date": "2026-05-28T19:00:00+00:00",
+                "timezone": "UTC",
+                "venue": {
+                  "id": 1,
+                  "name": "Example Stadium"
+                }
+              },
+              "league": {
+                "id": 39,
+                "name": "Premier League",
+                "country": "England",
+                "round": "Regular Season - 1"
+              },
+              "teams": {
+                "home": {
+                  "id": 33,
+                  "name": "Manchester United",
+                  "logo": "home.png",
+                  "winner": null
+                },
+                "away": {
+                  "id": 40,
+                  "name": "Liverpool",
+                  "logo": "away.png",
+                  "winner": null
+                }
+              },
+              "goals": {
+                "home": null,
+                "away": null
+              },
+              "score": {
+                "halftime": {
+                  "home": null,
+                  "away": null
+                },
+                "fulltime": {
+                  "home": null,
+                  "away": null
+                }
+              }
+            }
+          ]
+        }
+        """, FixturesResponse.class);
+
+    assertThat(response.getResponse()).hasSize(1);
+    assertThat(response.getResponse().get(0).getFixture().getId()).isEqualTo(1379342L);
+    assertThat(response.getResponse().get(0).getLeague().getRound()).isEqualTo("Regular Season - 1");
+    assertThat(response.getResponse().get(0).getTeams().getHome().getName()).isEqualTo("Manchester United");
   }
 
   @Test

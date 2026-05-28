@@ -32,7 +32,7 @@ class ApiFootballResponseParser(
             throw ApiConnectorException(
                 connectorName,
                 Reason.INVALID_RESPONSE,
-                "API-Football response is null for $requestDescription",
+                "API-Football response is null for ${responseDetails(requestDescription, statusCode, reasonPhrase, normalizedHeaders)}",
             )
         }
         if (response.errors.isNotEmpty()) {
