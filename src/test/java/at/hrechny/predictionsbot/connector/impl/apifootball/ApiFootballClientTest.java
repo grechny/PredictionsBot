@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ApiFootballClientTest {
 
   private static final String API_KEY = "secret-api-key";
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
 
   @Mock
   private ApiFootballHttpClient httpClient;
@@ -117,10 +118,7 @@ class ApiFootballClientTest {
 
   @Test
   void fixturesResponseIgnoresApiFootballMetadataFields() throws Exception {
-    var objectMapper = new ObjectMapper();
-    objectMapper.registerModule(new JavaTimeModule());
-
-    var response = objectMapper.readValue("""
+    var response = OBJECT_MAPPER.readValue("""
         {
           "get": "fixtures",
           "parameters": {
@@ -241,12 +239,20 @@ class ApiFootballClientTest {
         fixtureBatchSize);
   }
 
-  private MutableHttpResponse<FixturesResponse> ok(FixturesResponse body) {
-    return HttpResponse.ok(body);
+  private MutableHttpResponse<String> ok(FixturesResponse body) {
+    return HttpResponse.ok(json(body));
   }
 
-  private MutableHttpResponse<FixturesResponse> response(HttpStatus status, FixturesResponse body) {
-    return HttpResponse.<FixturesResponse>status(status).body(body);
+  private MutableHttpResponse<String> response(HttpStatus status, FixturesResponse body) {
+    return HttpResponse.<String>status(status).body(json(body));
+  }
+
+  private String json(FixturesResponse body) {
+    try {
+      return OBJECT_MAPPER.writeValueAsString(body);
+    } catch (Exception exception) {
+      throw new IllegalStateException(exception);
+    }
   }
 
   private FixturesResponse fixtures(Fixture... fixtures) {
