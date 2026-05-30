@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,13 +28,11 @@ import at.hrechny.predictionsbot.database.entity.RoundEntity;
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
 import at.hrechny.predictionsbot.database.entity.TeamEntity;
 import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType;
-import at.hrechny.predictionsbot.database.model.ApiConnectorValueType;
 import at.hrechny.predictionsbot.database.model.MatchStatus;
 import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.database.repository.TeamRepository;
-import at.hrechny.predictionsbot.service.connector.ApiConnectorMappingCandidateService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -64,9 +63,6 @@ class CompetitionServiceFixtureRefreshTest {
   @Mock
   private ApiConnectorService apiConnectorService;
 
-  @Mock
-  private ApiConnectorMappingCandidateService apiConnectorMappingCandidateService;
-
   private CompetitionService competitionService;
 
   @BeforeEach
@@ -91,8 +87,7 @@ class CompetitionServiceFixtureRefreshTest {
         teamRepository,
         matchRepository,
         apiConnector,
-        apiConnectorService,
-        apiConnectorMappingCandidateService);
+        apiConnectorService);
   }
 
   @Test
@@ -246,16 +241,9 @@ class CompetitionServiceFixtureRefreshTest {
 
     assertThatThrownBy(() -> competitionService.refreshActiveFixtures(season.getId()))
         .isInstanceOf(FixturesSynchronizationException.class)
-        .hasMessageContaining("No internal match found");
+        .hasMessageContaining("Missing connector mappings")
+        .hasMessageContaining("matches=999");
 
-    verify(apiConnectorMappingCandidateService).recordCandidate(
-        "api-football",
-        ApiConnectorValueType.MATCH_ID,
-        "999",
-        null,
-        null,
-        null,
-        null);
     verify(teamRepository, never()).save(any(TeamEntity.class));
     verify(seasonRepository, never()).save(season);
   }
@@ -284,22 +272,15 @@ class CompetitionServiceFixtureRefreshTest {
 
     assertThatThrownBy(() -> competitionService.refreshActiveFixtures(season.getId()))
         .isInstanceOf(FixturesSynchronizationException.class)
-        .hasMessageContaining("No internal round found");
+        .hasMessageContaining("Missing connector mappings")
+        .hasMessageContaining("rounds=Regular Season - 2");
 
-    verify(apiConnectorMappingCandidateService).recordCandidate(
-        "api-football",
-        ApiConnectorValueType.ROUND_LABEL,
-        "Regular Season - 2",
-        null,
-        null,
-        null,
-        null);
     verify(apiConnector, never()).getRounds(anyString(), anyString());
     verify(seasonRepository, never()).save(season);
   }
 
   @Test
-  void refreshFixturesCreatesTeamsAndMatchForNewConnectorFixture() {
+  void refreshFixturesFailsWithAllMissingTeamMappingsForNewConnectorFixture() {
     var season = season();
     var round = round(season, "Regular Season - 1");
     season.setRounds(List.of(round));
@@ -318,22 +299,51 @@ class CompetitionServiceFixtureRefreshTest {
 
     when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
-    when(teamRepository.save(any(TeamEntity.class))).thenAnswer(invocation -> {
-      var team = invocation.getArgument(0, TeamEntity.class);
-      team.setId(UUID.randomUUID());
-      return team;
-    });
+
+    assertThatThrownBy(() -> competitionService.refreshFixtures(season))
+        .isInstanceOf(FixturesSynchronizationException.class)
+        .hasMessageContaining("Missing connector mappings")
+        .hasMessageContaining("teams=Arsenal (1), Chelsea (2)");
+
+    assertThat(round.getMatches()).isEmpty();
+    verify(teamRepository, never()).save(any(TeamEntity.class));
+    verify(seasonRepository, never()).save(season);
+  }
+
+  @Test
+  void refreshFixturesCreatesMatchForNewConnectorFixtureWithMappedTeams() {
+    var season = season();
+    var round = round(season, "Regular Season - 1");
+    season.setRounds(List.of(round));
+    var mappedHomeTeam = teamEntity(1L, "Arsenal", "arsenal.png");
+    var mappedAwayTeam = teamEntity(2L, "Chelsea", "chelsea.png");
+
+    var fixture = fixture(
+        100L,
+        "Regular Season - 1",
+        OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC),
+        FixtureSyncStatus.PLANNED,
+        team(1L, "Arsenal", "arsenal.png"),
+        team(2L, "Chelsea", "chelsea.png"),
+        null,
+        null);
+
+    when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(fixture));
+    when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
 
     competitionService.refreshFixtures(season);
 
     assertThat(round.getMatches()).hasSize(1);
     var createdMatch = round.getMatches().get(0);
-    assertThat(createdMatch.getHomeTeam().getName()).isEqualTo("Arsenal");
-    assertThat(createdMatch.getAwayTeam().getName()).isEqualTo("Chelsea");
+    assertThat(createdMatch.getHomeTeam()).isEqualTo(mappedHomeTeam);
+    assertThat(createdMatch.getAwayTeam()).isEqualTo(mappedAwayTeam);
     assertThat(createdMatch.getStatus()).isEqualTo(MatchStatus.PLANNED);
     assertThat(createdMatch.getStartTime()).isNotNull();
-    verify(apiConnectorService).upsertId("api-football", ApiConnectorEntityType.TEAM, "1", createdMatch.getHomeTeam().getId());
-    verify(apiConnectorService).upsertId("api-football", ApiConnectorEntityType.TEAM, "2", createdMatch.getAwayTeam().getId());
+    verify(apiConnectorService, never()).upsertId(
+        eq("api-football"),
+        eq(ApiConnectorEntityType.TEAM),
+        anyString(),
+        any(UUID.class));
     verify(apiConnectorService).upsertId("api-football", ApiConnectorEntityType.MATCH, "100", createdMatch.getId());
     verify(seasonRepository).save(season);
   }
@@ -347,6 +357,8 @@ class CompetitionServiceFixtureRefreshTest {
 
     var homeTeam = team(1L, "Arsenal", "arsenal.png");
     var awayTeam = team(2L, "Chelsea", "chelsea.png");
+    teamEntity(1L, "Arsenal", "arsenal.png");
+    teamEntity(2L, "Chelsea", "chelsea.png");
     var fixture = fixture(
         100L,
         "Regular Season - 2",
@@ -362,11 +374,6 @@ class CompetitionServiceFixtureRefreshTest {
         roundDto("Regular Season - 1"),
         roundDto("Regular Season - 2")));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
-    when(teamRepository.save(any(TeamEntity.class))).thenAnswer(invocation -> {
-      var team = invocation.getArgument(0, TeamEntity.class);
-      team.setId(UUID.randomUUID());
-      return team;
-    });
 
     competitionService.refreshFixtures(season);
 
@@ -465,9 +472,9 @@ class CompetitionServiceFixtureRefreshTest {
     var kickoff = OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC);
     when(apiConnector.getSeasonFixtures("39", "2026")).thenReturn(List.of(
         fixture(100L, "Regular Season - 1", kickoff, FixtureSyncStatus.PLANNED, team(1L, "Arsenal", null), team(2L, "Chelsea", null), null, null),
-        fixture(101L, "Regular Season - 1", kickoff, FixtureSyncStatus.STARTED, team(3L, "Liverpool", null), team(4L, "Everton", null), 1, 0),
-        fixture(102L, "Regular Season - 1", kickoff, FixtureSyncStatus.FINISHED, team(5L, "Brighton", null), team(6L, "Fulham", null), 2, 1),
-        fixture(103L, "Regular Season - 1", kickoff, FixtureSyncStatus.NOT_DEFINED, team(7L, "Leeds", null), team(8L, "Burnley", null), null, null)));
+        fixture(101L, "Regular Season - 1", kickoff, FixtureSyncStatus.STARTED, team(1L, "Liverpool", null), team(2L, "Everton", null), 1, 0),
+        fixture(102L, "Regular Season - 1", kickoff, FixtureSyncStatus.FINISHED, team(1L, "Brighton", null), team(2L, "Fulham", null), 2, 1),
+        fixture(103L, "Regular Season - 1", kickoff, FixtureSyncStatus.NOT_DEFINED, team(1L, "Leeds", null), team(2L, "Burnley", null), null, null)));
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
 
     competitionService.refreshFixtures(season);

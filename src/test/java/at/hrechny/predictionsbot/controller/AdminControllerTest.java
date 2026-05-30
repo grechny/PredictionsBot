@@ -11,16 +11,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import at.hrechny.predictionsbot.database.entity.SeasonEntity;
-import at.hrechny.predictionsbot.database.entity.ApiConnectorMappingCandidateEntity;
 import at.hrechny.predictionsbot.database.entity.UserEntity;
-import at.hrechny.predictionsbot.database.model.ApiConnectorMappingCandidateStatus;
 import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType;
-import at.hrechny.predictionsbot.database.model.ApiConnectorValueType;
 import at.hrechny.predictionsbot.exception.RequestValidationException;
 import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
 import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdRequestDto;
 import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdResponseDto;
-import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorMappingCandidateDecisionRequestDto;
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionCreateRequestDto;
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto;
 import at.hrechny.predictionsbot.controller.model.competition.SeasonCreateRequestDto;
@@ -30,7 +26,6 @@ import at.hrechny.predictionsbot.controller.model.service.PushUpdateRequestDto;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
-import at.hrechny.predictionsbot.service.connector.ApiConnectorMappingCandidateService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.scheduling.TaskExecutors;
@@ -61,18 +56,13 @@ class AdminControllerTest {
   @Mock
   private TelegramService telegramService;
 
-  @Mock
-  private ApiConnectorMappingCandidateService apiConnectorMappingCandidateService;
-
   private CompetitionController competitionController;
-  private ApiConnectorAdminController apiConnectorAdminController;
   private PredictionController predictionController;
   private ServiceController serviceController;
 
   @BeforeEach
   void setUp() {
     competitionController = new CompetitionController(competitionService, telegramService);
-    apiConnectorAdminController = new ApiConnectorAdminController(apiConnectorMappingCandidateService);
     predictionController = new PredictionController(predictionService);
     serviceController = new ServiceController(userService, telegramService);
   }
@@ -164,43 +154,6 @@ class AdminControllerTest {
 
     assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
     assertThat(response.body()).containsExactly(mapping);
-  }
-
-  @Test
-  void getMappingCandidatesReturnsPendingCandidatesByDefault() {
-    var candidate = mappingCandidate(UUID.randomUUID(), ApiConnectorMappingCandidateStatus.PENDING);
-    when(apiConnectorMappingCandidateService.getCandidates(null)).thenReturn(List.of(candidate));
-
-    var response = apiConnectorAdminController.getMappingCandidates(null);
-
-    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
-    assertThat(response.body()).hasSize(1);
-    assertThat(response.body().get(0).getId()).isEqualTo(candidate.getId());
-    assertThat(response.body().get(0).getValueType()).isEqualTo(ApiConnectorValueType.ROUND_LABEL);
-    assertThat(response.body().get(0).getRawValue()).isEqualTo("Provider Round");
-  }
-
-  @Test
-  void decideMappingCandidateDelegatesToCandidateService() {
-    var candidateId = UUID.randomUUID();
-    var decided = mappingCandidate(candidateId, ApiConnectorMappingCandidateStatus.APPROVED);
-    decided.setSuggestedValue("ROUND_OF_16");
-    var request = new ApiConnectorMappingCandidateDecisionRequestDto();
-    request.setStatus(ApiConnectorMappingCandidateStatus.APPROVED);
-    request.setSuggestedValue("ROUND_OF_16");
-    request.setDecidedBy("admin");
-    when(apiConnectorMappingCandidateService.decideCandidate(
-        candidateId,
-        ApiConnectorMappingCandidateStatus.APPROVED,
-        "ROUND_OF_16",
-        "admin"))
-        .thenReturn(decided);
-
-    var response = apiConnectorAdminController.decideMappingCandidate(candidateId, request);
-
-    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
-    assertThat(response.body().getStatus()).isEqualTo(ApiConnectorMappingCandidateStatus.APPROVED);
-    assertThat(response.body().getSuggestedValue()).isEqualTo("ROUND_OF_16");
   }
 
   @Test
@@ -355,18 +308,6 @@ class AdminControllerTest {
     response.setConnectorEntityId(connectorEntityId);
     response.setInternalId(internalId);
     return response;
-  }
-
-  private ApiConnectorMappingCandidateEntity mappingCandidate(
-      UUID id,
-      ApiConnectorMappingCandidateStatus status) {
-    var candidate = new ApiConnectorMappingCandidateEntity();
-    candidate.setId(id);
-    candidate.setConnectorCode("api-football");
-    candidate.setValueType(ApiConnectorValueType.ROUND_LABEL);
-    candidate.setRawValue("Provider Round");
-    candidate.setStatus(status);
-    return candidate;
   }
 
   private SeasonCreateRequestDto seasonCreateRequest(UUID id, Year year, boolean active) {

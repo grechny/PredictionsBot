@@ -20,7 +20,6 @@ import at.hrechny.predictionsbot.database.entity.RoundEntity
 import at.hrechny.predictionsbot.database.entity.SeasonEntity
 import at.hrechny.predictionsbot.database.entity.TeamEntity
 import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType
-import at.hrechny.predictionsbot.database.model.ApiConnectorValueType
 import at.hrechny.predictionsbot.database.model.MatchStatus
 import at.hrechny.predictionsbot.database.model.RoundType
 import at.hrechny.predictionsbot.database.repository.CompetitionRepository
@@ -32,7 +31,6 @@ import at.hrechny.predictionsbot.exception.NotFoundException
 import at.hrechny.predictionsbot.exception.RequestValidationException
 import at.hrechny.predictionsbot.mapper.CompetitionMapper
 import at.hrechny.predictionsbot.mapper.SeasonMapper
-import at.hrechny.predictionsbot.service.connector.ApiConnectorMappingCandidateService
 import jakarta.inject.Singleton
 import io.micronaut.transaction.annotation.Transactional
 import java.time.Instant
@@ -52,7 +50,6 @@ open class CompetitionService(
     private val matchRepository: MatchRepository?,
     private val apiConnector: ApiConnector?,
     private val apiConnectorService: ApiConnectorService?,
-    private val apiConnectorMappingCandidateService: ApiConnectorMappingCandidateService?,
 ) {
     open fun addCompetition(competition: CompetitionCreateRequestDto): UUID {
         log.info("Adding the new competition: {}", competition)
@@ -182,40 +179,23 @@ open class CompetitionService(
         seasonEntity: SeasonEntity,
         syncPolicy: FixtureSyncPolicy,
     ) {
-        var rounds = distinctRoundEntities(seasonEntity.rounds)
+        val rounds = requireKnownMappings(fixtures, seasonEntity, syncPolicy)
         val matches = rounds.flatMap { round -> distinctMatchEntities(round.matches) }
             .distinctBy(::matchEntityKey)
         val matchConnectorIds = mutableMapOf<MatchEntity, String>()
 
         fixtures.forEach { fixture ->
-            var roundList = getRound(rounds, fixture.round)
-            if (roundList.isEmpty()) {
-                if (syncPolicy == FixtureSyncPolicy.UPDATE_ONLY) {
-                    recordMappingCandidate(ApiConnectorValueType.ROUND_LABEL, fixture.round.name)
-                    throw FixturesSynchronizationException(
-                        "No internal round found for connector ${connectorName()} round ${fixture.round.name}",
-                    )
-                }
-                refreshRounds(seasonEntity)
-                rounds = distinctRoundEntities(seasonEntity.rounds)
-                roundList = getRound(rounds, fixture.round)
-                if (roundList.isEmpty()) {
-                    throw FixturesSynchronizationException(
-                        "No internal round found for connector ${connectorName()} round ${fixture.round.name}",
-                    )
-                }
-            }
+            val roundList = getRound(rounds, fixture.round)
 
             val matchEntity = findMatchByConnectorId(matches, seasonEntity, fixture.externalId)
                 ?: run {
                     if (syncPolicy == FixtureSyncPolicy.UPDATE_ONLY) {
-                        recordMappingCandidate(ApiConnectorValueType.MATCH_ID, fixture.externalId)
                         throw FixturesSynchronizationException(
                             "No internal match found for connector ${connectorName()} fixture ${fixture.externalId}",
                         )
                     }
-                    val homeTeam = getTeamEntity(fixture.homeTeam, syncPolicy)
-                    val awayTeam = getTeamEntity(fixture.awayTeam, syncPolicy)
+                    val homeTeam = getTeamEntity(fixture.homeTeam)
+                    val awayTeam = getTeamEntity(fixture.awayTeam)
                     findMatchByCanonicalIdentity(matches, roundList, homeTeam, awayTeam)
                         ?: MatchEntity().apply {
                             this.homeTeam = homeTeam
@@ -256,7 +236,59 @@ open class CompetitionService(
             FixtureSyncStatus.FINISHED -> MatchStatus.FINISHED
         }
 
-    private fun getTeamEntity(team: TeamSyncDto, syncPolicy: FixtureSyncPolicy): TeamEntity {
+    private fun requireKnownMappings(
+        fixtures: List<FixtureSyncDto>,
+        seasonEntity: SeasonEntity,
+        syncPolicy: FixtureSyncPolicy,
+    ): List<RoundEntity> {
+        var rounds = distinctRoundEntities(seasonEntity.rounds)
+        val missingRoundLabels = fixtures
+            .map(FixtureSyncDto::round)
+            .filter { round -> getRound(rounds, round).isEmpty() }
+            .map(RoundSyncDto::name)
+            .distinct()
+        if (missingRoundLabels.isNotEmpty() && syncPolicy == FixtureSyncPolicy.AUTHORITATIVE_BOOTSTRAP) {
+            refreshRounds(seasonEntity)
+            rounds = distinctRoundEntities(seasonEntity.rounds)
+        }
+
+        val missingMappings = MissingConnectorMappings()
+        fixtures
+            .map(FixtureSyncDto::round)
+            .filter { round -> getRound(rounds, round).isEmpty() }
+            .map(RoundSyncDto::name)
+            .distinct()
+            .forEach(missingMappings::addRound)
+
+        fixtures
+            .asSequence()
+            .map(FixtureSyncDto::homeTeam)
+            .plus(fixtures.asSequence().map(FixtureSyncDto::awayTeam))
+            .distinctBy(TeamSyncDto::externalId)
+            .filter { team ->
+                connectorService()
+                    .findInternalId(connectorName(), ApiConnectorEntityType.TEAM, team.externalId)
+                    .isEmpty
+            }
+            .forEach(missingMappings::addTeam)
+
+        if (syncPolicy == FixtureSyncPolicy.UPDATE_ONLY) {
+            fixtures
+                .map(FixtureSyncDto::externalId)
+                .distinct()
+                .filter { externalId ->
+                    connectorService()
+                        .findInternalId(connectorName(), ApiConnectorEntityType.MATCH, externalId)
+                        .isEmpty
+                }
+                .forEach(missingMappings::addMatch)
+        }
+
+        missingMappings.throwIfNotEmpty(connectorName(), seasonEntity)
+        return rounds
+    }
+
+    private fun getTeamEntity(team: TeamSyncDto): TeamEntity {
         val internalId = connectorService()
             .findInternalId(connectorName(), ApiConnectorEntityType.TEAM, team.externalId)
             .orElse(null)
@@ -272,29 +304,9 @@ open class CompetitionService(
             log.info("Team {} has been updated: {}", teamEntity.name, teamEntity.id)
             return teamEntity
         }
-        if (syncPolicy == FixtureSyncPolicy.UPDATE_ONLY) {
-            recordMappingCandidate(ApiConnectorValueType.TEAM_ID, team.externalId)
-            throw FixturesSynchronizationException(
-                "No internal team found for connector ${connectorName()} team ${team.externalId}",
-            )
-        }
-        return createTeam(team)
-    }
-
-    private fun createTeam(team: TeamSyncDto): TeamEntity {
-        var teamEntity = TeamEntity().apply {
-            name = team.name
-            logoUrl = team.logoUrl
-        }
-        teamEntity = teamRepository!!.save(teamEntity)
-        connectorService().upsertId(
-            connectorName(),
-            ApiConnectorEntityType.TEAM,
-            team.externalId,
-            teamEntity.id!!,
+        throw FixturesSynchronizationException(
+            "No internal team found for connector ${connectorName()} team ${team.externalId}",
         )
-        log.info("New team {} has been created: {}", teamEntity.name, teamEntity.id)
-        return teamEntity
     }
 
     private fun validateActiveSeasons(competitionId: UUID, season: SeasonCreateRequestDto) {
@@ -432,10 +444,6 @@ open class CompetitionService(
 
     private fun connectorName(): String = apiConnector!!.name
 
-    private fun recordMappingCandidate(valueType: ApiConnectorValueType, rawValue: String) {
-        apiConnectorMappingCandidateService?.recordCandidate(connectorName(), valueType, rawValue)
-    }
-
     private fun requireInternalEntity(entityType: ApiConnectorEntityType, internalId: UUID) {
         val exists = when (entityType) {
             ApiConnectorEntityType.COMPETITION -> competitionRepository!!.findById(internalId).isPresent
@@ -505,6 +513,55 @@ open class CompetitionService(
 
     private fun matchEntityKey(match: MatchEntity): Any =
         match.id ?: System.identityHashCode(match)
+
+    private class MissingConnectorMappings {
+        private val rounds = linkedSetOf<String>()
+        private val teams = linkedSetOf<String>()
+        private val matches = linkedSetOf<String>()
+
+        fun addRound(roundName: String) {
+            rounds.add(roundName)
+        }
+
+        fun addTeam(team: TeamSyncDto) {
+            teams.add("${team.name ?: "unknown"} (${team.externalId})")
+        }
+
+        fun addMatch(externalId: String) {
+            matches.add(externalId)
+        }
+
+        fun throwIfNotEmpty(connectorName: String, seasonEntity: SeasonEntity) {
+            if (rounds.isEmpty() && teams.isEmpty() && matches.isEmpty()) {
+                return
+            }
+
+            throw FixturesSynchronizationException(
+                buildString {
+                    append("Missing connector mappings for ")
+                    append(connectorName)
+                    append(" season ")
+                    append(seasonEntity.id)
+                    append(": ")
+                    appendSection("rounds", rounds)
+                    appendSection("teams", teams)
+                    appendSection("matches", matches)
+                },
+            )
+        }
+
+        private fun StringBuilder.appendSection(name: String, values: Set<String>) {
+            if (values.isEmpty()) {
+                return
+            }
+            if (!endsWith(": ")) {
+                append("; ")
+            }
+            append(name)
+            append("=")
+            append(values.joinToString(", "))
+        }
+    }
 
     private companion object {
         val log = LoggerFactory.getLogger(CompetitionService::class.java)

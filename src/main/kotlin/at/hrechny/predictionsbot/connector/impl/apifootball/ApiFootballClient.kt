@@ -6,9 +6,6 @@ import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesRespon
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.RoundsResponse
 import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import io.micronaut.cache.annotation.Cacheable
 import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpResponse
@@ -23,22 +20,15 @@ open class ApiFootballClient(
     @param:Value("\${connectors.api-football.fixtureBatchSize:20}")
     private val fixtureBatchSize: Int,
 ) {
-    private val objectMapper = ObjectMapper()
-        .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
-        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        .registerModule(JavaTimeModule())
-
     fun getRounds(leagueId: Long, seasonYear: String): List<String> {
         return sendRequest(
             "rounds for league=$leagueId season=$seasonYear",
-            RoundsResponse::class.java,
         ) { apiFootballHttpClient.getRounds(leagueId, seasonYear) }.response!!
     }
 
     fun getFixtures(leagueId: Long, seasonYear: String): List<Fixture> {
         return sendRequest(
             "fixtures for league=$leagueId season=$seasonYear",
-            FixturesResponse::class.java,
         ) { apiFootballHttpClient.getSeasonFixtures(leagueId, seasonYear) }.response!!
     }
 
@@ -55,7 +45,6 @@ open class ApiFootballClient(
                 fixtures.addAll(
                     sendRequest(
                         "fixtures by ids batch ${batchIndex + 1}",
-                        FixturesResponse::class.java,
                     ) { apiFootballHttpClient.getFixturesByIds(fixtureIdsString) }.response!!,
                 )
             } catch (exception: ApiConnectorException) {
@@ -81,8 +70,7 @@ open class ApiFootballClient(
     @Synchronized
     private fun <T, G : ApiFootballResponse<T>> sendRequest(
         requestDescription: String,
-        responseType: Class<G>,
-        httpRequest: () -> HttpResponse<String>,
+        httpRequest: () -> HttpResponse<G>,
     ): G {
         val httpResponse = try {
             httpRequest()
@@ -98,17 +86,17 @@ open class ApiFootballClient(
             )
             throw connectorException
         }
-        return parseResponse(requestDescription, responseType, httpResponse)
+        return parseResponse(requestDescription, httpResponse)
     }
 
+    @Suppress("UNCHECKED_CAST")
     private fun <T, G : ApiFootballResponse<T>> parseResponse(
         requestDescription: String,
-        responseType: Class<G>,
         httpResponse: HttpResponse<*>,
     ): G {
         val headers = safeRateLimitHeaders(httpResponse)
         val responseBody = if (httpResponse.status.code in 200..299) {
-            parseBody(requestDescription, responseType, httpResponse.body.orElse(null) as? String)
+            httpResponse.body.orElse(null) as G?
         } else {
             null
         }
@@ -120,23 +108,6 @@ open class ApiFootballClient(
             headers,
             responseBody,
         )
-    }
-
-    private fun <G> parseBody(requestDescription: String, responseType: Class<G>, responseBody: String?): G? {
-        if (responseBody == null) {
-            return null
-        }
-        return try {
-            objectMapper.readValue(responseBody, responseType)
-        } catch (exception: Exception) {
-            throw ApiConnectorException(
-                ApiFootballConnector.NAME,
-                Reason.INVALID_RESPONSE,
-                "Failed to parse API-Football response for $requestDescription: " +
-                    apiFootballResponseParser.sanitize(exception.message),
-                exception,
-            )
-        }
     }
 
     private fun safeRateLimitHeaders(httpResponse: HttpResponse<*>): Map<String, String> =

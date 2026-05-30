@@ -239,20 +239,12 @@ class ApiFootballClientTest {
         fixtureBatchSize);
   }
 
-  private MutableHttpResponse<String> ok(FixturesResponse body) {
-    return HttpResponse.ok(json(body));
+  private MutableHttpResponse<FixturesResponse> ok(FixturesResponse body) {
+    return HttpResponse.ok(body);
   }
 
-  private MutableHttpResponse<String> response(HttpStatus status, FixturesResponse body) {
-    return HttpResponse.<String>status(status).body(json(body));
-  }
-
-  private String json(FixturesResponse body) {
-    try {
-      return OBJECT_MAPPER.writeValueAsString(body);
-    } catch (Exception exception) {
-      throw new IllegalStateException(exception);
-    }
+  private MutableHttpResponse<FixturesResponse> response(HttpStatus status, FixturesResponse body) {
+    return HttpResponse.<FixturesResponse>status(status).body(body);
   }
 
   private FixturesResponse fixtures(Fixture... fixtures) {
