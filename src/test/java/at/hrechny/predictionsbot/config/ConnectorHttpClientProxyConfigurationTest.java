@@ -13,11 +13,11 @@ import org.junit.jupiter.api.Test;
 class ConnectorHttpClientProxyConfigurationTest {
 
   @Test
-  void apiFootballClientUsesConfiguredBaseUrlAndVersionedBasePath() {
+  void apiFootballClientUsesConfiguredVersionedBaseUrl() {
     var client = ApiFootballHttpClient.class.getAnnotation(Client.class);
 
     assertThat(client.value()).isEqualTo("${connectors.api-football.url}");
-    assertThat(client.path()).isEqualTo("/v3");
+    assertThat(client.path()).isEmpty();
   }
 
   @Test

@@ -28,7 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ApiFootballHttpClientFilterTest {
 
   private static final String API_KEY = "secret-api-key";
-  private static final String API_FOOTBALL_URL = "https://api-football-v1.p.rapidapi.com";
+  private static final String API_FOOTBALL_URL = "https://api-football-v1.p.rapidapi.com/v3";
 
   @Mock
   private ApiConnectorAuditService auditService;

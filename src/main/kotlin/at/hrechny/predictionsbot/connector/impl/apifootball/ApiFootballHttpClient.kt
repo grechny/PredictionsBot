@@ -7,7 +7,7 @@ import io.micronaut.http.annotation.QueryValue
 import io.micronaut.http.annotation.RequestAttribute
 import io.micronaut.http.client.annotation.Client
 
-@Client(value = "\${connectors.api-football.url}", path = "/v3")
+@Client(value = "\${connectors.api-football.url}")
 @RequestAttribute(name = ApiConnector.CONNECTOR_NAME_ATTRIBUTE, value = ApiFootballConnector.NAME)
 interface ApiFootballHttpClient {
     @Get("/fixtures/rounds{?league,season}")

@@ -15,7 +15,7 @@ class ApplicationContextStartupTest {
                 "connectors.api-football.apiKey" to "api-football-key",
                 "connectors.api-football.dayStarts" to "00:00",
                 "connectors.api-football.maxAttempts" to 100,
-                "connectors.api-football.url" to "http://localhost:18080",
+                "connectors.api-football.url" to "http://localhost:18080/v3",
                 "jpa.default.properties.hibernate.dialect" to "org.hibernate.dialect.H2Dialect",
                 "jpa.default.properties.hibernate.hbm2ddl.auto" to "create-drop",
                 "secrets.telegramKey" to "telegram-secret",
