@@ -7,6 +7,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import at.hrechny.predictionsbot.connector.proxy.ConnectorProxy;
+import at.hrechny.predictionsbot.connector.proxy.ConnectorProxyFailureClassifier;
+import at.hrechny.predictionsbot.connector.proxy.ConnectorProxyManager;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.Fixture;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixtureData;
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesResponse;
@@ -17,6 +20,7 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
+import java.net.ConnectException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.LongStream;
@@ -34,6 +38,9 @@ class ApiFootballClientTest {
 
   @Mock
   private ApiFootballHttpClient httpClient;
+
+  @Mock
+  private ConnectorProxyManager connectorProxyManager;
 
   private ApiFootballClient client;
 
@@ -90,6 +97,61 @@ class ApiFootballClientTest {
         .isInstanceOf(ApiConnectorException.class)
         .hasMessageContaining("REQUEST_ERROR")
         .hasMessageNotContaining(API_KEY);
+  }
+
+  @Test
+  void proxyFailureRotatesAndRetriesRequestOnce() {
+    var failedProxy = proxy("failed");
+    when(connectorProxyManager.usesWebshare(ApiFootballConnector.NAME)).thenReturn(true);
+    when(connectorProxyManager.currentProxy(ApiFootballConnector.NAME)).thenReturn(failedProxy);
+    when(httpClient.getSeasonFixtures(39L, "2025"))
+        .thenThrow(new RuntimeException(new ConnectException("Connection refused")))
+        .thenReturn(ok(fixtures()));
+
+    assertThat(client.getFixtures(39L, "2025")).isEmpty();
+
+    verify(connectorProxyManager).rotate(
+        org.mockito.ArgumentMatchers.eq(ApiFootballConnector.NAME),
+        org.mockito.ArgumentMatchers.eq(failedProxy),
+        org.mockito.ArgumentMatchers.any(RuntimeException.class));
+  }
+
+  @Test
+  void secondProxyFailureThrowsRequestErrorWithoutLeakingProxyCredentials() {
+    var failedProxy = proxy("failed");
+    when(connectorProxyManager.usesWebshare(ApiFootballConnector.NAME)).thenReturn(true);
+    when(connectorProxyManager.currentProxy(ApiFootballConnector.NAME)).thenReturn(failedProxy);
+    when(connectorProxyManager.rotate(
+        org.mockito.ArgumentMatchers.eq(ApiFootballConnector.NAME),
+        org.mockito.ArgumentMatchers.eq(failedProxy),
+        org.mockito.ArgumentMatchers.any(RuntimeException.class)))
+        .thenReturn(proxy("next"));
+    when(httpClient.getSeasonFixtures(39L, "2025"))
+        .thenThrow(new RuntimeException(new ConnectException("Connection refused secret-proxy-user secret-proxy-pass")))
+        .thenThrow(new RuntimeException(new ConnectException("Connection refused secret-proxy-user secret-proxy-pass")));
+
+    assertThatThrownBy(() -> client.getFixtures(39L, "2025"))
+        .isInstanceOfSatisfying(ApiConnectorException.class, exception ->
+            assertThat(exception.getReason()).isEqualTo(ApiConnectorException.Reason.REQUEST_ERROR))
+        .hasMessageNotContaining("secret-proxy-user")
+        .hasMessageNotContaining("secret-proxy-pass");
+  }
+
+  @Test
+  void quotaExceptionDoesNotRotateProxy() {
+    var exception = new ApiConnectorException(
+        ApiFootballConnector.NAME,
+        ApiConnectorException.Reason.QUOTA_EXCEEDED,
+        "quota is exhausted",
+        null);
+    when(httpClient.getSeasonFixtures(39L, "2025")).thenThrow(exception);
+
+    assertThatThrownBy(() -> client.getFixtures(39L, "2025"))
+        .isSameAs(exception);
+    verify(connectorProxyManager, never()).rotate(
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -236,7 +298,13 @@ class ApiFootballClientTest {
     return new ApiFootballClient(
         httpClient,
         new ApiFootballResponseParser(API_KEY),
+        connectorProxyManager,
+        new ConnectorProxyFailureClassifier(),
         fixtureBatchSize);
+  }
+
+  private ConnectorProxy proxy(String id) {
+    return new ConnectorProxy(id, "proxy.example", 3128, "secret-proxy-user", "secret-proxy-pass", "DE");
   }
 
   private MutableHttpResponse<FixturesResponse> ok(FixturesResponse body) {
