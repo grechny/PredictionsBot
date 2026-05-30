@@ -114,7 +114,7 @@ class FlywayPostgresMigrationTest {
                 .load()
             val v2Result = flyway.migrate()
 
-            assertThat(v2Result.migrationsExecuted).isEqualTo(1)
+            assertThat(v2Result.migrationsExecuted).isEqualTo(2)
 
             connection.prepareStatement(
                 """
