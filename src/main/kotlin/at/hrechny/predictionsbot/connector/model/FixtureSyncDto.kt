@@ -4,7 +4,7 @@ import java.time.Instant
 
 data class FixtureSyncDto(
     val externalId: String,
-    val roundExternalId: String,
+    val round: RoundSyncDto,
     val startTime: Instant?,
     val status: FixtureSyncStatus,
     val homeTeam: TeamSyncDto,

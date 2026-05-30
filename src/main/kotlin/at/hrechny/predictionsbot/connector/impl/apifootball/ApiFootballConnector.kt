@@ -7,30 +7,30 @@ import at.hrechny.predictionsbot.exception.ApiConnectorException
 import jakarta.inject.Singleton
 
 @Singleton
-open class ApiFootballConnector(
+class ApiFootballConnector(
     private val apiFootballClient: ApiFootballClient,
     private val apiFootballFixtureMapper: ApiFootballFixtureMapper,
 ) : ApiConnector {
-    override val code: String = CONNECTOR_CODE
+    override val name: String = NAME
 
     override fun getRounds(competitionExternalId: String, seasonYear: String): List<RoundSyncDto> =
-        translateConnectorFailures {
+        execute {
             apiFootballClient
                 .getRounds(parseNumericExternalId("competition", competitionExternalId), seasonYear)
                 .map(apiFootballFixtureMapper::toRoundSyncDto)
         }
 
     override fun getSeasonFixtures(competitionExternalId: String, seasonYear: String): List<FixtureSyncDto> =
-        translateConnectorFailures {
+        execute {
             apiFootballClient
                 .getFixtures(parseNumericExternalId("competition", competitionExternalId), seasonYear)
                 .map(apiFootballFixtureMapper::toFixtureSyncDto)
         }
 
     override fun getFixturesByExternalIds(fixtureExternalIds: List<String>): List<FixtureSyncDto> =
-        translateConnectorFailures {
+        execute {
             if (fixtureExternalIds.isEmpty()) {
-                return@translateConnectorFailures emptyList()
+                return@execute emptyList()
             }
             val fixtureIds = fixtureExternalIds.map { externalId -> parseNumericExternalId("fixture", externalId) }
             apiFootballClient.getFixtures(fixtureIds).map(apiFootballFixtureMapper::toFixtureSyncDto)
@@ -39,33 +39,26 @@ open class ApiFootballConnector(
     private fun parseNumericExternalId(entityName: String, externalId: String): Long =
         externalId.toLongOrNull()
             ?: throw ApiConnectorException(
-                code,
+                name,
                 ApiConnectorException.Reason.INVALID_RESPONSE,
                 "API-Football $entityName external id must be numeric: $externalId",
             )
 
-    private fun <T> translateConnectorFailures(action: () -> T): T =
+    private fun <T> execute(action: () -> T): T =
         try {
             action()
         } catch (exception: ApiConnectorException) {
             throw exception
-        } catch (exception: IllegalArgumentException) {
+        } catch (exception: Exception) {
             throw ApiConnectorException(
-                code,
-                ApiConnectorException.Reason.INVALID_RESPONSE,
-                exception.message,
-                exception,
-            )
-        } catch (exception: NullPointerException) {
-            throw ApiConnectorException(
-                code,
+                name,
                 ApiConnectorException.Reason.INVALID_RESPONSE,
                 exception.message,
                 exception,
             )
         }
 
-    private companion object {
-        const val CONNECTOR_CODE = "api-football"
+    companion object {
+        const val NAME = "api-football"
     }
 }

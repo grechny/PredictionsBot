@@ -13,7 +13,6 @@ class CompetitionMapper {
         CompetitionResponseDto().apply {
             id = source.id
             name = source.name
-            apiFootballId = source.apiFootballId
             active = isActive(source)
         }
 
@@ -21,7 +20,6 @@ class CompetitionMapper {
         CompetitionEntity().apply {
             id = source.id
             name = source.name
-            apiFootballId = source.apiFootballId
         }
 
     fun isActive(entity: CompetitionEntity): Boolean =

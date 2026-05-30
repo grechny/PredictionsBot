@@ -16,26 +16,44 @@ import com.github.kotlintelegrambot.entities.Message
 import com.github.kotlintelegrambot.entities.Update
 import com.github.kotlintelegrambot.entities.User
 import io.micronaut.context.annotation.Context
+import io.micronaut.context.annotation.Value
+import io.micronaut.scheduling.TaskExecutors
 import jakarta.annotation.PostConstruct
+import jakarta.inject.Named
 import jakarta.inject.Singleton
 import java.util.UUID
+import java.util.concurrent.Executor
 import org.apache.commons.lang3.StringUtils
 import org.slf4j.LoggerFactory
 
 @Singleton
 @Context
-open class MessageListener(
+class MessageListener(
     private val telegramService: TelegramService,
     private val predictionService: PredictionService,
     private val userService: UserService,
+    @param:Named(TaskExecutors.IO)
+    private val pollingExecutor: Executor,
+    @param:Value("\${telegram.polling.enabled:true}")
+    private val pollingEnabled: Boolean,
 ) : TelegramUpdateListener {
     private lateinit var objectMapper: ObjectMapper
 
     @PostConstruct
     fun init() {
         initObjectMapper()
-        log.info("Starting Telegram message listener")
-        telegramService.setUpListener(this)
+        if (!pollingEnabled) {
+            log.info("Telegram message listener polling is disabled")
+            return
+        }
+        pollingExecutor.execute {
+            try {
+                log.info("Starting Telegram message listener")
+                telegramService.setUpListener(this)
+            } catch (exception: RuntimeException) {
+                log.error("Failed to start Telegram message listener", exception)
+            }
+        }
     }
 
     override fun process(updates: List<Update>): Int {

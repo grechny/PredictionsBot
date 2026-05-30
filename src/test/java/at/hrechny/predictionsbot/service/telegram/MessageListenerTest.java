@@ -44,7 +44,7 @@ class MessageListenerTest {
   @BeforeEach
   void setUp() {
     gson = new Gson();
-    messageListener = new MessageListener(telegramService, predictionService, userService);
+    messageListener = new MessageListener(telegramService, predictionService, userService, Runnable::run, true);
     messageListener.init();
     verify(telegramService).setUpListener(messageListener);
     clearInvocations(telegramService, predictionService, userService);

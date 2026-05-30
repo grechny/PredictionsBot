@@ -13,9 +13,6 @@ class CompetitionCreateRequestDto {
     @field:NotNull
     var name: String? = null
 
-    @field:NotNull
-    var apiFootballId: Long? = null
-
     var active: Boolean = false
 
     fun isActive(): Boolean = active

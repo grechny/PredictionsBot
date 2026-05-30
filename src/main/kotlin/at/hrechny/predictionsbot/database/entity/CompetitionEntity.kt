@@ -13,9 +13,6 @@ class CompetitionEntity : GeneratedIdEntity() {
     @field:Column
     var name: String? = null
 
-    @field:Column(unique = true)
-    var apiFootballId: Long? = null
-
     @field:OneToMany(mappedBy = "competition")
     var seasons: MutableList<SeasonEntity> = mutableListOf()
 }

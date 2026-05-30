@@ -7,7 +7,6 @@ import java.util.UUID
 class CompetitionResponseDto {
     var id: UUID? = null
     var name: String? = null
-    var apiFootballId: Long? = null
     var active: Boolean = false
 
     fun isActive(): Boolean = active

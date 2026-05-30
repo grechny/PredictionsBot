@@ -1,7 +1,6 @@
 package at.hrechny.predictionsbot.database.repository
 
 import at.hrechny.predictionsbot.database.entity.AuditEntity
-import at.hrechny.predictionsbot.database.model.ApiConnectorCode
 import jakarta.inject.Singleton
 import jakarta.persistence.EntityManager
 import io.micronaut.transaction.annotation.Transactional
@@ -19,23 +18,20 @@ class AuditRepository(
 
     fun findById(id: UUID): Optional<AuditEntity> = Optional.ofNullable(entityManager.find(AuditEntity::class.java, id))
 
-    fun countAllByApiConnectorCodeAndApiKeyAndRequestDateAfter(
-        apiConnectorCode: ApiConnectorCode,
-        apiKey: String,
+    fun countAllByConnectorNameAndRequestDateAfter(
+        connectorName: String,
         date: Instant,
     ): Int = entityManager
         .createQuery(
             """
             select count(a)
             from AuditEntity a
-            where a.apiConnectorCode = :apiConnectorCode
-              and a.apiKey = :apiKey
+            where a.connectorName = :connectorName
               and a.requestDate > :date
             """.trimIndent(),
             Long::class.javaObjectType,
         )
-        .setParameter("apiConnectorCode", apiConnectorCode)
-        .setParameter("apiKey", apiKey)
+        .setParameter("connectorName", connectorName)
         .setParameter("date", date)
         .singleResult
         .toInt()

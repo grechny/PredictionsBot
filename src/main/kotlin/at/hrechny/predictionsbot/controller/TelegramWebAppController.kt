@@ -30,6 +30,8 @@ import io.micronaut.http.annotation.PathVariable
 import io.micronaut.http.annotation.Post
 import io.micronaut.http.annotation.Put
 import io.micronaut.http.annotation.QueryValue
+import io.micronaut.scheduling.TaskExecutors
+import io.micronaut.scheduling.annotation.ExecuteOn
 import io.micronaut.transaction.annotation.Transactional
 import io.micronaut.views.ModelAndView
 import org.apache.commons.collections4.CollectionUtils
@@ -38,6 +40,7 @@ import java.util.Locale
 import java.util.UUID
 
 @Controller
+@ExecuteOn(TaskExecutors.BLOCKING)
 @EnableErrorReport
 open class TelegramWebAppController(
     private val competitionService: CompetitionService,

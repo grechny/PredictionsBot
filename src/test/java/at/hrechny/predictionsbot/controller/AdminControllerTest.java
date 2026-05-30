@@ -10,20 +10,27 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import at.hrechny.predictionsbot.database.entity.SeasonEntity;
-import at.hrechny.predictionsbot.database.entity.UserEntity;
-import at.hrechny.predictionsbot.exception.RequestValidationException;
+import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdResponseDto;
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionCreateRequestDto;
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto;
 import at.hrechny.predictionsbot.controller.model.competition.SeasonCreateRequestDto;
 import at.hrechny.predictionsbot.controller.model.competition.SeasonUpdateRequestDto;
 import at.hrechny.predictionsbot.controller.model.prediction.PredictionRequestDto;
 import at.hrechny.predictionsbot.controller.model.service.PushUpdateRequestDto;
+import at.hrechny.predictionsbot.database.entity.ApiConnectorIdEntity;
+import at.hrechny.predictionsbot.database.entity.SeasonEntity;
+import at.hrechny.predictionsbot.database.entity.UserEntity;
+import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType;
+import at.hrechny.predictionsbot.exception.RequestValidationException;
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorService;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
 import at.hrechny.predictionsbot.service.telegram.TelegramService;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import java.time.Year;
 import java.util.List;
 import java.util.UUID;
@@ -42,6 +49,9 @@ class AdminControllerTest {
   private CompetitionService competitionService;
 
   @Mock
+  private ApiConnectorService apiConnectorService;
+
+  @Mock
   private PredictionService predictionService;
 
   @Mock
@@ -50,21 +60,45 @@ class AdminControllerTest {
   @Mock
   private TelegramService telegramService;
 
+  private ApiConnectorController apiConnectorController;
   private CompetitionController competitionController;
   private PredictionController predictionController;
   private ServiceController serviceController;
 
   @BeforeEach
   void setUp() {
+    apiConnectorController = new ApiConnectorController(apiConnectorService);
     competitionController = new CompetitionController(competitionService, telegramService);
     predictionController = new PredictionController(predictionService);
     serviceController = new ServiceController(userService, telegramService);
   }
 
   @Test
+  void competitionControllerRunsOnBlockingExecutor() {
+    assertThat(CompetitionController.class.getAnnotation(ExecuteOn.class).value())
+        .isEqualTo(TaskExecutors.BLOCKING);
+  }
+
+  @Test
+  void competitionControllerReportsFailuresThroughErrorReportInterceptor() {
+    assertThat(CompetitionController.class.getAnnotation(EnableErrorReport.class)).isNotNull();
+  }
+
+  @Test
+  void apiConnectorControllerRunsOnBlockingExecutor() {
+    assertThat(ApiConnectorController.class.getAnnotation(ExecuteOn.class).value())
+        .isEqualTo(TaskExecutors.BLOCKING);
+  }
+
+  @Test
+  void apiConnectorControllerReportsFailuresThroughErrorReportInterceptor() {
+    assertThat(ApiConnectorController.class.getAnnotation(EnableErrorReport.class)).isNotNull();
+  }
+
+  @Test
   void addCompetitionStoresCompetitionAndSendsTelegramCompetitionUpdate() {
     var competitionId = UUID.randomUUID();
-    var request = competitionCreateRequest(null, "Premier League", 39L, true);
+    var request = competitionCreateRequest(null, "Premier League", true);
     when(competitionService.addCompetition(any(CompetitionCreateRequestDto.class))).thenReturn(competitionId);
 
     var response = competitionController.addCompetition(request);
@@ -74,14 +108,13 @@ class AdminControllerTest {
     verify(competitionService).addCompetition(argThat(competition ->
         competition.getId() == null
             && "Premier League".equals(competition.getName())
-            && Long.valueOf(39L).equals(competition.getApiFootballId())
             && competition.isActive()));
     verify(telegramService).sendCompetition(competitionId);
   }
 
   @Test
   void addCompetitionRejectsClientProvidedIdBeforeSideEffects() {
-    var request = competitionCreateRequest(UUID.randomUUID(), "Premier League", 39L, true);
+    var request = competitionCreateRequest(UUID.randomUUID(), "Premier League", true);
 
     assertThatThrownBy(() -> competitionController.addCompetition(request))
         .isInstanceOf(RequestValidationException.class);
@@ -91,13 +124,36 @@ class AdminControllerTest {
 
   @Test
   void getCompetitionsReturnsCompetitionList() {
-    var competition = competitionResponse(UUID.randomUUID(), "Premier League", 39L, true);
+    var competition = competitionResponse(UUID.randomUUID(), "Premier League", true);
     when(competitionService.getCompetitions()).thenReturn(List.of(competition));
 
     var response = competitionController.getCompetitions();
 
     assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
     assertThat(response.body()).containsExactly(competition);
+  }
+
+  @Test
+  void getConnectorIdsReturnsExplicitConnectorMappings() {
+    var internalId = UUID.randomUUID();
+    var mapping = connectorIdMapping("api-football", ApiConnectorEntityType.COMPETITION, "39", internalId);
+    when(apiConnectorService.findConnectorIdMappings(internalId, ApiConnectorEntityType.COMPETITION))
+        .thenReturn(List.of(mapping));
+
+    var response = apiConnectorController.getConnectorIds(ApiConnectorEntityType.COMPETITION, internalId);
+
+    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
+    assertThat(response.body())
+        .extracting(
+            ApiConnectorIdResponseDto::getConnectorCode,
+            ApiConnectorIdResponseDto::getEntityType,
+            ApiConnectorIdResponseDto::getConnectorEntityId,
+            ApiConnectorIdResponseDto::getInternalId)
+        .containsExactly(org.assertj.core.groups.Tuple.tuple(
+            "api-football",
+            ApiConnectorEntityType.COMPETITION,
+            "39",
+            internalId));
   }
 
   @Test
@@ -219,22 +275,33 @@ class AdminControllerTest {
     verify(telegramService).pushUpdate(2L, "Refresh competitions", true);
   }
 
-  private CompetitionCreateRequestDto competitionCreateRequest(UUID id, String name, Long apiFootballId, boolean active) {
+  private CompetitionCreateRequestDto competitionCreateRequest(UUID id, String name, boolean active) {
     var competition = new CompetitionCreateRequestDto();
     competition.setId(id);
     competition.setName(name);
-    competition.setApiFootballId(apiFootballId);
     competition.setActive(active);
     return competition;
   }
 
-  private CompetitionResponseDto competitionResponse(UUID id, String name, Long apiFootballId, boolean active) {
+  private CompetitionResponseDto competitionResponse(UUID id, String name, boolean active) {
     var competition = new CompetitionResponseDto();
     competition.setId(id);
     competition.setName(name);
-    competition.setApiFootballId(apiFootballId);
     competition.setActive(active);
     return competition;
+  }
+
+  private ApiConnectorIdEntity connectorIdMapping(
+      String connectorCode,
+      ApiConnectorEntityType entityType,
+      String connectorEntityId,
+      UUID internalId) {
+    var mapping = new ApiConnectorIdEntity();
+    mapping.setConnectorCode(connectorCode);
+    mapping.setEntityType(entityType);
+    mapping.setConnectorEntityId(connectorEntityId);
+    mapping.setInternalId(internalId);
+    return mapping;
   }
 
   private SeasonCreateRequestDto seasonCreateRequest(UUID id, Year year, boolean active) {

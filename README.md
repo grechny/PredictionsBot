@@ -100,7 +100,7 @@ Use the `secret/<VAULT_SECRET>` KV v2 path. By default this is `secret/Predictio
 | datasources.default.url             | DB URL                                                         | jdbc:postgresql://127.0.0.1:5432/predictionsbot |
 | datasources.default.username        | DB username                                                    | postgres                                        |
 | datasources.default.password        | DB password                                                    | postgres                                        |
-| connectors.api-football.url         | Api-Football api URL                                           | https://v3.football.api-sports.io/              |
+| connectors.api-football.url         | Api-Football versioned API base URL                            | https://api-football-v1.p.rapidapi.com/v3       |
 | connectors.api-football.apiKey      | Api-Football api key                                           | `<api-football-key>`                            |
 | connectors.api-football.dayStarts   | Time in UTC to start billing day                               | 22:00                                           |
 | connectors.api-football.maxAttempts | Maximum of successful requests per billing day                 | 100                                             |
