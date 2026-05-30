@@ -1,6 +1,6 @@
 package at.hrechny.predictionsbot.exception
 
-class ConnectorProxyException(
+class ConnectorProxyException @JvmOverloads constructor(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
