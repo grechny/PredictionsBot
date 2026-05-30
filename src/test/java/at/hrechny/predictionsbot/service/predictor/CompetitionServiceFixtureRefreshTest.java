@@ -33,6 +33,7 @@ import at.hrechny.predictionsbot.database.model.RoundType;
 import at.hrechny.predictionsbot.database.repository.MatchRepository;
 import at.hrechny.predictionsbot.database.repository.SeasonRepository;
 import at.hrechny.predictionsbot.database.repository.TeamRepository;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -218,7 +219,7 @@ class CompetitionServiceFixtureRefreshTest {
   }
 
   @Test
-  void refreshActiveFixturesDoesNotCreateMatchWhenReturnedFixtureIdIsUnmapped() {
+  void refreshActiveFixturesUsesCanonicalMatchWhenReturnedFixtureIdIsUnmapped() {
     var season = season();
     var round = round(season, "Regular Season - 1");
     var match = existingMatch(round, 100L, "Arsenal", "Chelsea");
@@ -230,8 +231,8 @@ class CompetitionServiceFixtureRefreshTest {
         "Regular Season - 1",
         OffsetDateTime.of(2026, 5, 21, 18, 30, 0, 0, ZoneOffset.UTC),
         FixtureSyncStatus.FINISHED,
-        team(1L, "Arsenal", "arsenal.png"),
-        team(2L, "Chelsea", "chelsea.png"),
+        team(1L, "Arsenal", "Arsenal.png"),
+        team(2L, "Chelsea", "Chelsea.png"),
         2,
         0);
 
@@ -239,17 +240,18 @@ class CompetitionServiceFixtureRefreshTest {
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
     when(apiConnector.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of(fixture));
 
-    assertThatThrownBy(() -> competitionService.refreshActiveFixtures(season.getId()))
-        .isInstanceOf(FixturesSynchronizationException.class)
-        .hasMessageContaining("Missing connector mappings")
-        .hasMessageContaining("matches=999");
+    competitionService.refreshActiveFixtures(season.getId());
 
+    assertThat(match.getStatus()).isEqualTo(MatchStatus.FINISHED);
+    assertThat(match.getHomeTeamScore()).isEqualTo(2);
+    assertThat(match.getAwayTeamScore()).isEqualTo(0);
+    verify(apiConnectorService).upsertId("api-football", ApiConnectorEntityType.MATCH, "999", match.getId());
     verify(teamRepository, never()).save(any(TeamEntity.class));
-    verify(seasonRepository, never()).save(season);
+    verify(seasonRepository).save(season);
   }
 
   @Test
-  void refreshActiveFixturesDoesNotCreateRoundsInUpdateOnlyMode() {
+  void refreshActiveFixturesRefreshesMissingRoundsAndMovesExistingMatch() {
     var season = season();
     var round = round(season, "Regular Season - 1");
     var match = existingMatch(round, 100L, "Arsenal", "Chelsea");
@@ -269,14 +271,21 @@ class CompetitionServiceFixtureRefreshTest {
     when(seasonRepository.findById(season.getId())).thenReturn(Optional.of(season));
     when(matchRepository.findAllActive(season)).thenReturn(List.of(match));
     when(apiConnector.getFixturesByExternalIds(List.of("100"))).thenReturn(List.of(fixture));
+    when(apiConnector.getRounds("39", "2026")).thenReturn(List.of(
+        roundDto("Regular Season - 1"),
+        roundDto("Regular Season - 2")));
 
-    assertThatThrownBy(() -> competitionService.refreshActiveFixtures(season.getId()))
-        .isInstanceOf(FixturesSynchronizationException.class)
-        .hasMessageContaining("Missing connector mappings")
-        .hasMessageContaining("rounds=Regular Season - 2");
+    competitionService.refreshActiveFixtures(season.getId());
 
-    verify(apiConnector, never()).getRounds(anyString(), anyString());
-    verify(seasonRepository, never()).save(season);
+    assertThat(season.getRounds()).hasSize(2);
+    var createdRound = season.getRounds().stream()
+        .filter(seasonRound -> seasonRound.getType() == RoundType.SEASON && seasonRound.getOrderNumber() == 2)
+        .findFirst()
+        .orElseThrow();
+    assertThat(createdRound.getMatches()).containsExactly(match);
+    assertThat(match.getRound()).isEqualTo(createdRound);
+    verify(apiConnector).getRounds("39", "2026");
+    verify(seasonRepository).save(season);
   }
 
   @Test

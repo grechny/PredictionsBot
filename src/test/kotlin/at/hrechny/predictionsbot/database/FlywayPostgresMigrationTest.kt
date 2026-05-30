@@ -335,6 +335,27 @@ class FlywayPostgresMigrationTest {
                 }
             }
 
+            val apiFootballSeedSql = requireNotNull(
+                javaClass.classLoader.getResource("connectors/api-football/api_connector_ids.sql"),
+            ).readText()
+            connection.createStatement().use { statement ->
+                assertThat(statement.executeUpdate(apiFootballSeedSql)).isEqualTo(356)
+                assertThat(statement.executeUpdate(apiFootballSeedSql)).isEqualTo(356)
+            }
+            connection.prepareStatement(
+                """
+                select count(*)
+                from public.api_connector_ids
+                where connector_code = 'api-football'
+                  and entity_type in ('COMPETITION', 'TEAM')
+                """.trimIndent(),
+            ).use { statement ->
+                statement.executeQuery().use { resultSet ->
+                    assertThat(resultSet.next()).isTrue()
+                    assertThat(resultSet.getInt(1)).isEqualTo(356)
+                }
+            }
+
             connection.prepareStatement(
                 """
                 insert into public.api_connector_ids (

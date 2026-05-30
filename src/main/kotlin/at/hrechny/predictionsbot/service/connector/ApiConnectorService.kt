@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.service.predictor
+package at.hrechny.predictionsbot.service.connector
 
 import at.hrechny.predictionsbot.database.entity.ApiConnectorIdEntity
 import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType

@@ -1,4 +1,4 @@
-package at.hrechny.predictionsbot.service.predictor;
+package at.hrechny.predictionsbot.service.connector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

@@ -10,12 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import at.hrechny.predictionsbot.database.entity.SeasonEntity;
-import at.hrechny.predictionsbot.database.entity.UserEntity;
-import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType;
-import at.hrechny.predictionsbot.exception.RequestValidationException;
-import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
-import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdRequestDto;
 import at.hrechny.predictionsbot.controller.model.connector.ApiConnectorIdResponseDto;
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionCreateRequestDto;
 import at.hrechny.predictionsbot.controller.model.competition.CompetitionResponseDto;
@@ -23,6 +17,13 @@ import at.hrechny.predictionsbot.controller.model.competition.SeasonCreateReques
 import at.hrechny.predictionsbot.controller.model.competition.SeasonUpdateRequestDto;
 import at.hrechny.predictionsbot.controller.model.prediction.PredictionRequestDto;
 import at.hrechny.predictionsbot.controller.model.service.PushUpdateRequestDto;
+import at.hrechny.predictionsbot.database.entity.ApiConnectorIdEntity;
+import at.hrechny.predictionsbot.database.entity.SeasonEntity;
+import at.hrechny.predictionsbot.database.entity.UserEntity;
+import at.hrechny.predictionsbot.database.model.ApiConnectorEntityType;
+import at.hrechny.predictionsbot.exception.RequestValidationException;
+import at.hrechny.predictionsbot.exception.interceptor.EnableErrorReport;
+import at.hrechny.predictionsbot.service.connector.ApiConnectorService;
 import at.hrechny.predictionsbot.service.predictor.CompetitionService;
 import at.hrechny.predictionsbot.service.predictor.PredictionService;
 import at.hrechny.predictionsbot.service.predictor.UserService;
@@ -48,6 +49,9 @@ class AdminControllerTest {
   private CompetitionService competitionService;
 
   @Mock
+  private ApiConnectorService apiConnectorService;
+
+  @Mock
   private PredictionService predictionService;
 
   @Mock
@@ -56,12 +60,14 @@ class AdminControllerTest {
   @Mock
   private TelegramService telegramService;
 
+  private ApiConnectorController apiConnectorController;
   private CompetitionController competitionController;
   private PredictionController predictionController;
   private ServiceController serviceController;
 
   @BeforeEach
   void setUp() {
+    apiConnectorController = new ApiConnectorController(apiConnectorService);
     competitionController = new CompetitionController(competitionService, telegramService);
     predictionController = new PredictionController(predictionService);
     serviceController = new ServiceController(userService, telegramService);
@@ -76,6 +82,17 @@ class AdminControllerTest {
   @Test
   void competitionControllerReportsFailuresThroughErrorReportInterceptor() {
     assertThat(CompetitionController.class.getAnnotation(EnableErrorReport.class)).isNotNull();
+  }
+
+  @Test
+  void apiConnectorControllerRunsOnBlockingExecutor() {
+    assertThat(ApiConnectorController.class.getAnnotation(ExecuteOn.class).value())
+        .isEqualTo(TaskExecutors.BLOCKING);
+  }
+
+  @Test
+  void apiConnectorControllerReportsFailuresThroughErrorReportInterceptor() {
+    assertThat(ApiConnectorController.class.getAnnotation(EnableErrorReport.class)).isNotNull();
   }
 
   @Test
@@ -117,43 +134,26 @@ class AdminControllerTest {
   }
 
   @Test
-  void addConnectorIdStoresExplicitConnectorMapping() {
-    var internalId = UUID.randomUUID();
-    var request = connectorIdRequest("39");
-    var mapping = connectorIdResponse("api-football", ApiConnectorEntityType.COMPETITION, "39", internalId);
-    when(competitionService.addConnectorId(
-        eq("api-football"),
-        eq(ApiConnectorEntityType.COMPETITION),
-        eq(internalId),
-        any(ApiConnectorIdRequestDto.class)))
-        .thenReturn(mapping);
-
-    var response = competitionController.addConnectorId(
-        "api-football",
-        ApiConnectorEntityType.COMPETITION,
-        internalId,
-        request);
-
-    assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
-    assertThat(response.body()).isEqualTo(mapping);
-    verify(competitionService).addConnectorId(
-        eq("api-football"),
-        eq(ApiConnectorEntityType.COMPETITION),
-        eq(internalId),
-        argThat(connectorId -> "39".equals(connectorId.getConnectorEntityId())));
-  }
-
-  @Test
   void getConnectorIdsReturnsExplicitConnectorMappings() {
     var internalId = UUID.randomUUID();
-    var mapping = connectorIdResponse("api-football", ApiConnectorEntityType.COMPETITION, "39", internalId);
-    when(competitionService.getConnectorIds(ApiConnectorEntityType.COMPETITION, internalId))
+    var mapping = connectorIdMapping("api-football", ApiConnectorEntityType.COMPETITION, "39", internalId);
+    when(apiConnectorService.findConnectorIdMappings(internalId, ApiConnectorEntityType.COMPETITION))
         .thenReturn(List.of(mapping));
 
-    var response = competitionController.getConnectorIds(ApiConnectorEntityType.COMPETITION, internalId);
+    var response = apiConnectorController.getConnectorIds(ApiConnectorEntityType.COMPETITION, internalId);
 
     assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
-    assertThat(response.body()).containsExactly(mapping);
+    assertThat(response.body())
+        .extracting(
+            ApiConnectorIdResponseDto::getConnectorCode,
+            ApiConnectorIdResponseDto::getEntityType,
+            ApiConnectorIdResponseDto::getConnectorEntityId,
+            ApiConnectorIdResponseDto::getInternalId)
+        .containsExactly(org.assertj.core.groups.Tuple.tuple(
+            "api-football",
+            ApiConnectorEntityType.COMPETITION,
+            "39",
+            internalId));
   }
 
   @Test
@@ -291,23 +291,17 @@ class AdminControllerTest {
     return competition;
   }
 
-  private ApiConnectorIdRequestDto connectorIdRequest(String connectorEntityId) {
-    var request = new ApiConnectorIdRequestDto();
-    request.setConnectorEntityId(connectorEntityId);
-    return request;
-  }
-
-  private ApiConnectorIdResponseDto connectorIdResponse(
+  private ApiConnectorIdEntity connectorIdMapping(
       String connectorCode,
       ApiConnectorEntityType entityType,
       String connectorEntityId,
       UUID internalId) {
-    var response = new ApiConnectorIdResponseDto();
-    response.setConnectorCode(connectorCode);
-    response.setEntityType(entityType);
-    response.setConnectorEntityId(connectorEntityId);
-    response.setInternalId(internalId);
-    return response;
+    var mapping = new ApiConnectorIdEntity();
+    mapping.setConnectorCode(connectorCode);
+    mapping.setEntityType(entityType);
+    mapping.setConnectorEntityId(connectorEntityId);
+    mapping.setInternalId(internalId);
+    return mapping;
   }
 
   private SeasonCreateRequestDto seasonCreateRequest(UUID id, Year year, boolean active) {
