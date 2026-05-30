@@ -75,7 +75,7 @@ open class ApiFootballClient(
         val httpResponse = try {
             httpRequest()
         } catch (exception: HttpClientResponseException) {
-            exception.response
+            return parseFailureResponse(requestDescription, exception.response)
         } catch (exception: Exception) {
             log.error("Request to API-Football failed", exception)
             val connectorException = ApiConnectorException(
@@ -89,14 +89,13 @@ open class ApiFootballClient(
         return parseResponse(requestDescription, httpResponse)
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun <T, G : ApiFootballResponse<T>> parseResponse(
         requestDescription: String,
-        httpResponse: HttpResponse<*>,
+        httpResponse: HttpResponse<G>,
     ): G {
         val headers = safeRateLimitHeaders(httpResponse)
         val responseBody = if (httpResponse.status.code in 200..299) {
-            httpResponse.body.orElse(null) as G?
+            httpResponse.body.orElse(null)
         } else {
             null
         }
@@ -109,6 +108,19 @@ open class ApiFootballClient(
             responseBody,
         )
     }
+
+    private fun <T, G : ApiFootballResponse<T>> parseFailureResponse(
+        requestDescription: String,
+        httpResponse: HttpResponse<*>,
+    ): G =
+        apiFootballResponseParser.validate<T, G>(
+            ApiFootballConnector.NAME,
+            requestDescription,
+            httpResponse.status.code,
+            httpResponse.status.reason,
+            safeRateLimitHeaders(httpResponse),
+            null,
+        )
 
     private fun safeRateLimitHeaders(httpResponse: HttpResponse<*>): Map<String, String> =
         httpResponse.headers.names()
