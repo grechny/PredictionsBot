@@ -75,6 +75,16 @@ open class ApiFootballClient(
         val httpResponse = try {
             httpRequest()
         } catch (exception: HttpClientResponseException) {
+            if (exception.response.status.code in 200..299) {
+                throw ApiConnectorException(
+                    ApiFootballConnector.NAME,
+                    Reason.INVALID_RESPONSE,
+                    "API-Football response body could not be decoded for $requestDescription: " +
+                        "${apiFootballResponseParser.sanitize(exception.message)}; " +
+                        "headers=${safeRateLimitHeaders(exception.response)}",
+                    exception,
+                )
+            }
             return parseFailureResponse(requestDescription, exception.response)
         } catch (exception: Exception) {
             log.error("Request to API-Football failed", exception)

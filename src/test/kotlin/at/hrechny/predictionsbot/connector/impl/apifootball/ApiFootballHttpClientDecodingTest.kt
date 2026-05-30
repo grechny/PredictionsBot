@@ -39,8 +39,8 @@ class ApiFootballHttpClientDecodingTest {
 
             val fixtures = client.getFixtures(39L, "2025")
 
-            assertThat(fixtures).hasSize(1)
-            val fixture = fixtures.single()
+            assertThat(fixtures).hasSize(2)
+            val fixture = fixtures.first()
             assertThat(fixture.fixture?.id).isEqualTo(1378969L)
             assertThat(fixture.fixture?.status?.status).isEqualTo(FixtureStatusEnum.FT)
             assertThat(fixture.league?.round).isEqualTo("Regular Season - 1")
@@ -48,6 +48,12 @@ class ApiFootballHttpClientDecodingTest {
             assertThat(fixture.teams?.away?.name).isEqualTo("Bournemouth")
             assertThat(fixture.goals?.home).isEqualTo(4)
             assertThat(fixture.goals?.away).isEqualTo(2)
+
+            val notStartedFixture = fixtures[1]
+            assertThat(notStartedFixture.fixture?.id).isEqualTo(1378970L)
+            assertThat(notStartedFixture.fixture?.status?.status).isEqualTo(FixtureStatusEnum.NS)
+            assertThat(notStartedFixture.teams?.home?.winner).isNull()
+            assertThat(notStartedFixture.teams?.away?.winner).isNull()
         }
     }
 
@@ -70,7 +76,7 @@ class ApiFootballHttpClientDecodingTest {
                     "league": "39"
                   },
                   "errors": [],
-                  "results": 1,
+                  "results": 2,
                   "paging": {
                     "current": 1,
                     "total": 1
@@ -135,6 +141,62 @@ class ApiFootballHttpClientDecodingTest {
                         "fulltime": {
                           "home": 4,
                           "away": 2
+                        }
+                      }
+                    },
+                    {
+                      "fixture": {
+                        "id": 1378970,
+                        "timezone": "UTC",
+                        "date": "2025-08-16T11:30:00+00:00",
+                        "timestamp": 1755343800,
+                        "status": {
+                          "long": "Not Started",
+                          "short": "NS",
+                          "elapsed": null
+                        }
+                      },
+                      "league": {
+                        "id": 39,
+                        "name": "Premier League",
+                        "country": "England",
+                        "season": 2025,
+                        "round": "Regular Season - 1"
+                      },
+                      "teams": {
+                        "home": {
+                          "id": 42,
+                          "name": "Arsenal",
+                          "logo": "https://media.api-sports.io/football/teams/42.png",
+                          "winner": null
+                        },
+                        "away": {
+                          "id": 50,
+                          "name": "Manchester City",
+                          "logo": "https://media.api-sports.io/football/teams/50.png",
+                          "winner": null
+                        }
+                      },
+                      "goals": {
+                        "home": null,
+                        "away": null
+                      },
+                      "score": {
+                        "halftime": {
+                          "home": null,
+                          "away": null
+                        },
+                        "fulltime": {
+                          "home": null,
+                          "away": null
+                        },
+                        "extratime": {
+                          "home": null,
+                          "away": null
+                        },
+                        "penalty": {
+                          "home": null,
+                          "away": null
                         }
                       }
                     }

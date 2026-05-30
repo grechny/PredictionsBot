@@ -7,5 +7,5 @@ class Team {
     var id: Long? = null
     var name: String? = null
     var logo: String? = null
-    var winner: Boolean = false
+    var winner: Boolean? = null
 }
