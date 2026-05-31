@@ -1,18 +1,25 @@
 package at.hrechny.predictionsbot.connector.impl.apifootball
 
 import at.hrechny.predictionsbot.connector.ApiConnector
+import at.hrechny.predictionsbot.connector.ConnectorHttpClientFactory
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesResponse
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.RoundsResponse
+import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.MutableHttpRequest
 import io.micronaut.http.uri.UriBuilder
 import jakarta.inject.Singleton
+import java.net.URI
 
 @Singleton
 open class ApiFootballHttpClient(
-    private val apiFootballHttpClientFactory: ApiFootballHttpClientFactory,
+    @Value("\${connectors.api-football.url}")
+    apiFootballUrl: String,
+    private val connectorHttpClientFactory: ConnectorHttpClientFactory,
 ) {
+    private val apiFootballBaseUri = URI.create(apiFootballUrl)
+
     open fun getRounds(
         leagueId: Long,
         season: String,
@@ -59,5 +66,7 @@ open class ApiFootballHttpClient(
     }
 
     private fun <T : Any> execute(request: MutableHttpRequest<Any>, responseType: Class<T>): HttpResponse<T> =
-        apiFootballHttpClientFactory.currentClient().toBlocking().exchange(request, responseType)
+        connectorHttpClientFactory.currentClient(ApiFootballConnector.NAME, apiFootballBaseUri)
+            .toBlocking()
+            .exchange(request, responseType)
 }

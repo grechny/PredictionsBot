@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import at.hrechny.predictionsbot.connector.ApiConnector;
+import at.hrechny.predictionsbot.connector.ConnectorHttpClientFactory;
 import org.junit.jupiter.api.Test;
 
 class ApiFootballHttpClientTest {
@@ -22,6 +23,8 @@ class ApiFootballHttpClientTest {
   }
 
   private ApiFootballHttpClient testClient() {
-    return new ApiFootballHttpClient(mock(ApiFootballHttpClientFactory.class));
+    return new ApiFootballHttpClient(
+        "https://api-football-v1.p.rapidapi.com/v3",
+        mock(ConnectorHttpClientFactory.class));
   }
 }
