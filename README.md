@@ -105,3 +105,6 @@ Use the `secret/<VAULT_SECRET>` KV v2 path. By default this is `secret/Predictio
 | connectors.api-football.dayStarts   | Time in UTC to start billing day                               | 22:00                                           |
 | connectors.api-football.maxAttempts | Maximum of successful requests per billing day                 | 100                                             |
 | connectors.api-football.minInterval | Minimal interval between identical requests (cache) in seconds | 60                                              |
+| connectors.api-football.proxy       | Proxy mode for API-Football connector: `none` or `webshare.io` | none                                            |
+| proxy.webshare.apiKey               | Webshare API key, required only when a connector uses Webshare | `<webshare-api-key>`                            |
+| proxy.webshare.apiUrl               | Webshare API base URL                                          | https://proxy.webshare.io                       |

@@ -4,6 +4,8 @@ import at.hrechny.predictionsbot.connector.impl.apifootball.model.ApiFootballRes
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.Fixture
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.FixturesResponse
 import at.hrechny.predictionsbot.connector.impl.apifootball.model.RoundsResponse
+import at.hrechny.predictionsbot.connector.proxy.ConnectorProxyFailureClassifier
+import at.hrechny.predictionsbot.connector.proxy.ConnectorProxyManager
 import at.hrechny.predictionsbot.exception.ApiConnectorException
 import at.hrechny.predictionsbot.exception.ApiConnectorException.Reason
 import io.micronaut.cache.annotation.Cacheable
@@ -17,6 +19,8 @@ import org.slf4j.LoggerFactory
 open class ApiFootballClient(
     private val apiFootballHttpClient: ApiFootballHttpClient,
     private val apiFootballResponseParser: ApiFootballResponseParser,
+    private val connectorProxyManager: ConnectorProxyManager,
+    private val connectorProxyFailureClassifier: ConnectorProxyFailureClassifier,
     @param:Value("\${connectors.api-football.fixtureBatchSize:20}")
     private val fixtureBatchSize: Int,
 ) {
@@ -71,10 +75,21 @@ open class ApiFootballClient(
     private fun <T, G : ApiFootballResponse<T>> sendRequest(
         requestDescription: String,
         httpRequest: () -> HttpResponse<G>,
+    ): G =
+        executeRequest(requestDescription, httpRequest, true)
+
+    private fun <T, G : ApiFootballResponse<T>> executeRequest(
+        requestDescription: String,
+        httpRequest: () -> HttpResponse<G>,
+        allowProxyRetry: Boolean,
     ): G {
         val httpResponse = try {
             httpRequest()
         } catch (exception: HttpClientResponseException) {
+            if (shouldRetryWithRotatedProxy(exception, allowProxyRetry)) {
+                rotateProxy(exception)
+                return executeRequest(requestDescription, httpRequest, false)
+            }
             if (exception.response.status.code in 200..299) {
                 throw ApiConnectorException(
                     ApiFootballConnector.NAME,
@@ -86,18 +101,43 @@ open class ApiFootballClient(
                 )
             }
             return parseFailureResponse(requestDescription, exception.response)
+        } catch (exception: ApiConnectorException) {
+            throw exception
         } catch (exception: Exception) {
+            if (shouldRetryWithRotatedProxy(exception, allowProxyRetry)) {
+                rotateProxy(exception)
+                return executeRequest(requestDescription, httpRequest, false)
+            }
             log.error("Request to API-Football failed", exception)
-            val connectorException = ApiConnectorException(
-                ApiFootballConnector.NAME,
-                Reason.REQUEST_ERROR,
-                apiFootballResponseParser.sanitize(exception.message),
-                exception,
-            )
-            throw connectorException
+            throw requestError(exception)
         }
         return parseResponse(requestDescription, httpResponse)
     }
+
+    private fun shouldRetryWithRotatedProxy(exception: Throwable, allowProxyRetry: Boolean): Boolean =
+        allowProxyRetry &&
+            connectorProxyManager.usesWebshare(ApiFootballConnector.NAME) &&
+            connectorProxyFailureClassifier.isProxyFailure(exception)
+
+    private fun rotateProxy(exception: Throwable) {
+        val failedProxy = connectorProxyManager.currentProxy(ApiFootballConnector.NAME)
+        connectorProxyManager.rotate(ApiFootballConnector.NAME, failedProxy, exception)
+    }
+
+    private fun requestError(exception: Exception): ApiConnectorException =
+        ApiConnectorException(
+            ApiFootballConnector.NAME,
+            Reason.REQUEST_ERROR,
+            requestErrorDetails(exception),
+            exception,
+        )
+
+    private fun requestErrorDetails(exception: Exception): String? =
+        if (connectorProxyFailureClassifier.isProxyFailure(exception)) {
+            "Connector proxy request failed"
+        } else {
+            apiFootballResponseParser.sanitize(exception.message)
+        }
 
     private fun <T, G : ApiFootballResponse<T>> parseResponse(
         requestDescription: String,
